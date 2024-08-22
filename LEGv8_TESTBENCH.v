@@ -1,11 +1,5 @@
 `timescale 1ns / 1ps
 
-/*
-	Group Members: Ralph Quinto and Warren Seto
-
-	Lab Name: ARM LEGv8 CPU Testbench (Pipelined, Hazard Detection, and Forwarding Unit) 
-*/
-
 module CPU_TEST;
   
   /* CPU Signals */
