@@ -78,8 +78,8 @@ always @(posedge CLOCK) begin
 end
 
 // Fetch both instructions
-IFID cache1 (CLOCK, PC1, IC1, Hazard_IFIDWrite1, IFID_PC1, IFID_IC1);
-IFID cache2 (CLOCK, PC2, IC2, Hazard_IFIDWrite2, IFID_PC2, IFID_IC2);
+IFID IFID1 (CLOCK, PC1, IC1, Hazard_IFIDWrite1, IFID_PC1, IFID_IC1);
+IFID IFID2 (CLOCK, PC2, IC2, Hazard_IFIDWrite2, IFID_PC2, IFID_IC2);
 
 	/* Stage : Instruction Decode */
 
@@ -87,13 +87,13 @@ IFID cache2 (CLOCK, PC2, IC2, Hazard_IFIDWrite2, IFID_PC2, IFID_IC2);
 wire IDEX_memRead1;
 wire [4:0] IDEX_write_reg1;
 wire Control_mux_wire1;
-HazardDetection moda1 (IDEX_memRead1, IDEX_write_reg1, IFID_PC1, IFID_IC1, Hazard_IFIDWrite1, Hazard_PCWrite1, Control_mux_wire1);
+HazardDetection HazardDetection1 (IDEX_memRead1, IDEX_write_reg1, IFID_PC1, IFID_IC1, Hazard_IFIDWrite1, Hazard_PCWrite1, Control_mux_wire1);
 
 // Wires for the second instruction
 wire IDEX_memRead2;
 wire [4:0] IDEX_write_reg2;
 wire Control_mux_wire2;
-HazardDetection moda2 (IDEX_memRead2, IDEX_write_reg2, IFID_PC2, IFID_IC2, Hazard_IFIDWrite2, Hazard_PCWrite2, Control_mux_wire2);
+HazardDetection HazardDetectio2 (IDEX_memRead2, IDEX_write_reg2, IFID_PC2, IFID_IC2, Hazard_IFIDWrite2, Hazard_PCWrite2, Control_mux_wire2);
 
 // Control signals for the first instruction
 wire [1:0] CONTROL_aluop1; // EX
@@ -116,10 +116,10 @@ wire CONTROL_regwrite2;     // WB
 wire CONTROL_mem2reg2;      // WB
 
 // ARM Control for first instruction
-ARM_Control unit1 (IFID_IC1[31:21], CONTROL_aluop1, CONTROL_alusrc1, CONTROL_isZeroBranch1, CONTROL_isUnconBranch1, CONTROL_memRead1, CONTROL_memwrite1, CONTROL_regwrite1, CONTROL_mem2reg1);
+ARM_Control arm_control1 (IFID_IC1[31:21], CONTROL_aluop1, CONTROL_alusrc1, CONTROL_isZeroBranch1, CONTROL_isUnconBranch1, CONTROL_memRead1, CONTROL_memwrite1, CONTROL_regwrite1, CONTROL_mem2reg1);
 
 // ARM Control for second instruction
-ARM_Control unit2 (IFID_IC2[31:21], CONTROL_aluop2, CONTROL_alusrc2, CONTROL_isZeroBranch2, CONTROL_isUnconBranch2, CONTROL_memRead2, CONTROL_memwrite2, CONTROL_regwrite2, CONTROL_mem2reg2);
+ARM_Control arm_control2 (IFID_IC2[31:21], CONTROL_aluop2, CONTROL_alusrc2, CONTROL_isZeroBranch2, CONTROL_isUnconBranch2, CONTROL_memRead2, CONTROL_memwrite2, CONTROL_regwrite2, CONTROL_mem2reg2);
 
 // Control Mux for first instruction
 wire [1:0] CONTROL_aluop_wire1; // EX
@@ -142,14 +142,14 @@ wire CONTROL_regwrite_wire2;     // WB
 wire CONTROL_mem2reg_wire2;      // WB
 
 // Control Mux logic for first instruction
-Control_Mux maaa1 (
+Control_Mux control_mux1 (
     CONTROL_aluop1, CONTROL_alusrc1, CONTROL_isZeroBranch1, CONTROL_isUnconBranch1, CONTROL_memRead1, CONTROL_memwrite1, CONTROL_regwrite1, CONTROL_mem2reg1, 
     Control_mux_wire1, CONTROL_aluop_wire1, CONTROL_alusrc_wire1, CONTROL_isZeroBranch_wire1, CONTROL_isUnconBranch_wire1, CONTROL_memRead_wire1, CONTROL_memwrite_wire1, 
     CONTROL_regwrite_wire1, CONTROL_mem2reg_wire1
 );
 
 // Control Mux logic for second instruction
-Control_Mux maaa2 (
+Control_Mux control_mux2 (
     CONTROL_aluop2, CONTROL_alusrc2, CONTROL_isZeroBranch2, CONTROL_isUnconBranch2, CONTROL_memRead2, CONTROL_memwrite2, CONTROL_regwrite2, CONTROL_mem2reg2, 
     Control_mux_wire2, CONTROL_aluop_wire2, CONTROL_alusrc_wire2, CONTROL_isZeroBranch_wire2, CONTROL_isUnconBranch_wire2, CONTROL_memRead_wire2, CONTROL_memwrite_wire2, 
     CONTROL_regwrite_wire2, CONTROL_mem2reg_wire2
@@ -157,12 +157,12 @@ Control_Mux maaa2 (
 
 // ID Mux for both instructions
 wire [4:0] reg2_wire1, reg2_wire2;
-ID_Mux unit3_1(IFID_IC1[20:16], IFID_IC1[4:0], IFID_IC1[28], reg2_wire1);
-ID_Mux unit3_2(IFID_IC2[20:16], IFID_IC2[4:0], IFID_IC2[28], reg2_wire2);
+ID_Mux id_mux1(IFID_IC1[20:16], IFID_IC1[4:0], IFID_IC1[28], reg2_wire1);
+ID_Mux id_mux2(IFID_IC2[20:16], IFID_IC2[4:0], IFID_IC2[28], reg2_wire2);
 
 // Register file for both instructions
-wire [63:0] reg1_data1, reg2_data1, reg1_data2, reg2_data2;
-/Registers unit4_1(CLOCK, IFID_IC1[9:5], reg2_wire1, MEMWB_write_reg1, write_reg_data, MEMWB_regwrite, reg1_data1, reg2_data1);
+//wire [63:0] reg1_data1, reg2_data1, reg1_data2, reg2_data2;
+//Registers register_file(CLOCK, IFID_IC1[9:5], reg2_wire1, MEMWB_write_reg1, write_reg_data, MEMWB_regwrite, reg1_data1, reg2_data1);
 
 // Sign Extend for both instructions
 wire [63:0] sign_extend_wire1, sign_extend_wire2;
