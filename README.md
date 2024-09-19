@@ -1,4 +1,4 @@
-# Multithreaded 2-Way Superscalar LEGv8 Processor with Out-of-Order Execution and Register Renaming
+# Multithreaded 2-Way Superscalar LEGv8 Processor
 
 ## Project Overview
 
