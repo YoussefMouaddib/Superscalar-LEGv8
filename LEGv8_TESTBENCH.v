@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module CPU_TEST;
+module LEGv8_TESTBENCH;
   
   /* CPU Signals */
   reg RESET;
@@ -18,8 +18,8 @@ module CPU_TEST;
   wire [63:0] mem_data_out;
   
   ARM_CPU core (RESET, CLOCK, IC_wire, mem_data_out, PC_wire, mem_address, mem_data_in, control_memwrite, control_memread);
-  IC mem1 (PC_wire, IC_wire);
-  Data_Memory mem2 (mem_address, mem_data_in, control_memwrite, control_memread, mem_data_out);
+  IC IC (PC_wire, IC_wire);
+  Data_Memory RAM (mem_address, mem_data_in, control_memwrite, control_memread, mem_data_out);
   
   /* Setup the clock */
   initial begin
