@@ -46,13 +46,12 @@ module ARM_CPU
   output control_memread_out1,     // Memory read control for first instruction
   output control_memread_out2      // Memory read control for second instruction
 );
-	wire Hazard_PCWrite;
-	wire Hazard_IFIDWrite;
+
 
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
-wire [63:0] PC1, PC2;
-wire [31:0] IC1, IC2;
+//wire [63:0] PC1, PC2;
+//wire [31:0] IC1, IC2;
 always @(posedge CLOCK) begin
     if (Hazard_PCWrite1 !== 1'b1) begin
         if (PC1 === 64'bx) begin
@@ -1005,4 +1004,5 @@ module ARM_Control
       endcase
     end
   end
+end
 endmodule
