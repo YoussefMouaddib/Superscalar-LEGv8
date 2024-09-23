@@ -14,7 +14,7 @@ module ARM_CPU
 
   // Program Counter for both pipelines (superscalar requires two PCs)
   output reg [63:0] PC1,  // PC for first instruction stream
-  output reg [63:0] PC2,  // PC for second instruction stream
+  // output reg [63:0] PC2,  // PC for second instruction stream
 
   // Register File Interface (For both instructions)
   // Read registers for instruction 1
@@ -160,9 +160,6 @@ wire [4:0] reg2_wire1, reg2_wire2;
 ID_Mux id_mux1(IFID_IC1[20:16], IFID_IC1[4:0], IFID_IC1[28], reg2_wire1);
 ID_Mux id_mux2(IFID_IC2[20:16], IFID_IC2[4:0], IFID_IC2[28], reg2_wire2);
 
-// Register file for both instructions
-//wire [63:0] reg1_data1, reg2_data1, reg1_data2, reg2_data2;
-//Registers register_file(CLOCK, IFID_IC1[9:5], reg2_wire1, MEMWB_write_reg1, write_reg_data, MEMWB_regwrite, reg1_data1, reg2_data1);
 
 // Sign Extend for both instructions
 wire [63:0] sign_extend_wire1, sign_extend_wire2;
