@@ -23,7 +23,7 @@ module SuperLEGv8_TB;
   
   ARM_CPU core (RESET, CLOCK, IC_wire, mem_data_out, PC_wire, mem_address, mem_data_in, control_memwrite, control_memread);
   IC Instruction_Cache (PC_wire, IC_wire);
-  //Registers Register_File(CLOCK, IFID_IC1[9:5], reg2_wire1, MEMWB_write_reg1, write_reg_data, MEMWB_regwrite, reg1_data1, reg2_data1);
+  Registers Register_File(CLOCK, IFID_IC1[9:5], reg2_wire1, MEMWB_write_reg1, write_reg_data, MEMWB_regwrite, reg1_data1, reg2_data1);
   Data_Memory RAM (mem_address, mem_data_in, control_memwrite, control_memread, mem_data_out);
   
   /* Setup the clock */
