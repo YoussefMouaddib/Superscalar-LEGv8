@@ -14,7 +14,6 @@ module ARM_CPU
 
   // Program Counter for both pipelines (superscalar requires two PCs)
   output reg [63:0] PC1,  // PC for first instruction stream
-  // output reg [63:0] PC2,  // PC for second instruction stream
 
   // Register File Interface (For both instructions)
   // Read registers for instruction 1
@@ -22,8 +21,6 @@ module ARM_CPU
   output [4:0] read_reg2_1,   // Second source register for first instruction
   input  [63:0] reg_data1_1,  // Data from first source register (first instruction)
   input  [63:0] reg_data2_1,  // Data from second source register (first instruction)
-
-  // Write-back to register file for instruction 1
   output [4:0] write_reg1_1,   // Destination register for first instruction
   output [63:0] write_data1_1, // Data to write back (first instruction)
   output regwrite1_1,          // Write enable signal for first instruction
