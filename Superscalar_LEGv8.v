@@ -93,7 +93,7 @@ HazardDetection HazardDetection1 (IDEX_memRead1, IDEX_write_reg1, IFID_PC1, IFID
 wire IDEX_memRead2;
 wire [4:0] IDEX_write_reg2;
 wire Control_mux_wire2;
-HazardDetection HazardDetectio2 (IDEX_memRead2, IDEX_write_reg2, IFID_PC2, IFID_IC2, Hazard_IFIDWrite2, Hazard_PCWrite2, Control_mux_wire2);
+HazardDetection HazardDetection2 (IDEX_memRead2, IDEX_write_reg2, IFID_PC2, IFID_IC2, Hazard_IFIDWrite2, Hazard_PCWrite2, Control_mux_wire2);
 
 // Control signals for the first instruction
 wire [1:0] CONTROL_aluop1; // EX
@@ -166,18 +166,18 @@ ID_Mux id_mux2(IFID_IC2[20:16], IFID_IC2[4:0], IFID_IC2[28], reg2_wire2);
 
 // Sign Extend for both instructions
 wire [63:0] sign_extend_wire1, sign_extend_wire2;
-SignExtend unit5_1 (IFID_IC1, sign_extend_wire1);
-SignExtend unit5_2 (IFID_IC2, sign_extend_wire2);
+SignExtend signextend1 (IFID_IC1, sign_extend_wire1);
+SignExtend signedextend2 (IFID_IC2, sign_extend_wire2);
 
 // IDEX stage for both instructions
-IDEX cache3_1 (
+IDEX IDEX1 (
     CLOCK, CONTROL_aluop_wire1, CONTROL_alusrc_wire1, CONTROL_isZeroBranch_wire1, CONTROL_isUnconBranch_wire1, CONTROL_memRead_wire1, CONTROL_memwrite_wire1, 
     CONTROL_regwrite_wire1, CONTROL_mem2reg_wire1, IFID_PC1, reg1_data1, reg2_data1, sign_extend_wire1, IFID_IC1[31:21], IFID_IC1[4:0], IFID_IC1[9:5], reg2_wire1, 
     IDEX_aluop1, IDEX_alusrc1, IDEX_isZeroBranch1, IDEX_isUnconBranch1, IDEX_memRead1, IDEX_memwrite1, IDEX_regwrite1, IDEX_mem2reg1, IDEX_PC1, IDEX_reg1_data1, 
     IDEX_reg2_data1, IDEX_sign_extend1, IDEX_alu_control1, IDEX_write_reg1, IDEX_forward_reg1, IDEX_forward_reg2
 );
 
-IDEX cache3_2 (
+IDEX IDEX2 (
     CLOCK, CONTROL_aluop_wire2, CONTROL_alusrc_wire2, CONTROL_isZeroBranch_wire2, CONTROL_isUnconBranch_wire2, CONTROL_memRead_wire2, CONTROL_memwrite_wire2, 
     CONTROL_regwrite_wire2, CONTROL_mem2reg_wire2, IFID_PC2, reg1_data2, reg2_data2, sign_extend_wire2, IFID_IC2[31:21], IFID_IC2[4:0], IFID_IC2[9:5], reg2_wire2, 
     IDEX_aluop2, IDEX_alusrc2, IDEX_isZeroBranch2, IDEX_isUnconBranch2, IDEX_memRead2, IDEX_memwrite2, IDEX_regwrite2, IDEX_mem2reg2, IDEX_PC2, IDEX_reg1_data2, 
@@ -190,94 +190,94 @@ IDEX cache3_2 (
   wire [63:0] shift_left_wire1;
   wire [63:0] PC_jump1;
   wire jump_is_zero1;
-  Shift_Left unit5_1 (IDEX_sign_extend1, shift_left_wire1);
-  ALU unit6_1 (IDEX_PC1, shift_left_wire1, 4'b0010, PC_jump1, jump_is_zero1);
+  Shift_Left shift__left1 (IDEX_sign_extend1, shift_left_wire1);
+  ALU ALU1 (IDEX_PC1, shift_left_wire1, 4'b0010, PC_jump1, jump_is_zero1);
 
   wire [4:0] EXMEM_write_reg1;
   wire EXMEM_regwrite1;
   wire EXMEM_mem2reg1;
   wire [1:0] Forward_A1;
   wire [1:0] Forward_B1;
-  ForwardingUnit modd1 (IDEX_forward_reg1_1, IDEX_forward_reg2_1, EXMEM_write_reg1, MEMWB_write_reg1, EXMEM_regwrite1, MEMWB_regwrite1, Forward_A1, Forward_B1);
+  ForwardingUnit ForwardingUnit1 (IDEX_forward_reg1_1, IDEX_forward_reg2_1, EXMEM_write_reg1, MEMWB_write_reg1, EXMEM_regwrite1, MEMWB_regwrite1, Forward_A1, Forward_B1);
 
   wire [63:0] alu_1_wire1;
-  Forward_ALU_Mux lal1_1 (IDEX_reg1_data1, write_reg_data1, mem_address_out1, Forward_A1, alu_1_wire1);
+  Forward_ALU_Mux Forward_ALU_Mux11 (IDEX_reg1_data1, write_reg_data1, mem_address_out1, Forward_A1, alu_1_wire1);
 
   wire [63:0] alu_2_wire1;
-  Forward_ALU_Mux lal2_1 (IDEX_reg2_data1, write_reg_data1, mem_address_out1, Forward_B1, alu_2_wire1);
+  Forward_ALU_Mux Forward_ALU_Mux12 (IDEX_reg2_data1, write_reg_data1, mem_address_out1, Forward_B1, alu_2_wire1);
 
   wire [3:0] alu_main_control_wire1;
-  ALU_Control unit7_1(IDEX_aluop1, IDEX_alu_control1, alu_main_control_wire1);
+  ALU_Control ALU_control1(IDEX_aluop1, IDEX_alu_control1, alu_main_control_wire1);
 
   wire [63:0] alu_data2_wire1;
-  ALU_Mux mux3_1(alu_2_wire1, IDEX_sign_extend1, IDEX_alusrc1, alu_data2_wire1);
+  ALU_Mux ALU_Mux1(alu_2_wire1, IDEX_sign_extend1, IDEX_alusrc1, alu_data2_wire1);
 
   wire alu_main_is_zero1;
   wire [63:0] alu_main_result1;
-  ALU main_alu1(alu_1_wire1, alu_data2_wire1, alu_main_control_wire1, alu_main_result1, alu_main_is_zero1);
+  ALU MAIN_ALU1(alu_1_wire1, alu_data2_wire1, alu_main_control_wire1, alu_main_result1, alu_main_is_zero1);
 
 /* Instruction 2 */
   wire [63:0] shift_left_wire2;
   wire [63:0] PC_jump2;
   wire jump_is_zero2;
-  Shift_Left unit5_2 (IDEX_sign_extend2, shift_left_wire2);
-  ALU unit6_2 (IDEX_PC2, shift_left_wire2, 4'b0010, PC_jump2, jump_is_zero2);
+  Shift_Left Shift_Left2 (IDEX_sign_extend2, shift_left_wire2);
+  ALU ALU2 (IDEX_PC2, shift_left_wire2, 4'b0010, PC_jump2, jump_is_zero2);
 
   wire [4:0] EXMEM_write_reg2;
   wire EXMEM_regwrite2;
   wire EXMEM_mem2reg2;
   wire [1:0] Forward_A2;
   wire [1:0] Forward_B2;
-  ForwardingUnit modd2 (IDEX_forward_reg1_2, IDEX_forward_reg2_2, EXMEM_write_reg2, MEMWB_write_reg2, EXMEM_regwrite2, MEMWB_regwrite2, Forward_A2, Forward_B2);
+  ForwardingUnit ForwardingUnit2 (IDEX_forward_reg1_2, IDEX_forward_reg2_2, EXMEM_write_reg2, MEMWB_write_reg2, EXMEM_regwrite2, MEMWB_regwrite2, Forward_A2, Forward_B2);
 
   wire [63:0] alu_1_wire2;
-  Forward_ALU_Mux lal1_2 (IDEX_reg1_data2, write_reg_data2, mem_address_out2, Forward_A2, alu_1_wire2);
+  Forward_ALU_Mux Forward_ALU_Mux21 (IDEX_reg1_data2, write_reg_data2, mem_address_out2, Forward_A2, alu_1_wire2);
 
   wire [63:0] alu_2_wire2;
-  Forward_ALU_Mux lal2_2 (IDEX_reg2_data2, write_reg_data2, mem_address_out2, Forward_B2, alu_2_wire2);
+  Forward_ALU_Mux FOrward_ALU_Mux22 (IDEX_reg2_data2, write_reg_data2, mem_address_out2, Forward_B2, alu_2_wire2);
 
   wire [3:0] alu_main_control_wire2;
-  ALU_Control unit7_2(IDEX_aluop2, IDEX_alu_control2, alu_main_control_wire2);
+  ALU_Control ARM_control2(IDEX_aluop2, IDEX_alu_control2, alu_main_control_wire2);
 
   wire [63:0] alu_data2_wire2;
-  ALU_Mux mux3_2(alu_2_wire2, IDEX_sign_extend2, IDEX_alusrc2, alu_data2_wire2);
+  ALU_Mux ALU_Mux2(alu_2_wire2, IDEX_sign_extend2, IDEX_alusrc2, alu_data2_wire2);
 
   wire alu_main_is_zero2;
   wire [63:0] alu_main_result2;
-  ALU main_alu2(alu_1_wire2, alu_data2_wire2, alu_main_control_wire2, alu_main_result2, alu_main_is_zero2);
+  ALU MAIN_ALU2(alu_1_wire2, alu_data2_wire2, alu_main_control_wire2, alu_main_result2, alu_main_is_zero2);
 
 /* EXMEM for both Instructions */
   wire EXMEM_isZeroBranch1, EXMEM_isZeroBranch2;
   wire EXMEM_isUnconBranch1, EXMEM_isUnconBranch2;
   wire EXMEM_alu_zero1, EXMEM_alu_zero2;
 
-  EXMEM cache3_1(CLOCK, IDEX_isZeroBranch1, IDEX_isUnconBranch1, IDEX_memRead1, IDEX_memwrite1, IDEX_regwrite1, IDEX_mem2reg1, PC_jump1, alu_main_is_zero1, alu_main_result1, IDEX_reg2_data1, IDEX_write_reg1, EXMEM_isZeroBranch1, EXMEM_isUnconBranch1, control_memread_out1, control_memwrite_out1, EXMEM_regwrite1, EXMEM_mem2reg1, jump_PC_wire1, EXMEM_alu_zero1, mem_address_out1, mem_data_out1, EXMEM_write_reg1);
+  EXMEM EXMEM1(CLOCK, IDEX_isZeroBranch1, IDEX_isUnconBranch1, IDEX_memRead1, IDEX_memwrite1, IDEX_regwrite1, IDEX_mem2reg1, PC_jump1, alu_main_is_zero1, alu_main_result1, IDEX_reg2_data1, IDEX_write_reg1, EXMEM_isZeroBranch1, EXMEM_isUnconBranch1, control_memread_out1, control_memwrite_out1, EXMEM_regwrite1, EXMEM_mem2reg1, jump_PC_wire1, EXMEM_alu_zero1, mem_address_out1, mem_data_out1, EXMEM_write_reg1);
 
-  EXMEM cache3_2(CLOCK, IDEX_isZeroBranch2, IDEX_isUnconBranch2, IDEX_memRead2, IDEX_memwrite2, IDEX_regwrite2, IDEX_mem2reg2, PC_jump2, alu_main_is_zero2, alu_main_result2, IDEX_reg2_data2, IDEX_write_reg2, EXMEM_isZeroBranch2, EXMEM_isUnconBranch2, control_memread_out2, control_memwrite_out2, EXMEM_regwrite2, EXMEM_mem2reg2, jump_PC_wire2, EXMEM_alu_zero2, mem_address_out2, mem_data_out2, EXMEM_write_reg2);
+  EXMEM EXMEM2(CLOCK, IDEX_isZeroBranch2, IDEX_isUnconBranch2, IDEX_memRead2, IDEX_memwrite2, IDEX_regwrite2, IDEX_mem2reg2, PC_jump2, alu_main_is_zero2, alu_main_result2, IDEX_reg2_data2, IDEX_write_reg2, EXMEM_isZeroBranch2, EXMEM_isUnconBranch2, control_memread_out2, control_memwrite_out2, EXMEM_regwrite2, EXMEM_mem2reg2, jump_PC_wire2, EXMEM_alu_zero2, mem_address_out2, mem_data_out2, EXMEM_write_reg2);
  
 	/* Stage : Memory for Instruction 1 and Instruction 2 */
 
 /* Instruction 1 */
-  Branch unit8_1 (EXMEM_isUnconBranch1, EXMEM_isZeroBranch1, EXMEM_alu_zero1, PCSrc_wire1);
+  Branch Branch1 (EXMEM_isUnconBranch1, EXMEM_isZeroBranch1, EXMEM_alu_zero1, PCSrc_wire1);
 
   wire [63:0] MEMWB_address1;
   wire [63:0] MEMWB_read_data1;
-  MEMWB cache4_1(CLOCK, mem_address_out1, mem_data_in1, EXMEM_write_reg1, EXMEM_regwrite1, EXMEM_mem2reg1, MEMWB_address1, MEMWB_read_data1, MEMWB_write_reg1, MEMWB_regwrite1, MEMWB_mem2reg1);
+  MEMWB MEMWB1(CLOCK, mem_address_out1, mem_data_in1, EXMEM_write_reg1, EXMEM_regwrite1, EXMEM_mem2reg1, MEMWB_address1, MEMWB_read_data1, MEMWB_write_reg1, MEMWB_regwrite1, MEMWB_mem2reg1);
 
 /* Instruction 2 */
-  Branch unit8_2 (EXMEM_isUnconBranch2, EXMEM_isZeroBranch2, EXMEM_alu_zero2, PCSrc_wire2);
+  Branch Branch2 (EXMEM_isUnconBranch2, EXMEM_isZeroBranch2, EXMEM_alu_zero2, PCSrc_wire2);
 
   wire [63:0] MEMWB_address2;
   wire [63:0] MEMWB_read_data2;
-  MEMWB cache4_2(CLOCK, mem_address_out2, mem_data_in2, EXMEM_write_reg2, EXMEM_regwrite2, EXMEM_mem2reg2, MEMWB_address2, MEMWB_read_data2, MEMWB_write_reg2, MEMWB_regwrite2, MEMWB_mem2reg2);
+  MEMWB MEMWB2(CLOCK, mem_address_out2, mem_data_in2, EXMEM_write_reg2, EXMEM_regwrite2, EXMEM_mem2reg2, MEMWB_address2, MEMWB_read_data2, MEMWB_write_reg2, MEMWB_regwrite2, MEMWB_mem2reg2);
 
 	/* Stage : Writeback for Instruction 1 and Instruction 2 */
 
 /* Instruction 1 */
-  WB_Mux unit9_1 (MEMWB_address1, MEMWB_read_data1, MEMWB_mem2reg1, write_reg_data1);
+  WB_Mux WB_Mux1 (MEMWB_address1, MEMWB_read_data1, MEMWB_mem2reg1, write_reg_data1);
 
 /* Instruction 2 */
-  WB_Mux unit9_2 (MEMWB_address2, MEMWB_read_data2, MEMWB_mem2reg2, write_reg_data2);
+  WB_Mux WB_Mux2 (MEMWB_address2, MEMWB_read_data2, MEMWB_mem2reg2, write_reg_data2);
 
 
 module ForwardingUnit
@@ -572,8 +572,9 @@ endmodule
 
 module IC
 (
-  input [63:0] PC_in,
-  output reg [31:0] instruction_out
+  input [63:0] PC_in,                  // Program counter input
+  output reg [31:0] instruction_out1,   // First instruction output
+  output reg [31:0] instruction_out2    // Second instruction output
 );
 
   reg [8:0] Data[63:0];
@@ -611,45 +612,68 @@ module IC
   end
 
   always @(PC_in) begin
-    instruction_out[8:0] = Data[PC_in + 3];
-    instruction_out[16:8] = Data[PC_in + 2];
-    instruction_out[24:16] = Data[PC_in + 1];
-    instruction_out[31:24] = Data[PC_in];
+    // Fetch first instruction
+    instruction_out1[7:0] = Data[PC_in];
+    instruction_out1[15:8] = Data[PC_in + 1];
+    instruction_out1[23:16] = Data[PC_in + 2];
+    instruction_out1[31:24] = Data[PC_in + 3];
+
+    // Fetch second instruction 
+    instruction_out2[7:0] = Data[PC_in + 4];
+    instruction_out2[15:8] = Data[PC_in + 5];
+    instruction_out2[23:16] = Data[PC_in + 6];
+    instruction_out2[31:24] = Data[PC_in + 7];
   end
 endmodule
 
-
 module Data_Memory
 (
-  input [63:0] inputAddress,
-  input [63:0] inputData,
-  input CONTROL_MemWrite,
-  input CONTROL_MemRead,
-  output reg [63:0] outputData
+  input [63:0] inputAddress1,
+  input [63:0] inputData1,
+  input CONTROL_MemWrite1,
+  input CONTROL_MemRead1,
+  
+  input [63:0] inputAddress2,
+  input [63:0] inputData2,
+  input CONTROL_MemWrite2,
+  input CONTROL_MemRead2,
+
+  output reg [63:0] outputData1,
+  output reg [63:0] outputData2
 );
-	reg [63:0] Data[31:0];
-	integer initCount;
+  reg [63:0] Data[127:0];  
+  integer initCount;
 
-	initial begin
-		for (initCount = 0; initCount < 32; initCount = initCount + 1) begin
-			Data[initCount] = initCount * 5;
-		end
-	end
-	always @(*) begin
-		if (CONTROL_MemWrite == 1'b1) begin
-        Data[inputAddress] = inputData;
-      end else if (CONTROL_MemRead == 1'b1) begin
-        outputData = Data[inputAddress];
-      end else begin
-        outputData = 64'hxxxxxxxx;
-      end
-
-      // Debug use only
-        for (initCount = 0; initCount < 32; initCount = initCount + 1) begin
-            $display("RAM[%0d] = %0d", initCount, Data[initCount]);
-        end
-
+  initial begin
+    for (initCount = 0; initCount < 128; initCount = initCount + 1) begin
+      Data[initCount] = initCount * 5;
     end
+  end
+
+  always @(*) begin
+    // Handle first memory access
+    if (CONTROL_MemWrite1 == 1'b1) begin
+      Data[inputAddress1] = inputData1;
+    end else if (CONTROL_MemRead1 == 1'b1) begin
+      outputData1 = Data[inputAddress1];
+    end else begin
+      outputData1 = 64'hxxxxxxxx;
+    end
+
+    // Handle second memory access
+    if (CONTROL_MemWrite2 == 1'b1) begin
+      Data[inputAddress2] = inputData2;
+    end else if (CONTROL_MemRead2 == 1'b1) begin
+      outputData2 = Data[inputAddress2];
+    end else begin
+      outputData2 = 64'hxxxxxxxx;
+    end
+
+    // Debug use only
+    for (initCount = 0; initCount < 128; initCount = initCount + 1) begin
+      $display("RAM[%0d] = %0d", initCount, Data[initCount]);
+    end
+  end
 endmodule
 
 
