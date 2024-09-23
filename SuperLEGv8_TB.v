@@ -8,14 +8,14 @@ module SuperLEGv8_TB;
   
   /* Instruction Memory */
   wire [63:0] PC_wire;
-  wire [31:0] IC_wire;
+  wire [31:0] IC_wire1, IC_Wire2;
 
   /* Data Memory */
-  wire [63:0] mem_address;
-  wire [63:0] mem_data_in;
+  wire [63:0] mem_address1, mem_address2;
+  wire [63:0] mem_data_in1, mem_data_in2;
   wire control_memwrite;
   wire control_memread;
-  wire [63:0] mem_data_out;
+  wire [63:0] mem_data_out1, mem_data_out2;
 
   /* Register File Signals for Instruction 1 */
   wire [4:0] read_reg1_1;         // First source register for instruction 1
@@ -36,10 +36,49 @@ module SuperLEGv8_TB;
   wire regwrite1_2;                // Write enable signal for instruction 2
 
   /* Instantiate the ARM CPU */
-  ARM_CPU core (RESET, CLOCK, IC_wire, mem_data_out, PC_wire, mem_address, mem_data_in, control_memwrite, control_memread,
-                 read_reg1_1, read_reg2_1, reg_data1_1, reg_data2_1, write_reg1_1, write_data1_1, regwrite1_1,
-                 read_reg1_2, read_reg2_2, reg_data1_2, reg_data2_2, write_reg1_2, write_data1_2, regwrite1_2);
-  
+  ARM_CPU core (
+    .RESET(RESET),
+    .CLOCK(CLOCK),
+
+    // Instruction inputs
+    .IC1(IC_wire1),    // First instruction
+    .IC2(IC_wire2),    // Second instruction 
+
+    // Data memory inputs
+    .mem_data_in1(mem_data_out1), // Data for first instruction
+    .mem_data_in2(mem_data_out2), // Data for second instruction
+
+    // Program counter outputs
+    .PC1(PC_wire), // PC output for the first instruction
+
+    // Register file interface for instruction 1
+    .read_reg1_1(read_reg1_1),
+    .read_reg2_1(read_reg2_1),
+    .reg_data1_1(reg_data1_1),
+    .reg_data2_1(reg_data2_1),
+    .write_reg1_1(write_reg1_1),
+    .write_data1_1(write_data1_1),
+    .regwrite1_1(regwrite1_1),
+
+    // Register file interface for instruction 2
+    .read_reg1_2(read_reg1_2),
+    .read_reg2_2(read_reg2_2),
+    .reg_data1_2(reg_data1_2),
+    .reg_data2_2(reg_data2_2),
+    .write_reg1_2(write_reg1_2),
+    .write_data1_2(write_data1_2),
+    .regwrite1_2(regwrite1_2),
+
+    // Memory interface for both instruction streams
+    .mem_address_out1(mem_address1),    // Update to your memory addressing if needed
+    .mem_address_out2(mem_address2),    // Update to your memory addressing if needed
+    .mem_data_out1(mem_data_in1),       // Data to write to memory for first instruction
+    .mem_data_out2(mem_data_in2),       // Data to write to memory for second instruction
+    .control_memwrite_out1(control_memwrite1), // Memory write control for first instruction
+    .control_memwrite_out2(control_memwrite2), // Memory write control for second instruction
+    .control_memread_out1(control_memread1),   // Memory read control for first instruction
+    .control_memread_out2(control_memread2)    // Memory read control for second instruction
+);
   /* Instantiate the Instruction Cache */
   IC Instruction_Cache (PC_wire, IC_wire);
   
@@ -47,7 +86,7 @@ module SuperLEGv8_TB;
   Data_Memory RAM (mem_address, mem_data_in, control_memwrite, control_memread, mem_data_out);
 
   /* Instantiate the Register File */
-  Registers reg_file (CLOCK, read_reg1_1, read_reg2_1, read_reg1_2, read_reg2_2, write_reg1_1, write_reg1_2, write_data1_1, write_data1_2, regwrite1_1, regwrite1_2, reg_data1_1, reg_data2_1, reg_data1_2, reg_data2_2);
+  Registers Register_file (CLOCK, read_reg1_1, read_reg2_1, read_reg1_2, read_reg2_2, write_reg1_1, write_reg1_2, write_data1_1, write_data1_2, regwrite1_1, regwrite1_2, reg_data1_1, reg_data2_1, reg_data1_2, reg_data2_2);
 
   /* Setup the clock */
   initial begin
