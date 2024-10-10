@@ -50,8 +50,11 @@ module ARM_CPU
 
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
-//wire [63:0] PC1, PC2;
-//wire [31:0] IC1, IC2;
+wire [63:0] PC1, PC2;
+wire [31:0] IC1, IC2;
+wire PCSrc_wire;
+wire [63:0] jump_PC_wire;
+
 always @(posedge CLOCK) begin
     if (Hazard_PCWrite1 !== 1'b1) begin
         if (PC1 === 64'bx) begin
@@ -1003,6 +1006,6 @@ module ARM_Control
         end
       endcase
     end
-  end
+  
 end
 endmodule
