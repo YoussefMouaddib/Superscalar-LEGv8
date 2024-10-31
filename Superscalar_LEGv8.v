@@ -64,16 +64,16 @@ always @(posedge CLOCK) begin
         end else if (PCSrc_wire == 1'b1) begin
             PC1 <= jump_PC_wire;
         end else begin
-            PC1 <= PC1 + 4;
+            PC1 <= PC1 + 8;
         end
     end
     if (Hazard_PCWrite2 !== 1'b1) begin
         if (PC2 === 64'bx) begin
             PC2 <= 4; // Next instruction's PC
         end else if (PCSrc_wire == 1'b1) begin
-            PC2 <= jump_PC_wire + 4;
+            PC2 <= jump_PC_wire + 8;
         end else begin
-            PC2 <= PC2 + 4;
+            PC2 <= PC2 + 8;
         end
     end
 end
