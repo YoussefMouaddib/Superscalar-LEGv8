@@ -527,7 +527,7 @@ module Registers
   output reg [63:0] data1_2,
   output reg [63:0] data2_2
 );
-	reg [63:0] Data[127:0];
+  reg [63:0] Data[127:0];
   integer initCount;
 
   // Initialize the register values
@@ -535,8 +535,8 @@ module Registers
     for (initCount = 0; initCount < 31; initCount = initCount + 1) begin
       Data[initCount] = initCount;
     end
-	  for (initCount = 32; initCount < 127; initCount = initCount + 1) begin
-		  Data[initCount] = 0;
+    for (initCount = 32; initCount < 127; initCount = initCount + 1) begin
+      Data[initCount] = 0;
     end
 
     Data[31] = 64'h00000000; // x31 is the zero register
@@ -565,12 +565,16 @@ module Registers
     data1_2 = Data[read1_2];
     data2_2 = Data[read2_2];
   end
-	// Debug use only
-	for (initCount = 0; initCount < 127; initCount = initCount + 1) begin
+
+  // Debug use only (moved inside an initial block)
+  initial begin
+    for (initCount = 0; initCount < 127; initCount = initCount + 1) begin
       $display("REGISTER[%0d] = %0d", initCount, Data[initCount]);
     end
+  end
 
 endmodule
+
 
 module IC
 (
