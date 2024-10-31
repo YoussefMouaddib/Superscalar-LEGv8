@@ -565,6 +565,10 @@ module Registers
     data1_2 = Data[read1_2];
     data2_2 = Data[read2_2];
   end
+	// Debug use only
+	for (initCount = 0; initCount < 127; initCount = initCount + 1) begin
+      $display("REGISTER[%0d] = %0d", initCount, Data[initCount]);
+    end
 
 endmodule
 
