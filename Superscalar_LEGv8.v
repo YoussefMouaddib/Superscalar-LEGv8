@@ -50,9 +50,11 @@ module ARM_CPU
 
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
-wire [63:0] PC1, PC2;
-wire [31:0] IC1, IC2;
+reg [63:0] PC2;
 wire PCSrc_wire;
+wire [31:0] IFID_IC1, IFID_IC2;
+wire [31:0] IFID_PC1, IFID_PC2;
+
 wire [63:0] jump_PC_wire;
 
 always @(posedge CLOCK) begin
@@ -275,7 +277,7 @@ IDEX IDEX2 (
 /* Instruction 2 */
   WB_Mux WB_Mux2 (MEMWB_address2, MEMWB_read_data2, MEMWB_mem2reg2, write_reg_data2);
 
-
+endmodule
 module ForwardingUnit
 (
 	input [4:0] EX_Rn_in,
@@ -576,22 +578,22 @@ module IC
   reg [8:0] Data[63:0];
 
   initial begin
-    // LDUR x0, [x2, #3]
+    // LDUR x0, [x2, #3] 
     Data[0] = 8'hf8; Data[1] = 8'h40; Data[2] = 8'h30; Data[3] = 8'h40;
 
-    // ADD x9, x0, x5
-    Data[4] = 8'h8b; Data[5] = 8'h05; Data[6] = 8'h00; Data[7] = 8'h09;
+    // ADD x6, x4, x5 or 8b050086
+    Data[4] = 8'h8b; Data[5] = 8'h05; Data[6] = 8'h00; Data[7] = 8'h86;
 
-    // ORR x10, x1, x9
+    // ORR x10, x1, x9 or  aa09002a
     Data[8] = 8'haa; Data[9] = 8'h09; Data[10] = 8'h00; Data[11] = 8'h2a;
 
-    // AND x11, x9, x0
+    // AND x11, x9, x0 or 8a00012b
     Data[12] = 8'h8a; Data[13] = 8'h00; Data[14] = 8'h01; Data[15] = 8'h2b;
 
-    // SUB x12 x0 x11
-    Data[16] = 8'hcb; Data[17] = 8'h0b; Data[18] = 8'h00; Data[19] = 8'h0c;
+    // SUB x12 x0 x6 or cb06000c
+    Data[16] = 8'hcb; Data[17] = 8'h06; Data[18] = 8'h00; Data[19] = 8'h0c;
 
-    // STUR x9, [x3, #6]
+    // STUR x9, [x3, #6] or f8006069
     Data[20] = 8'hf8; Data[21] = 8'h00; Data[22] = 8'h60; Data[23] = 8'h69;
 
     // STUR x10, [x4, #6]
@@ -1006,6 +1008,5 @@ module ARM_Control
         end
       endcase
     end
-  
-end
+  end
 endmodule
