@@ -13,7 +13,8 @@ module ARM_CPU
   input [63:0] mem_data_in2,  // Data for second instruction
 
   // Program Counter for both pipelines (superscalar requires two PCs)
-  output reg [63:0] PC1,  // PC for first instruction stream
+  output reg [63:0] PC1,   // PC for first instruction stream
+  output reg [63:0] PC2, // PC for 2nd instruction stream
 
   // Register File Interface (For both instructions)
   // Read registers for instruction 1
@@ -50,7 +51,7 @@ module ARM_CPU
 
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
-reg [63:0] PC2;
+reg [63:0] PC1, PC2;
 wire PCSrc_wire;
 wire [31:0] IFID_IC1, IFID_IC2;
 wire [31:0] IFID_PC1, IFID_PC2;
@@ -69,7 +70,7 @@ always @(posedge CLOCK) begin
     end
     if (Hazard_PCWrite2 !== 1'b1) begin
         if (PC2 === 64'bx) begin
-            PC2 <= 4; // Next instruction's PC
+            PC2 <= 4; 
         end else if (PCSrc_wire == 1'b1) begin
             PC2 <= jump_PC_wire + 8;
         end else begin
@@ -165,29 +166,31 @@ ID_Mux id_mux2(IFID_IC2[20:16], IFID_IC2[4:0], IFID_IC2[28], reg2_wire2);
 // Sign Extend for both instructions
 wire [63:0] sign_extend_wire1, sign_extend_wire2;
 SignExtend signextend1 (IFID_IC1, sign_extend_wire1);
-SignExtend signedextend2 (IFID_IC2, sign_extend_wire2);
+SignExtend signextend2 (IFID_IC2, sign_extend_wire2);
 
 // IDEX stage for both instructions
 IDEX IDEX1 (
     CLOCK, CONTROL_aluop_wire1, CONTROL_alusrc_wire1, CONTROL_isZeroBranch_wire1, CONTROL_isUnconBranch_wire1, CONTROL_memRead_wire1, CONTROL_memwrite_wire1, 
     CONTROL_regwrite_wire1, CONTROL_mem2reg_wire1, IFID_PC1, reg1_data1, reg2_data1, sign_extend_wire1, IFID_IC1[31:21], IFID_IC1[4:0], IFID_IC1[9:5], reg2_wire1, 
     IDEX_aluop1, IDEX_alusrc1, IDEX_isZeroBranch1, IDEX_isUnconBranch1, IDEX_memRead1, IDEX_memwrite1, IDEX_regwrite1, IDEX_mem2reg1, IDEX_PC1, IDEX_reg1_data1, 
-    IDEX_reg2_data1, IDEX_sign_extend1, IDEX_alu_control1, IDEX_write_reg1, IDEX_forward_reg1, IDEX_forward_reg2
+    IDEX_reg2_data1, IDEX_sign_extend1, IDEX_alu_control1, IDEX_write_reg1, IDEX_forward_reg1_1, IDEX_forward_reg2_1
 );
-
+	
 IDEX IDEX2 (
     CLOCK, CONTROL_aluop_wire2, CONTROL_alusrc_wire2, CONTROL_isZeroBranch_wire2, CONTROL_isUnconBranch_wire2, CONTROL_memRead_wire2, CONTROL_memwrite_wire2, 
     CONTROL_regwrite_wire2, CONTROL_mem2reg_wire2, IFID_PC2, reg1_data2, reg2_data2, sign_extend_wire2, IFID_IC2[31:21], IFID_IC2[4:0], IFID_IC2[9:5], reg2_wire2, 
     IDEX_aluop2, IDEX_alusrc2, IDEX_isZeroBranch2, IDEX_isUnconBranch2, IDEX_memRead2, IDEX_memwrite2, IDEX_regwrite2, IDEX_mem2reg2, IDEX_PC2, IDEX_reg1_data2, 
-    IDEX_reg2_data2, IDEX_sign_extend2, IDEX_alu_control2, IDEX_write_reg2, IDEX_forward_reg1, IDEX_forward_reg2
+    IDEX_reg2_data2, IDEX_sign_extend2, IDEX_alu_control2, IDEX_write_reg2, IDEX_forward_reg1_2, IDEX_forward_reg2_2
 );
 
-	/* Stage : Execute for Instruction 1 and Instruction 2 */
+	/* Stage : Execute */
 
 /* Instruction 1 */
+	
   wire [63:0] shift_left_wire1;
   wire [63:0] PC_jump1;
   wire jump_is_zero1;
+	
   Shift_Left shift__left1 (IDEX_sign_extend1, shift_left_wire1);
   ALU ALU1 (IDEX_PC1, shift_left_wire1, 4'b0010, PC_jump1, jump_is_zero1);
 
@@ -196,28 +199,36 @@ IDEX IDEX2 (
   wire EXMEM_mem2reg1;
   wire [1:0] Forward_A1;
   wire [1:0] Forward_B1;
+	
   ForwardingUnit ForwardingUnit1 (IDEX_forward_reg1_1, IDEX_forward_reg2_1, EXMEM_write_reg1, MEMWB_write_reg1, EXMEM_regwrite1, MEMWB_regwrite1, Forward_A1, Forward_B1);
 
   wire [63:0] alu_1_wire1;
+	
   Forward_ALU_Mux Forward_ALU_Mux11 (IDEX_reg1_data1, write_reg_data1, mem_address_out1, Forward_A1, alu_1_wire1);
 
   wire [63:0] alu_2_wire1;
+	
   Forward_ALU_Mux Forward_ALU_Mux12 (IDEX_reg2_data1, write_reg_data1, mem_address_out1, Forward_B1, alu_2_wire1);
 
   wire [3:0] alu_main_control_wire1;
+	
   ALU_Control ALU_control1(IDEX_aluop1, IDEX_alu_control1, alu_main_control_wire1);
 
   wire [63:0] alu_data2_wire1;
+	
   ALU_Mux ALU_Mux1(alu_2_wire1, IDEX_sign_extend1, IDEX_alusrc1, alu_data2_wire1);
 
   wire alu_main_is_zero1;
   wire [63:0] alu_main_result1;
+	
   ALU MAIN_ALU1(alu_1_wire1, alu_data2_wire1, alu_main_control_wire1, alu_main_result1, alu_main_is_zero1);
 
-/* Instruction 2 */
+	/* Instruction 2 */
+	
   wire [63:0] shift_left_wire2;
   wire [63:0] PC_jump2;
   wire jump_is_zero2;
+	
   Shift_Left Shift_Left2 (IDEX_sign_extend2, shift_left_wire2);
   ALU ALU2 (IDEX_PC2, shift_left_wire2, 4'b0010, PC_jump2, jump_is_zero2);
 
@@ -226,25 +237,32 @@ IDEX IDEX2 (
   wire EXMEM_mem2reg2;
   wire [1:0] Forward_A2;
   wire [1:0] Forward_B2;
+	
   ForwardingUnit ForwardingUnit2 (IDEX_forward_reg1_2, IDEX_forward_reg2_2, EXMEM_write_reg2, MEMWB_write_reg2, EXMEM_regwrite2, MEMWB_regwrite2, Forward_A2, Forward_B2);
 
   wire [63:0] alu_1_wire2;
+	
   Forward_ALU_Mux Forward_ALU_Mux21 (IDEX_reg1_data2, write_reg_data2, mem_address_out2, Forward_A2, alu_1_wire2);
 
   wire [63:0] alu_2_wire2;
+	
   Forward_ALU_Mux FOrward_ALU_Mux22 (IDEX_reg2_data2, write_reg_data2, mem_address_out2, Forward_B2, alu_2_wire2);
 
   wire [3:0] alu_main_control_wire2;
+	
   ALU_Control ARM_control2(IDEX_aluop2, IDEX_alu_control2, alu_main_control_wire2);
 
   wire [63:0] alu_data2_wire2;
+	
   ALU_Mux ALU_Mux2(alu_2_wire2, IDEX_sign_extend2, IDEX_alusrc2, alu_data2_wire2);
 
   wire alu_main_is_zero2;
   wire [63:0] alu_main_result2;
+	
   ALU MAIN_ALU2(alu_1_wire2, alu_data2_wire2, alu_main_control_wire2, alu_main_result2, alu_main_is_zero2);
 
 /* EXMEM for both Instructions */
+	
   wire EXMEM_isZeroBranch1, EXMEM_isZeroBranch2;
   wire EXMEM_isUnconBranch1, EXMEM_isUnconBranch2;
   wire EXMEM_alu_zero1, EXMEM_alu_zero2;
