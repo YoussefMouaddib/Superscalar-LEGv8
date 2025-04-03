@@ -7,7 +7,7 @@ module SuperLEGv8_TB;
   reg CLOCK;
   
   /* Instruction Memory */
-  wire [63:0] PC_wire;
+  wire [63:0] PC_wire1, PC_wire2;
   wire [31:0] IC_wire1, IC_Wire2;
 
   /* Data Memory */
@@ -49,7 +49,8 @@ module SuperLEGv8_TB;
     .mem_data_in2(mem_data_out2), // Data for second instruction
 
     // Program counter outputs
-    .PC1(PC_wire), // PC output for the first instruction
+    .PC1(PC_wire1), // PC output for the first instruction
+    .PC2(PC_wire2),
 
     // Register file interface for instruction 1
     .read_reg1_1(read_reg1_1),
