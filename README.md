@@ -1,8 +1,8 @@
-# Multithreaded 2-Way Superscalar LEGv8 Processor
+# SMT OOO LEGv8 SuperScalar
 
 ## Project Overview
 
-This project focuses on designing and implementing a **Multithreaded 2-Way Superscalar LEGv8 Processor**. The processor is capable of processing **four threads** concurrently, with each thread able to execute **two instructions at a time**. Key architectural features include **Out-of-Order (OoO) execution**, **register renaming**, and a series of optimizations essential for efficient multithreaded processing.
+This project focuses on designing and implementing a **Superscalar LEGv8 Processor with Simultaneous MultiThreading**. The processor is capable of processing **four threads** concurrently, with each thread able to execute **two instructions at a time**. Key architectural features include **Out-of-Order (OoO) execution**, **register renaming**, and a series of optimizations essential for efficient multithreaded processing.
 
 The goal of the project is to tape out the final CPU design using the **Tiny Tapeout service**, a platform that facilitates small-scale IC fabrication.
 
