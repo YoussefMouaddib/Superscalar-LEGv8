@@ -1,4 +1,4 @@
-# SMT OoO LEGv8 SuperScalar
+# LEGv8 SuperScalar w/ OoO & SMT
 
 ## Project Overview
 
