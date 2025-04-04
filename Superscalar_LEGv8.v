@@ -51,7 +51,7 @@ module ARM_CPU
 
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
-reg [63:0] PC1, PC2;
+
 wire PCSrc_wire;
 wire [31:0] IFID_IC1, IFID_IC2;
 wire [31:0] IFID_PC1, IFID_PC2;
