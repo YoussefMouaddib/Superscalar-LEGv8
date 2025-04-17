@@ -56,7 +56,7 @@ wire PCSrc_wire;
 wire [31:0] IFID_IC1, IFID_IC2;
 wire [63:0] IFID_PC1, IFID_PC2;
 wire [63:0] IDEX_reg2_data1, IDEX_reg2_data2;
-wire [1:0] IDEX_aluop1. IDEX_aluop2;
+	wire [1:0] IDEX_aluop1, IDEX_aluop2;
 
 wire [63:0] jump_PC_wire;
 
