@@ -81,13 +81,45 @@ module SuperLEGv8_TB;
     .control_memread_out2(control_memread2)    // Memory read control for second instruction
 );
   /* Instantiate the Instruction Cache */
-  IC Instruction_Cache (PC_wire, IC_wire);
-  
+ IC Instruction_Cache (
+  .address1(PC_wire1),
+  .instruction1(IC_wire1),
+  .address2(PC_wire2),
+  .instruction2(IC_wire2)
+);
+
   /* Instantiate the Data Memory */
-  Data_Memory RAM (mem_address, mem_data_in, control_memwrite, control_memread, mem_data_out);
+  Data_Memory RAM (
+    .inputAddress1(mem_address1),
+    .inputData1(mem_data_in1),
+    .CONTROL_MemWrite1(control_memwrite1),
+    .CONTROL_MemRead1(control_memread1),
+  
+    .inputAddress2(mem_address2),
+    .inputData2(mem_data_in2),
+    .CONTROL_MemWrite2(control_memwrite2),
+    .CONTROL_MemRead2(control_memread2),
+
+    .outputData1(mem_data_out1),
+    .outputData2(mem_data_out2)
+                  );
 
   /* Instantiate the Register File */
-  Registers Register_file (CLOCK, read_reg1_1, read_reg2_1, read_reg1_2, read_reg2_2, write_reg1_1, write_reg1_2, write_data1_1, write_data1_2, regwrite1_1, regwrite1_2, reg_data1_1, reg_data2_1, reg_data1_2, reg_data2_2);
+  Registers Register_file (CLOCK, 
+      read_reg1_1, 
+      read_reg2_1, 
+      read_reg1_2, 
+      read_reg2_2, 
+      write_reg1_1, 
+      write_reg1_2, 
+      write_data1_1, 
+      write_data1_2, 
+      regwrite1_1,
+      regwrite1_2, 
+      reg_data1_1, 
+      reg_data2_1,
+      reg_data1_2, 
+      reg_data2_2);
 
   /* Setup the clock */
   initial begin
