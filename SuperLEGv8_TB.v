@@ -6,7 +6,7 @@ module SuperLEGv8_TB;
   reg RESET;
   reg CLOCK;
   
-  /* Instruction Memory */
+  /* Instruction Cache */
   wire [63:0] PC_wire1, PC_wire2;
   wire [31:0] IC_wire1, IC_Wire2;
 
@@ -83,9 +83,8 @@ module SuperLEGv8_TB;
   /* Instantiate the Instruction Cache */
  IC Instruction_Cache (
   .address1(PC_wire1),
-  .instruction1(IC_wire1),
-  .address2(PC_wire2),
-  .instruction2(IC_wire2)
+  .instruction_ou1(IC_wire1),
+  .instruction_out2(IC_wire2)
 );
 
   /* Instantiate the Data Memory */
