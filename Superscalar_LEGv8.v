@@ -993,6 +993,447 @@ module BypassNetwork (
 endmodule
 // Integration Hint: Wire final_srcX_val[i] into your ExecutionUnitWrapper instead of srcX_val[i] directly from PRF. This adds dynamic forwarding from in-flight instructions and reduces RAW stalls.
 
+module CommonDataBus #(
+  parameter ISSUE_WIDTH = 2
+)(
+  input CLOCK,
+  input RESET,
+
+  // Inputs from Execution Units
+  input [ISSUE_WIDTH-1:0] exec_valid,
+  input [5:0] exec_physDest [ISSUE_WIDTH-1:0],
+  input [63:0] exec_result [ISSUE_WIDTH-1:0],
+
+  // Outputs to ROB, PRF, IQ, etc.
+  output reg cdb_broadcast_valid [ISSUE_WIDTH-1:0],
+  output reg [5:0] cdb_physDest [ISSUE_WIDTH-1:0],
+  output reg [63:0] cdb_result [ISSUE_WIDTH-1:0]
+);
+
+  integer i;
+  always @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+      for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
+        cdb_broadcast_valid[i] <= 0;
+        cdb_physDest[i] <= 6'b0;
+        cdb_result[i] <= 64'b0;
+      end
+    end else begin
+      for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
+        cdb_broadcast_valid[i] <= exec_valid[i];
+        cdb_physDest[i] <= exec_physDest[i];
+        cdb_result[i] <= exec_result[i];
+      end
+    end
+  end
+endmodule
+
+
+
+module RegisterReadBypass #(
+  parameter ISSUE_WIDTH = 2,
+  parameter PHYS_REG_COUNT = 64
+)(
+  input CLOCK,
+  input RESET,
+
+  // Inputs from Issue Queue
+  input [5:0] srcA_phys [ISSUE_WIDTH-1:0],
+  input [5:0] srcB_phys [ISSUE_WIDTH-1:0],
+  input [ISSUE_WIDTH-1:0] valid_issue,
+
+  // Inputs from CDB for bypassing
+  input [5:0] cdb_physDest [ISSUE_WIDTH-1:0],
+  input [63:0] cdb_result [ISSUE_WIDTH-1:0],
+  input [ISSUE_WIDTH-1:0] cdb_broadcast_valid,
+
+  // Physical Register File (PRF)
+  input [63:0] prf_read [PHYS_REG_COUNT-1:0],
+
+  // Outputs to Execution Units
+  output reg [63:0] srcA_val [ISSUE_WIDTH-1:0],
+  output reg [63:0] srcB_val [ISSUE_WIDTH-1:0]
+);
+
+  integer i, j;
+  always @(*) begin
+    for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
+      srcA_val[i] = prf_read[srcA_phys[i]];
+      srcB_val[i] = prf_read[srcB_phys[i]];
+
+      for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+        if (cdb_broadcast_valid[j]) begin
+          if (srcA_phys[i] == cdb_physDest[j]) srcA_val[i] = cdb_result[j];
+          if (srcB_phys[i] == cdb_physDest[j]) srcB_val[i] = cdb_result[j];
+        end
+      end
+    end
+  end
+endmodule
+
+
+
+module DecodeRename #(
+  parameter ISSUE_WIDTH = 2,
+  parameter ARCH_REG_COUNT = 32,
+  parameter PHYS_REG_COUNT = 64
+)(
+  input CLOCK,
+  input RESET,
+
+  // From Fetch/Decode
+  input [4:0] srcA_arch [ISSUE_WIDTH-1:0],
+  input [4:0] srcB_arch [ISSUE_WIDTH-1:0],
+  input [4:0] dest_arch [ISSUE_WIDTH-1:0],
+  input [ISSUE_WIDTH-1:0] valid_decode,
+  input [31:0] inst_pc [ISSUE_WIDTH-1:0],
+  input [31:0] inst_opcode [ISSUE_WIDTH-1:0],
+
+  // Free List interface
+  input [5:0] free_phys_regs [ISSUE_WIDTH-1:0],
+  input [ISSUE_WIDTH-1:0] free_valid,
+
+  // Current Rename Table (RAT) - maps arch to phys
+  input [5:0] rat_map [ARCH_REG_COUNT-1:0],
+
+  // Outputs to Issue Queue
+  output reg [5:0] renamed_srcA [ISSUE_WIDTH-1:0],
+  output reg [5:0] renamed_srcB [ISSUE_WIDTH-1:0],
+  output reg [5:0] renamed_dest [ISSUE_WIDTH-1:0],
+  output reg [4:0] dest_arch_out [ISSUE_WIDTH-1:0],
+  output reg [31:0] inst_pc_out [ISSUE_WIDTH-1:0],
+  output reg [31:0] inst_opcode_out [ISSUE_WIDTH-1:0],
+  output reg [ISSUE_WIDTH-1:0] valid_rename,
+
+  // New RAT updates (to be committed if dispatch successful)
+  output reg [4:0] rat_update_arch [ISSUE_WIDTH-1:0],
+  output reg [5:0] rat_update_phys [ISSUE_WIDTH-1:0],
+  output reg [ISSUE_WIDTH-1:0] rat_update_valid
+);
+
+  integer i;
+  always @(*) begin
+    for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
+      if (valid_decode[i] && free_valid[i]) begin
+        renamed_srcA[i] = rat_map[srcA_arch[i]];
+        renamed_srcB[i] = rat_map[srcB_arch[i]];
+        renamed_dest[i] = free_phys_regs[i];
+
+        rat_update_arch[i] = dest_arch[i];
+        rat_update_phys[i] = free_phys_regs[i];
+        rat_update_valid[i] = 1'b1;
+
+        inst_pc_out[i] = inst_pc[i];
+        inst_opcode_out[i] = inst_opcode[i];
+        dest_arch_out[i] = dest_arch[i];
+        valid_rename[i] = 1'b1;
+      end else begin
+        renamed_srcA[i] = 6'b0;
+        renamed_srcB[i] = 6'b0;
+        renamed_dest[i] = 6'b0;
+        rat_update_valid[i] = 1'b0;
+        valid_rename[i] = 1'b0;
+      end
+    end
+  end
+endmodule
+
+
+
+module BranchPredictor #(
+  parameter BHT_SIZE = 64
+)(
+  input CLOCK,
+  input RESET,
+
+  // From Decode
+  input [31:0] decode_pc,
+  input is_branch,
+  input decode_valid,
+
+  // From Commit (for training)
+  input commit_valid,
+  input [31:0] commit_pc,
+  input branch_taken_actual,
+  input is_branch_commit,
+
+  // Output to Fetch
+  output reg predict_taken,
+  output reg [31:0] target_pc_predicted,
+
+  // Redirect on mispredict
+  output reg mispredict,
+  output reg [31:0] correct_target
+);
+
+  // Simple 1-bit BHT indexed by PC bits
+  reg bht [BHT_SIZE-1:0];
+  wire [$clog2(BHT_SIZE)-1:0] index_decode = decode_pc[$clog2(BHT_SIZE)+1:2];
+  wire [$clog2(BHT_SIZE)-1:0] index_commit = commit_pc[$clog2(BHT_SIZE)+1:2];
+
+  always @(*) begin
+    predict_taken = is_branch && bht[index_decode];
+    target_pc_predicted = decode_pc + (predict_taken ? 4 : 4); // replace with real target from decode if known
+    mispredict = 0;
+    correct_target = 0;
+  end
+
+  always @(posedge CLOCK) begin
+    if (RESET) begin
+      integer i;
+      for (i = 0; i < BHT_SIZE; i = i + 1) begin
+        bht[i] <= 0;
+      end
+    end else if (commit_valid && is_branch_commit) begin
+      mispredict <= (predict_taken != branch_taken_actual);
+      correct_target <= commit_pc + (branch_taken_actual ? 4 : 4); // update with actual target
+      bht[index_commit] <= branch_taken_actual;
+    end
+  end
+endmodule
+
+
+
+
+module LoadStoreQueue #(
+  parameter ISSUE_WIDTH = 2,
+  parameter LSQ_SIZE    = 16,
+  parameter ROB_SIZE    = 32,
+  // LEGv8 Specifics (Implicit: 64-bit data paths)
+  parameter PHYS_REG_COUNT = 64 // Used for tag widths
+)(
+  input CLOCK,
+  input RESET,
+
+  // Enqueue from Decode/Rename
+  input                                 enq_valid     [ISSUE_WIDTH-1:0],
+  input                                 enq_is_store  [ISSUE_WIDTH-1:0],
+  input [5:0]                           enq_addr_src  [ISSUE_WIDTH-1:0], // PhysReg for Rn (Base Address)
+  input [31:0]                          enq_addr_imm  [ISSUE_WIDTH-1:0], // Sign-extended offset
+  input [5:0]                           enq_data_src  [ISSUE_WIDTH-1:0], // PhysReg for Rt (Store Data)
+  input [5:0]                           enq_dest_phys [ISSUE_WIDTH-1:0], // PhysReg for Rt (Load Dest)
+  input [$clog2(ROB_SIZE)-1:0]          enq_rob_idx   [ISSUE_WIDTH-1:0],
+  input [1:0]                           enq_mem_size  [ISSUE_WIDTH-1:0], // 00:B, 01:H, 10:W(32b), 11:D(64b) - LEGv8 convention
+
+  // Wakeup/Bypass from CDB
+  input                                 cdb_broadcast_valid [ISSUE_WIDTH-1:0],
+  input [5:0]                           cdb_physDest        [ISSUE_WIDTH-1:0],
+  input [63:0]                          cdb_result          [ISSUE_WIDTH-1:0], // LEGv8 data width
+
+  // Commit signal from ROB
+  input                                 commit_valid,
+  input [$clog2(ROB_SIZE)-1:0]          commit_rob_idx,
+  input                                 commit_is_store,
+
+  // Data Cache Interface
+  output reg                            dcache_req_valid,
+  output reg                            dcache_req_is_write,
+  output reg [63:0]                     dcache_req_addr,     // LEGv8 address width
+  output reg [63:0]                     dcache_req_data,     // LEGv8 data width
+  output reg [1:0]                      dcache_req_size,     // Pass size to cache
+  input                                 dcache_resp_valid,
+  input [63:0]                          dcache_resp_data,    // LEGv8 data width
+  input [$clog2(ROB_SIZE)-1:0]          dcache_resp_rob_idx,
+
+  // Output to Wakeup/CDB (for completed loads)
+  output reg                            load_complete_valid,
+  output reg [5:0]                      load_complete_dest_phys,
+  output reg [63:0]                     load_complete_data,    // LEGv8 data width
+  output reg [$clog2(ROB_SIZE)-1:0]      load_complete_rob_idx,
+
+  // Output Ready/Full Status
+  output logic                          lsq_ready
+);
+
+  typedef struct packed {
+    logic                         valid;
+    logic                         is_store;
+    logic                         addr_ready;
+    logic                         data_ready;
+    logic                         mem_issued;
+    logic                         mem_completed;
+
+    logic [5:0]                   addr_src_phys;
+    logic [31:0]                  addr_imm;       // Assuming sign-extended by Rename
+    logic [63:0]                  address;        // LEGv8 64-bit address
+    logic [5:0]                   data_src_phys;
+    logic [63:0]                  store_data;     // LEGv8 64-bit data
+    logic [5:0]                   dest_phys;
+    logic [$clog2(ROB_SIZE)-1:0]  rob_idx;
+    logic [1:0]                   mem_size;       // Store access size
+  } LSQEntry;
+
+  LSQEntry lsq [LSQ_SIZE-1:0];
+  logic [LSQ_SIZE-1:0] lsq_entry_valid;
+  assign lsq_ready = (|lsq_entry_valid == LSQ_SIZE) ? 1'b0 : 1'b1;
+
+  integer i, j, k;
+  logic [$clog2(LSQ_SIZE)-1:0] free_idx;
+
+  // (Reset Logic - unchanged)
+  // ...
+  always_ff @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+        // ... reset lsq entries ...
+        for (i = 0; i < LSQ_SIZE; i = i + 1) begin
+            lsq[i].valid <= 1'b0;
+        end
+        dcache_req_valid    <= 1'b0;
+        load_complete_valid <= 1'b0;
+    end else begin
+        // Defaults
+        dcache_req_valid    <= 1'b0;
+        load_complete_valid <= 1'b0;
+
+        // (Dequeue Logic - unchanged)
+        // ...
+
+        // (Enqueue Logic - ADD mem_size)
+        free_idx = '0;
+        // ... find free_idx ...
+        for (k = 0; k < LSQ_SIZE; k = k + 1) begin
+            if (!lsq[k].valid) begin free_idx = k; break; end
+        end
+
+        for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+            if (enq_valid[j] && lsq_ready) begin
+                 // ... assign other fields ...
+                 lsq[free_idx].valid         <= 1'b1;
+                 lsq[free_idx].is_store      <= enq_is_store[j];
+                 lsq[free_idx].addr_src_phys <= enq_addr_src[j];
+                 lsq[free_idx].addr_imm      <= enq_addr_imm[j];
+                 lsq[free_idx].data_src_phys <= enq_data_src[j];
+                 lsq[free_idx].dest_phys     <= enq_dest_phys[j];
+                 lsq[free_idx].rob_idx       <= enq_rob_idx[j];
+                 lsq[free_idx].mem_size      <= enq_mem_size[j]; // *** Store mem size ***
+                 // Readiness checks need careful thought regarding XZR phys reg tag
+                 lsq[free_idx].addr_ready    <= (enq_addr_src[j] == /* Phys tag for XZR? */ 6'b0); // Placeholder check
+                 lsq[free_idx].data_ready    <= (enq_data_src[j] == /* Phys tag for XZR? */ 6'b0 || !enq_is_store[j]); // Placeholder check
+                 lsq[free_idx].mem_issued    <= 1'b0;
+                 lsq[free_idx].mem_completed <= 1'b0;
+                 lsq[free_idx].address       <= 64'(enq_addr_imm[j]); // Initial address if no base reg
+                // ... find next free_idx ...
+                // ...
+            end
+        end
+
+        // (Operand Wakeup/Address Calculation - unchanged logic, uses 64-bit)
+        // ... address <= cdb_result[j] + $signed(lsq[i].addr_imm); ...
+
+        // (Cache Response Handling - unchanged logic, uses 64-bit)
+        // ...
+
+        // (Memory Issue Logic - ADD mem_size to output)
+        integer oldest_ready_idx = -1;
+        logic oldest_is_store = 0;
+        // ... find oldest_ready_idx based on readiness, commit status, forwarding ...
+
+        if (oldest_ready_idx != -1) begin
+           dcache_req_valid    <= 1'b1;
+           dcache_req_is_write <= lsq[oldest_ready_idx].is_store;
+           dcache_req_addr     <= lsq[oldest_ready_idx].address;
+           dcache_req_size     <= lsq[oldest_ready_idx].mem_size; // *** Pass mem size ***
+           if (lsq[oldest_ready_idx].is_store) begin
+              dcache_req_data <= lsq[oldest_ready_idx].store_data;
+           end else begin
+              dcache_req_data <= 64'b0;
+           end
+           lsq[oldest_ready_idx].mem_issued <= 1'b1;
+        end
+        // Handle Store-to-Load forwarding completion (unchanged logic)
+        // ...
+    end // End non-reset clock edge
+  end // End always_ff
+
+  // (Update valid bits view - unchanged)
+  // ...
+
+endmodule
+
+
+
+module ArchitecturalMapTable #(
+  // LEGv8 Specifics
+  parameter ARCH_REG_COUNT = 32, // X0-X30, XZR(31)
+  parameter PHYS_REG_COUNT = 64  // Example Physical Register File size
+)(
+  input CLOCK,
+  input RESET,
+
+  // From Commit Stage (e.g., ROB)
+  input                             commit_valid,           // An instruction is committing
+  input [$clog2(ARCH_REG_COUNT)-1:0] commit_dest_arch,     // Architectural destination register index (0-31)
+  input [$clog2(PHYS_REG_COUNT)-1:0] commit_dest_phys,     // Physical register holding the committed result
+  input                             commit_has_dest,        // Does the committing instr write an arch reg?
+
+  // Flush Signal
+  input                             flush_valid,
+
+  // Output: Current Committed Mapping
+  output logic [$clog2(PHYS_REG_COUNT)-1:0] amt_map [ARCH_REG_COUNT-1:0]
+);
+
+  localparam PHYS_REG_BITS = $clog2(PHYS_REG_COUNT);
+  localparam ZERO_REG_IDX  = ARCH_REG_COUNT - 1; // Index for XZR (31)
+
+  // Internal register array storing the committed architectural-to-physical mappings
+  reg [PHYS_REG_BITS-1:0] amt_map_reg [ARCH_REG_COUNT-1:0];
+
+  integer i;
+
+  always_ff @(posedge CLOCK or posedge RESET) begin
+    if (RESET || flush_valid) begin
+      // Initialize or restore the committed state
+      for (i = 0; i < ARCH_REG_COUNT; i = i + 1) begin
+        // Arch reg i maps to phys reg i initially
+        amt_map_reg[i] <= PHYS_REG_BITS'(i);
+      end
+      // Ensure XZR maps to a specific physical register (e.g., phys reg 31 or 0)
+      // Let's assume initial mapping maps X31 -> p31. Depends on PRF design.
+      // If phys reg 0 is special, maybe map XZR there:
+      // amt_map_reg[ZERO_REG_IDX] <= PHYS_REG_BITS'(0);
+    end else if (commit_valid && commit_has_dest) begin
+      // Update the mapping upon instruction commit
+      // *** Crucially, DO NOT update the mapping for the Zero Register (XZR/X31) ***
+      if (commit_dest_arch != ZERO_REG_IDX) begin
+          amt_map_reg[commit_dest_arch] <= commit_dest_phys;
+      end
+    end
+  end
+
+  // Combinational assignment of the internal state to the output port
+  assign amt_map = amt_map_reg;
+
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	      
+
+
+
+
+
 
 
 
