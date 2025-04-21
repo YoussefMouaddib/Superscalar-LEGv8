@@ -1173,7 +1173,7 @@ module BranchPredictor #(
 
   always @(*) begin
     predict_taken = is_branch && bht[index_decode];
-    target_pc_predicted = decode_pc + (predict_taken ? 4 : 4); // replace with real target from decode if known
+    target_pc_predicted = predict_taken ? decode_target : decode_pc + 4; // replace with real target from decode if known
     mispredict = 0;
     correct_target = 0;
   end
