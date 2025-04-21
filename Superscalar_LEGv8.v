@@ -601,8 +601,6 @@ module IC
   input [63:0] PC_in,                  
   output reg [31:0] instruction_out1,  
   output reg [31:0] instruction_out2,
-	output reg [63:0] instruction_out1,  
-	output reg [63:0] instruction_out2 
 );
 
   reg [8:0] Data[63:0];
