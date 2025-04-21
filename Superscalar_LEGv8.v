@@ -520,90 +520,506 @@ module MEMWB
 endmodule
 
 
-module Registers
-(
+module ARF (
   input CLOCK,
-  
-  // 2 read and write register address inputs for each instruction
-  input [4:0] read1_1, // instruction 1
-  input [4:0] read2_1, // instruction 1
-  input [4:0] read1_2, // instruction 2
-  input [4:0] read2_2, // instruction 2
-  
-  input [4:0] writeReg1, // instruction 1
-  input [4:0] writeReg2, // instruction 2
-
-  // Write data for each instruction
-  input [63:0] writeData1, // instruction 1
-  input [63:0] writeData2, // instruction 2
-  
-  // Write enable signals for each instruction
-  input CONTROL_REGWRITE1,
-  input CONTROL_REGWRITE2,
-  
-  // Outputs for reading data for both instructions
-  output reg [63:0] data1_1,
-  output reg [63:0] data2_1,
-  output reg [63:0] data1_2,
-  output reg [63:0] data2_2
+  input [4:0] writeAddr,
+  input [63:0] writeData,
+  input commitEn,
+  output [63:0] regOut [31:0]
 );
-  reg [63:0] Data[127:0];
-  integer initCount;
+  reg [63:0] archRegs [31:0];
+  integer i;
 
-  // Initialize the register values
   initial begin
-    for (initCount = 0; initCount < 31; initCount = initCount + 1) begin
-      Data[initCount] = initCount;
-    end
-    for (initCount = 32; initCount < 127; initCount = initCount + 1) begin
-      Data[initCount] = 0;
-    end
-
-    Data[31] = 64'h00000000; // x31 is the zero register
+    for (i = 0; i < 31; i = i + 1) archRegs[i] = 0;
+    archRegs[31] = 64'h0; // x31 is zero
   end
 
-  // Always block triggered on the clock edge
   always @(posedge CLOCK) begin
-    // Write back for instruction 1
-    if (CONTROL_REGWRITE1 == 1'b1) begin
-      Data[writeReg1] = writeData1;
-    end
-    
-    // Write back for instruction 2
-    if (CONTROL_REGWRITE2 == 1'b1) begin
-      Data[writeReg2] = writeData2;
+    if (commitEn && writeAddr != 31) begin
+      archRegs[writeAddr] <= writeData;
     end
   end
 
-  // Read register values for both instructions (combinational)
-  always @(*) begin
-    // Instruction 1
-    data1_1 = Data[read1_1];
-    data2_1 = Data[read2_1];
-    
-    // Instruction 2
-    data1_2 = Data[read1_2];
-    data2_2 = Data[read2_2];
-  end
+  // Output as an array for readback/debug
+  assign regOut = archRegs;
+endmodule
 
-  // Debug use only (moved inside an initial block)
+
+module PRF (
+  input CLOCK,
+  input [5:0] writeAddr1,
+  input [63:0] writeData1,
+  input writeEn1,
+
+  input [5:0] writeAddr2,
+  input [63:0] writeData2,
+  input writeEn2,
+
+  output [63:0] physOut [63:0]
+);
+  reg [63:0] physRegs [63:0];
+  integer i;
+
   initial begin
-    for (initCount = 0; initCount < 127; initCount = initCount + 1) begin
-      $display("REGISTER[%0d] = %0d", initCount, Data[initCount]);
+    for (i = 0; i < 64; i = i + 1) physRegs[i] = 0;
+  end
+
+  always @(posedge CLOCK) begin
+    if (writeEn1) physRegs[writeAddr1] <= writeData1;
+    if (writeEn2) physRegs[writeAddr2] <= writeData2;
+  end
+
+  // Output as an array for external reads
+  assign physOut = physRegs;
+endmodule
+
+
+module RenameTable (
+  input CLOCK,
+  input [4:0] archRegIn,
+  input [5:0] physRegIn,
+  input mapEn,
+  output [5:0] physRegOut
+
+);
+  reg [5:0] renameTable [31:0];
+  integer i;
+
+  initial begin
+    for (i = 0; i < 32; i = i + 1) renameTable[i] = i; // 1-to-1 initially
+  end
+
+  always @(posedge CLOCK) begin
+    if (mapEn) begin
+      renameTable[archRegIn] <= physRegIn;
+    end
+  end
+
+  assign physRegOut = renameTable[archRegIn];
+
+endmodule
+
+
+
+module ROB #(
+  parameter DEPTH = 32
+)(
+  input CLOCK,
+  input RESET,
+
+  // New instruction enqueue
+  input enq_valid,
+  input [4:0] destArchReg,
+  input [5:0] destPhysReg,
+  output reg [4:0] rob_head,
+  output reg [4:0] rob_tail,
+
+  // Commit logic
+  input commit_en,
+  output reg commit_valid,
+  output reg [4:0] commit_archReg,
+  output reg [5:0] commit_physReg,
+
+  // Mark instruction as complete
+  input [4:0] writeback_idx,
+  input mark_ready,
+
+  output reg [DEPTH-1:0] readyFlags
+);
+
+  // ROB entry
+  typedef struct packed {
+    logic valid;
+    logic ready;
+    logic [4:0] archReg;
+    logic [5:0] physReg;
+  } ROBEntry;
+
+  ROBEntry buffer [DEPTH-1:0];
+  integer i;
+
+  // Init
+  initial begin
+    for (i = 0; i < DEPTH; i = i + 1) begin
+      buffer[i].valid = 0;
+      buffer[i].ready = 0;
+      buffer[i].archReg = 0;
+      buffer[i].physReg = 0;
+    end
+    rob_head = 0;
+    rob_tail = 0;
+  end
+
+  // Enqueue new instruction
+  always @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+      rob_head <= 0;
+      rob_tail <= 0;
+      for (i = 0; i < DEPTH; i = i + 1) begin
+        buffer[i].valid <= 0;
+        buffer[i].ready <= 0;
+      end
+    end else begin
+      if (enq_valid) begin
+        buffer[rob_tail].valid <= 1;
+        buffer[rob_tail].ready <= 0;
+        buffer[rob_tail].archReg <= destArchReg;
+        buffer[rob_tail].physReg <= destPhysReg;
+        rob_tail <= (rob_tail + 1) % DEPTH;
+      end
+
+      if (mark_ready) begin
+        buffer[writeback_idx].ready <= 1;
+      end
+
+      if (commit_en && buffer[rob_head].valid && buffer[rob_head].ready) begin
+        commit_valid <= 1;
+        commit_archReg <= buffer[rob_head].archReg;
+        commit_physReg <= buffer[rob_head].physReg;
+
+        buffer[rob_head].valid <= 0;
+        rob_head <= (rob_head + 1) % DEPTH;
+      end else begin
+        commit_valid <= 0;
+      end
+
+      for (i = 0; i < DEPTH; i = i + 1) begin
+        readyFlags[i] <= buffer[i].ready;
+      end
+    end
+  end
+endmodule
+
+
+
+module FreeList #(
+  parameter PHYS_REGS = 64,
+  parameter ISSUE_WIDTH = 2
+)(
+  input CLOCK,
+  input RESET,
+
+  // Allocation request per instruction
+  input [ISSUE_WIDTH-1:0] alloc_req,
+  output reg [5:0] alloc_physRegs [ISSUE_WIDTH-1:0],
+  output reg [ISSUE_WIDTH-1:0] alloc_valid,
+
+  // Freeing registers (from ROB commit)
+  input [ISSUE_WIDTH-1:0] free_en,
+  input [5:0] free_physRegs [ISSUE_WIDTH-1:0]
+);
+
+  reg free_bitmap [PHYS_REGS-1:0];
+  integer i, j;
+
+  // Initialize free list
+  initial begin
+    for (i = 0; i < PHYS_REGS; i = i + 1) begin
+      free_bitmap[i] = 1;
+    end
+    // Assume first 32 are ARF-mapped and reserved
+    for (i = 0; i < 32; i = i + 1) begin
+      free_bitmap[i] = 0;
+    end
+  end
+
+  // Allocation logic
+  always @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+      for (i = 0; i < PHYS_REGS; i = i + 1) begin
+        free_bitmap[i] <= (i >= 32) ? 1 : 0;
+      end
+    end else begin
+      // Handle freeing first (e.g., commit stage)
+      for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+        if (free_en[j]) begin
+          free_bitmap[free_physRegs[j]] <= 1;
+        end
+      end
+
+      // Allocate registers
+      integer k = 0;
+      for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+        alloc_valid[j] = 0;
+        alloc_physRegs[j] = 6'b111111;
+        for (k = 32; k < PHYS_REGS; k = k + 1) begin
+          if (free_bitmap[k]) begin
+            free_bitmap[k] <= 0;
+            alloc_physRegs[j] <= k[5:0];
+            alloc_valid[j] <= 1;
+            disable inner_loop;
+          end
+        end
+      end
+    end
+  end
+
+endmodule
+module IssueQueue #(
+  parameter ISSUE_WIDTH = 2,
+  parameter QUEUE_SIZE = 16
+)(
+  input CLOCK,
+  input RESET,
+
+  // Enqueue from decode/rename
+  input [ISSUE_WIDTH-1:0] enq_valid,
+  input [5:0] enq_src1 [ISSUE_WIDTH-1:0],
+  input [5:0] enq_src2 [ISSUE_WIDTH-1:0],
+  input [5:0] enq_dest [ISSUE_WIDTH-1:0],
+  input [3:0] enq_opcode [ISSUE_WIDTH-1:0], // Simplified opcode for now
+
+  // Wakeup from writeback
+  input [5:0] wb_physReg [ISSUE_WIDTH-1:0],
+  input [ISSUE_WIDTH-1:0] wb_valid,
+
+  // Dispatch outputs
+  output reg [5:0] issue_src1 [ISSUE_WIDTH-1:0],
+  output reg [5:0] issue_src2 [ISSUE_WIDTH-1:0],
+  output reg [5:0] issue_dest [ISSUE_WIDTH-1:0],
+  output reg [3:0] issue_opcode [ISSUE_WIDTH-1:0],
+  output reg [ISSUE_WIDTH-1:0] issue_valid
+);
+
+  typedef struct packed {
+    logic valid;
+    logic [5:0] src1;
+    logic [5:0] src2;
+    logic [5:0] dest;
+    logic [3:0] opcode;
+    logic src1_ready;
+    logic src2_ready;
+  } IQEntry;
+
+  IQEntry iq [QUEUE_SIZE-1:0];
+  integer i, j;
+
+  // Reset logic
+  always @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+      for (i = 0; i < QUEUE_SIZE; i = i + 1)
+        iq[i].valid <= 0;
+    end else begin
+      // Wakeup logic
+      for (i = 0; i < QUEUE_SIZE; i = i + 1) begin
+        if (iq[i].valid) begin
+          for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+            if (wb_valid[j]) begin
+              if (iq[i].src1 == wb_physReg[j]) iq[i].src1_ready <= 1;
+              if (iq[i].src2 == wb_physReg[j]) iq[i].src2_ready <= 1;
+            end
+          end
+        end
+      end
+
+      // Enqueue logic
+      for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+        if (enq_valid[j]) begin
+          for (i = 0; i < QUEUE_SIZE; i = i + 1) begin
+            if (!iq[i].valid) begin
+              iq[i].valid <= 1;
+              iq[i].src1 <= enq_src1[j];
+              iq[i].src2 <= enq_src2[j];
+              iq[i].dest <= enq_dest[j];
+              iq[i].opcode <= enq_opcode[j];
+              iq[i].src1_ready <= 0;
+              iq[i].src2_ready <= 0;
+              disable enqueue_loop;
+            end
+          end
+        end
+      end
+
+      // Dispatch logic
+      integer issued = 0;
+      for (i = 0; i < QUEUE_SIZE && issued < ISSUE_WIDTH; i = i + 1) begin
+        if (iq[i].valid && iq[i].src1_ready && iq[i].src2_ready) begin
+          issue_valid[issued] <= 1;
+          issue_src1[issued] <= iq[i].src1;
+          issue_src2[issued] <= iq[i].src2;
+          issue_dest[issued] <= iq[i].dest;
+          issue_opcode[issued] <= iq[i].opcode;
+          iq[i].valid <= 0;
+          issued = issued + 1;
+        end
+      end
+
+      // Clear unused outputs
+      for (j = issued; j < ISSUE_WIDTH; j = j + 1) begin
+        issue_valid[j] <= 0;
+        issue_src1[j] <= 6'b0;
+        issue_src2[j] <= 6'b0;
+        issue_dest[j] <= 6'b0;
+        issue_opcode[j] <= 4'b0;
+      end
+    end
+  end
+endmodule
+
+
+
+module ExecutionUnitWrapper (
+  input CLOCK,
+  input RESET,
+
+  // From Issue Queue
+  input [3:0] issue_opcode [1:0],
+  input [5:0] issue_src1 [1:0],
+  input [5:0] issue_src2 [1:0],
+  input [5:0] issue_dest [1:0],
+  input issue_valid [1:0],
+
+  // Operand values from PRF
+  input [31:0] src1_val [1:0],
+  input [31:0] src2_val [1:0],
+
+  // Outputs to Writeback
+  output reg [5:0] wb_dest [1:0],
+  output reg [31:0] wb_val [1:0],
+  output reg wb_valid [1:0]
+);
+
+  // ALUs
+  wire [31:0] alu_result [1:0];
+  wire alu_valid [1:0];
+
+  ALU alu0 (
+    .opcode(issue_opcode[0]),
+    .src1(src1_val[0]),
+    .src2(src2_val[0]),
+    .result(alu_result[0]),
+    .valid(alu_valid[0])
+  );
+
+  ALU alu1 (
+    .opcode(issue_opcode[1]),
+    .src1(src1_val[1]),
+    .src2(src2_val[1]),
+    .result(alu_result[1]),
+    .valid(alu_valid[1])
+  );
+
+  always @(posedge CLOCK or posedge RESET) begin
+    if (RESET) begin
+      wb_valid[0] <= 0;
+      wb_valid[1] <= 0;
+      wb_val[0] <= 32'b0;
+      wb_val[1] <= 32'b0;
+      wb_dest[0] <= 6'b0;
+      wb_dest[1] <= 6'b0;
+    end else begin
+      wb_valid[0] <= issue_valid[0] & alu_valid[0];
+      wb_valid[1] <= issue_valid[1] & alu_valid[1];
+      wb_val[0] <= alu_result[0];
+      wb_val[1] <= alu_result[1];
+      wb_dest[0] <= issue_dest[0];
+      wb_dest[1] <= issue_dest[1];
     end
   end
 
 endmodule
 
 
-module IC
-(
-  input [63:0] PC_in,                  
-  output reg [31:0] instruction_out1,  
-  output reg [31:0] instruction_out2,
+
+module ALU (
+  input [3:0] opcode,
+  input [31:0] src1,
+  input [31:0] src2,
+  output reg [31:0] result,
+  output valid
 );
 
-  reg [8:0] Data[63:0];
+  assign valid = 1'b1;
+
+  always @(*) begin
+    case (opcode)
+      4'b0000: result = src1 + src2;   // ADD
+      4'b0001: result = src1 - src2;   // SUB
+      4'b0010: result = src1 & src2;   // AND
+      4'b0011: result = src1 | src2;   // OR
+      4'b0100: result = src1 ^ src2;   // XOR
+      4'b0101: result = src1 << src2[4:0]; // SLL
+      4'b0110: result = src1 >> src2[4:0]; // SRL
+      4'b0111: result = $signed(src1) >>> src2[4:0]; // SRA
+      default: result = 32'b0;
+    endcase
+  end
+endmodule
+   
+
+
+module BypassNetwork (
+  // Inputs from Execution Units (for WB stage)
+  input [5:0] wb_dest [1:0],
+  input [31:0] wb_val [1:0],
+  input wb_valid [1:0],
+
+  // Incoming source registers from Issue Queue
+  input [5:0] issue_src1 [1:0],
+  input [5:0] issue_src2 [1:0],
+
+  // Original values from PRF
+  input [31:0] prf_src1_val [1:0],
+  input [31:0] prf_src2_val [1:0],
+
+  // Output forwarded values to Execution Unit
+  output reg [31:0] final_src1_val [1:0],
+  output reg [31:0] final_src2_val [1:0]
+);
+
+  integer i;
+
+  always @(*) begin
+    for (i = 0; i < 2; i = i + 1) begin
+      // Default: use PRF
+      final_src1_val[i] = prf_src1_val[i];
+      final_src2_val[i] = prf_src2_val[i];
+
+      // Check src1 for forwarding
+      if (wb_valid[0] && (issue_src1[i] == wb_dest[0]))
+        final_src1_val[i] = wb_val[0];
+      else if (wb_valid[1] && (issue_src1[i] == wb_dest[1]))
+        final_src1_val[i] = wb_val[1];
+
+      // Check src2 for forwarding
+      if (wb_valid[0] && (issue_src2[i] == wb_dest[0]))
+        final_src2_val[i] = wb_val[0];
+      else if (wb_valid[1] && (issue_src2[i] == wb_dest[1]))
+        final_src2_val[i] = wb_val[1];
+    end
+  end
+
+endmodule
+// Integration Hint: Wire final_srcX_val[i] into your ExecutionUnitWrapper instead of srcX_val[i] directly from PRF. This adds dynamic forwarding from in-flight instructions and reduces RAW stalls.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module IC (
+  input [63:0] PC_in1,
+  input [63:0] PC_in2,
+  output reg [31:0] instruction_out1,
+  output reg [31:0] instruction_out2
+);
+
+  reg [7:0] Data[0:63];
 
   initial begin
     // LDUR x0, [x2, #3] 
@@ -637,29 +1053,31 @@ module IC
     Data[36] = 8'h14; Data[37] = 8'h00; Data[38] = 8'h00; Data[39] = 8'h0a;
   end
 
-  always @(PC_in) begin
-    // Fetch first instruction
-    instruction_out1[7:0] = Data[PC_in];
-    instruction_out1[15:8] = Data[PC_in + 1];
-    instruction_out1[23:16] = Data[PC_in + 2];
-    instruction_out1[31:24] = Data[PC_in + 3];
+  always @(*) begin
+    // Fetch instruction at PC_in1
+    instruction_out1[7:0]    = Data[PC_in1];
+    instruction_out1[15:8]   = Data[PC_in1 + 1];
+    instruction_out1[23:16]  = Data[PC_in1 + 2];
+    instruction_out1[31:24]  = Data[PC_in1 + 3];
 
-    // Fetch second instruction 
-    instruction_out2[7:0] = Data[PC_in + 4];
-    instruction_out2[15:8] = Data[PC_in + 5];
-    instruction_out2[23:16] = Data[PC_in + 6];
-    instruction_out2[31:24] = Data[PC_in + 7];
+    // Fetch instruction at PC_in2
+    instruction_out2[7:0]    = Data[PC_in2];
+    instruction_out2[15:8]   = Data[PC_in2 + 1];
+    instruction_out2[23:16]  = Data[PC_in2 + 2];
+    instruction_out2[31:24]  = Data[PC_in2 + 3];
   end
+
 endmodule
 
-module Data_Memory
-(
-  input [63:0] inputAddress1,
+
+module Data_Memory (
+  input clk,
+  input [6:0] inputAddress1,  // 7 bits for 128 entries
   input [63:0] inputData1,
   input CONTROL_MemWrite1,
   input CONTROL_MemRead1,
-  
-  input [63:0] inputAddress2,
+
+  input [6:0] inputAddress2,
   input [63:0] inputData2,
   input CONTROL_MemWrite2,
   input CONTROL_MemRead2,
@@ -667,41 +1085,32 @@ module Data_Memory
   output reg [63:0] outputData1,
   output reg [63:0] outputData2
 );
-  reg [63:0] Data[127:0];  
-  integer initCount;
+  reg [63:0] Data[0:127];
+  integer i;
 
   initial begin
-    for (initCount = 0; initCount < 128; initCount = initCount + 1) begin
-      Data[initCount] = initCount * 5;
-    end
+    for (i = 0; i < 128; i = i + 1)
+      Data[i] = i * 5;
   end
 
-  always @(*) begin
-    // Handle first memory access
-    if (CONTROL_MemWrite1 == 1'b1) begin
-      Data[inputAddress1] = inputData1;
-    end else if (CONTROL_MemRead1 == 1'b1) begin
-      outputData1 = Data[inputAddress1];
-    end else begin
-      outputData1 = 64'hxxxxxxxx;
-    end
+  always @(posedge clk) begin
+    // Handle port 1
+    if (CONTROL_MemWrite1)
+      Data[inputAddress1] <= inputData1;
+    if (CONTROL_MemRead1)
+      outputData1 <= Data[inputAddress1];
+    else
+      outputData1 <= 64'hxxxxxxxx;
 
-    // Handle second memory access
-    if (CONTROL_MemWrite2 == 1'b1) begin
-      Data[inputAddress2] = inputData2;
-    end else if (CONTROL_MemRead2 == 1'b1) begin
-      outputData2 = Data[inputAddress2];
-    end else begin
-      outputData2 = 64'hxxxxxxxx;
-    end
-
-    // Debug use only
-    for (initCount = 0; initCount < 128; initCount = initCount + 1) begin
-      $display("RAM[%0d] = %0d", initCount, Data[initCount]);
-    end
+    // Handle port 2
+    if (CONTROL_MemWrite2)
+      Data[inputAddress2] <= inputData2;
+    if (CONTROL_MemRead2)
+      outputData2 <= Data[inputAddress2];
+    else
+      outputData2 <= 64'hxxxxxxxx;
   end
 endmodule
-
 
 module ALU
 (
