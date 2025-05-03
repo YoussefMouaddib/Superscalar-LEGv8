@@ -1781,9 +1781,8 @@ module Branch
 endmodule
 
 
-module ARM_Control
-(
-  input [10:0] instruction,
+module ARM_Control (
+  input [31:0] instruction,  // Expanded to 32-bit to handle all instruction formats
   output reg [1:0] control_aluop,
   output reg control_alusrc,
   output reg control_isZeroBranch,
@@ -1791,100 +1790,146 @@ module ARM_Control
   output reg control_memRead,
   output reg control_memwrite,
   output reg control_regwrite,
-  output reg control_mem2reg
+  output reg control_mem2reg,
+  output reg control_isSVC,      // New: For supervisor calls
+  output reg control_isWFI       // New: For wait-for-interrupt
 );
 
-  always @(instruction) begin
-    if (instruction[10:5] == 6'b000101) begin // B
-      control_mem2reg <= 1'bx;
-      control_memRead <= 1'b0;
-      control_memwrite <= 1'b0;
-      control_alusrc <= 1'b0;
-      control_aluop <= 2'b01;
-      control_isZeroBranch <= 1'b0;
-      control_isUnconBranch <= 1'b1;
-      control_regwrite <= 1'b0;
+  // Extract opcode fields
+  wire [10:0] opcode = instruction[31:21];  // Main opcode field
+  wire [7:0] cb_opcode = instruction[31:24]; // CB format
+  wire [5:0] b_opcode = instruction[31:26];  // B format
+  wire [10:0] sys_opcode = instruction[31:21]; // System instructions
 
-    end else if (instruction[10:3] == 8'b10110100) begin // CBZ
-      control_mem2reg <= 1'bx;
-      control_memRead <= 1'b0;
-      control_memwrite <= 1'b0;
-      control_alusrc <= 1'b0;
-      control_aluop <= 2'b01;
-      control_isZeroBranch <= 1'b1;
-      control_isUnconBranch <= 1'b0;
-      control_regwrite <= 1'b0;
+  always @(*) begin
+    // Default control signals
+    control_mem2reg = 1'bx;
+    control_memRead = 1'b0;
+    control_memwrite = 1'b0;
+    control_alusrc = 1'b0;
+    control_aluop = 2'b00;
+    control_isZeroBranch = 1'b0;
+    control_isUnconBranch = 1'b0;
+    control_regwrite = 1'b0;
+    control_isSVC = 1'b0;
+    control_isWFI = 1'b0;
 
-    end else begin // R-Type Instructions
-      control_isZeroBranch <= 1'b0;
-      control_isUnconBranch <= 1'b0;
+    // Instruction Decoding
+    casez (opcode)
+      // Data Processing - Register
+      11'b10001011000 : begin // ADD
+        control_aluop = 2'b10;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11001011000 : begin // SUB
+        control_aluop = 2'b10;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b10001010000 : begin // AND
+        control_aluop = 2'b11;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b10101010000 : begin // ORR
+        control_aluop = 2'b11;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11001010000 : begin // EOR
+        control_aluop = 2'b11;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11010011011 : begin // LSL
+        control_aluop = 2'b11;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11010011010 : begin // LSR
+        control_aluop = 2'b11;
+        control_regwrite = 1'b1;
+      end
 
-      case (instruction[10:0])
-        11'b11111000010 : begin // LDUR
-          control_mem2reg <= 1'b1;
-          control_memRead <= 1'b1;
-          control_memwrite <= 1'b0;
-          control_alusrc <= 1'b1;
-          control_aluop <= 2'b00;
-          control_regwrite <= 1'b1;
-        end
+      // Load/Store Instructions
+      11'b11111000010 : begin // LDUR
+        control_mem2reg = 1'b1;
+        control_memRead = 1'b1;
+        control_alusrc = 1'b1;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11111000000 : begin // STUR
+        control_memwrite = 1'b1;
+        control_alusrc = 1'b1;
+      end
+      
+      11'b11111000011 : begin // LDURH
+        control_mem2reg = 1'b1;
+        control_memRead = 1'b1;
+        control_alusrc = 1'b1;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11111000100 : begin // STURH
+        control_memwrite = 1'b1;
+        control_alusrc = 1'b1;
+      end
+      
+      11'b11111000001 : begin // LDURB
+        control_mem2reg = 1'b1;
+        control_memRead = 1'b1;
+        control_alusrc = 1'b1;
+        control_regwrite = 1'b1;
+      end
+      
+      11'b11111000001 : begin // STURB
+        control_memwrite = 1'b1;
+        control_alusrc = 1'b1;
+      end
 
-        11'b11111000000 : begin // STUR
-          control_mem2reg <= 1'bx;
-          control_memRead <= 1'b0;
-          control_memwrite <= 1'b1;
-          control_alusrc <= 1'b1;
-          control_aluop <= 2'b00;
-          control_regwrite <= 1'b0;
-        end
+      // Branch Instructions
+      11'b000101????? : begin // B
+        control_isUnconBranch = 1'b1;
+      end
+      
+      11'b100101????? : begin // BL
+        control_isUnconBranch = 1'b1;
+        control_regwrite = 1'b1;  // Write to LR
+      end
+      
+      11'b10110100??? : begin // CBZ
+        control_isZeroBranch = 1'b1;
+      end
+      
+      11'b10110101??? : begin // CBNZ
+        control_isZeroBranch = 1'b1;
+      end
+      
+      11'b11010110010 : begin // RET (Special form of BR)
+        control_isUnconBranch = 1'b1;
+      end
 
-        11'b10001011000 : begin // ADD
-          control_mem2reg <= 1'b0;
-          control_memRead <= 1'b0;
-          control_memwrite <= 1'b0;
-          control_alusrc <= 1'b0;
-          control_aluop <= 2'b10;
-          control_regwrite <= 1'b1;
-        end
+      // System Instructions
+      11'b11010100000 : begin // SVC
+        control_isSVC = 1'b1;
+      end
+      
+      11'b11010101011 : begin // WFI
+        control_isWFI = 1'b1;
+      end
+      
+      11'b00000000000 : begin // NOP
+        // All controls remain default
+      end
 
-        11'b11001011000 : begin // SUB
-          control_mem2reg <= 1'b0;
-          control_memRead <= 1'b0;
-          control_memwrite <= 1'b0;
-          control_alusrc <= 1'b0;
-          control_aluop <= 2'b10;
-          control_regwrite <= 1'b1;
-        end
-
-        11'b10001010000 : begin // AND
-          control_mem2reg <= 1'b0;
-          control_memRead <= 1'b0;
-          control_memwrite <= 1'b0;
-          control_alusrc <= 1'b0;
-          control_aluop <= 2'b10;
-          control_regwrite <= 1'b1;
-        end
-
-        11'b10101010000 : begin // ORR
-          control_mem2reg <= 1'b0;
-          control_memRead <= 1'b0;
-          control_memwrite <= 1'b0;
-          control_alusrc <= 1'b0;
-          control_aluop <= 2'b10;
-          control_regwrite <= 1'b1;
-        end
-
-        default : begin // NOP
-          control_isZeroBranch <= 1'bx;
-      	 control_isUnconBranch <= 1'bx;
-          control_mem2reg <= 1'bx;
-          control_memRead <= 1'bx;
-          control_memwrite <= 1'bx;
-          control_alusrc <= 1'bx;
-          control_aluop <= 2'bxx;
-          control_regwrite <= 1'bx;
-        end
-      endcase
-    end
+      default: begin
+        // Undefined instruction - could add trap handling here
+        control_aluop = 2'bxx;
+        control_alusrc = 1'bx;
+        control_regwrite = 1'bx;
+      end
+    endcase
   end
 endmodule
