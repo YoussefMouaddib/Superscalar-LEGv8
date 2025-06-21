@@ -83,7 +83,7 @@ module SuperLEGv8_TB;
   /* Instantiate the Instruction Cache */
  IC Instruction_Cache (
   .address1(PC_wire1),
-  .instruction_ou1(IC_wire1),
+  .instruction_out1(IC_wire1),
   .instruction_out2(IC_wire2)
 );
 
