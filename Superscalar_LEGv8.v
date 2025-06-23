@@ -22,8 +22,9 @@ module ARM_CPU
   output [4:0] read_reg2_1,   // Second source register for first instruction
   input  [63:0] reg_data1_1,  // Data from first source register (first instruction)
   input  [63:0] reg_data2_1,  // Data from second source register (first instruction)
+  // Write-back to register file for instruction
   output [4:0] write_reg1_1,   // Destination register for first instruction
-  output [63:0] write_data1_1, // Data to write back (first instruction)
+  output [63:0] write_data_1, // Data to write back (first instruction)
   output regwrite1_1,          // Write enable signal for first instruction
 
   // Read registers for instruction 2
@@ -31,10 +32,9 @@ module ARM_CPU
   output [4:0] read_reg2_2,   // Second source register for second instruction
   input  [63:0] reg_data1_2,  // Data from first source register (second instruction)
   input  [63:0] reg_data2_2,  // Data from second source register (second instruction)
-
-  // Write-back to register file for instruction 2
+ // Write-back to register file for instruction 2
   output [4:0] write_reg1_2,   // Destination register for second instruction
-  output [63:0] write_data1_2, // Data to write back (second instruction)
+  output [63:0] write_data_2, // Data to write back (second instruction)
   output regwrite1_2,          // Write enable signal for second instruction
 
   // Memory interface for both instruction streams
@@ -52,7 +52,7 @@ module ARM_CPU
  // Superscalar: Fetch two instructions per cycle
 wire Hazard_PCWrite1, Hazard_PCWrite2, Hazard_IFIDWrite1, Hazard_IFIDWrite2;
 
-wire PCSrc_wire;
+wire PCSrc_wire1,PCSrc_wire2;
 wire [31:0] IFID_IC1, IFID_IC2;
 wire [63:0] IFID_PC1, IFID_PC2;
 wire [63:0] IDEX_reg2_data1, IDEX_reg2_data2;
@@ -64,7 +64,7 @@ always @(posedge CLOCK) begin
     if (Hazard_PCWrite1 !== 1'b1) begin
         if (PC1 === 64'bx) begin
             PC1 <= 0;
-        end else if (PCSrc_wire == 1'b1) begin
+	end else if (PCSrc_wire1 == 1'b1) begin
             PC1 <= jump_PC_wire;
         end else begin
             PC1 <= PC1 + 8;
@@ -73,7 +73,7 @@ always @(posedge CLOCK) begin
     if (Hazard_PCWrite2 !== 1'b1) begin
         if (PC2 === 64'bx) begin
             PC2 <= 4; 
-        end else if (PCSrc_wire == 1'b1) begin
+	end else if (PCSrc_wire2 == 1'b1) begin
             PC2 <= jump_PC_wire + 8;
         end else begin
             PC2 <= PC2 + 8;
@@ -186,12 +186,15 @@ IDEX IDEX2 (
 );
 
 	/* Stage : Execute */
-
+	
+wire [63:0] write_reg_data1, write_reg_data2;
+	
 /* Instruction 1 */
 	
   wire [63:0] shift_left_wire1;
   wire [63:0] PC_jump1;
   wire jump_is_zero1;
+  
 	
   Shift_Left shift__left1 (IDEX_sign_extend1, shift_left_wire1);
   ALU ALU1 (IDEX_PC1, shift_left_wire1, 4'b0010, PC_jump1, jump_is_zero1);
@@ -296,6 +299,9 @@ IDEX IDEX2 (
 
 /* Instruction 2 */
   WB_Mux WB_Mux2 (MEMWB_address2, MEMWB_read_data2, MEMWB_mem2reg2, write_reg_data2);
+
+assign write_data_1 = write_reg_data1;
+assign write_data_2 = write_reg_data2;
 
 endmodule
 module ForwardingUnit
@@ -1456,6 +1462,7 @@ endmodule
 module IC (
   input [63:0] PC_in1,
   input [63:0] PC_in2,
+  input clk, 
   output reg [31:0] instruction_out1,
   output reg [31:0] instruction_out2
 );
@@ -1494,19 +1501,17 @@ module IC (
     Data[36] = 8'h14; Data[37] = 8'h00; Data[38] = 8'h00; Data[39] = 8'h0a;
   end
 
-  always @(*) begin
-    // Fetch instruction at PC_in1
-    instruction_out1[7:0]    = Data[PC_in1];
-    instruction_out1[15:8]   = Data[PC_in1 + 1];
-    instruction_out1[23:16]  = Data[PC_in1 + 2];
-    instruction_out1[31:24]  = Data[PC_in1 + 3];
+  always @(posedge clk) begin
+  instruction_out1[7:0]    <= Data[PC_in1];
+  instruction_out1[15:8]   <= Data[PC_in1 + 1];
+  instruction_out1[23:16]  <= Data[PC_in1 + 2];
+  instruction_out1[31:24]  <= Data[PC_in1 + 3];
 
-    // Fetch instruction at PC_in2
-    instruction_out2[7:0]    = Data[PC_in2];
-    instruction_out2[15:8]   = Data[PC_in2 + 1];
-    instruction_out2[23:16]  = Data[PC_in2 + 2];
-    instruction_out2[31:24]  = Data[PC_in2 + 3];
-  end
+  instruction_out2[7:0]    <= Data[PC_in2];
+  instruction_out2[15:8]   <= Data[PC_in2 + 1];
+  instruction_out2[23:16]  <= Data[PC_in2 + 2];
+  instruction_out2[31:24]  <= Data[PC_in2 + 3];
+end
 
 endmodule
 
