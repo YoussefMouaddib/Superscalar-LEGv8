@@ -762,30 +762,32 @@ module FreeList #(
   end
 
 endmodule
+
+
 module IssueQueue #(
   parameter ISSUE_WIDTH = 2,
   parameter QUEUE_SIZE = 16
 )(
-  input CLOCK,
-  input RESET,
+  input logic CLOCK,
+  input logic RESET,
 
   // Enqueue from decode/rename
-  input [ISSUE_WIDTH-1:0] enq_valid,
-  input [5:0] enq_src1 [ISSUE_WIDTH-1:0],
-  input [5:0] enq_src2 [ISSUE_WIDTH-1:0],
-  input [5:0] enq_dest [ISSUE_WIDTH-1:0],
-  input [3:0] enq_opcode [ISSUE_WIDTH-1:0], // Simplified opcode for now
+  input logic [ISSUE_WIDTH-1:0] enq_valid,
+  input logic [5:0] enq_src1 [ISSUE_WIDTH],
+  input logic [5:0] enq_src2 [ISSUE_WIDTH],
+  input logic [5:0] enq_dest [ISSUE_WIDTH],
+  input logic [3:0] enq_opcode [ISSUE_WIDTH],
 
   // Wakeup from writeback
-  input [5:0] wb_physReg [ISSUE_WIDTH-1:0],
-  input [ISSUE_WIDTH-1:0] wb_valid,
+  input logic [5:0] wb_physReg [ISSUE_WIDTH],
+  input logic [ISSUE_WIDTH-1:0] wb_valid,
 
   // Dispatch outputs
-  output reg [5:0] issue_src1 [ISSUE_WIDTH-1:0],
-  output reg [5:0] issue_src2 [ISSUE_WIDTH-1:0],
-  output reg [5:0] issue_dest [ISSUE_WIDTH-1:0],
-  output reg [3:0] issue_opcode [ISSUE_WIDTH-1:0],
-  output reg [ISSUE_WIDTH-1:0] issue_valid
+  output logic [5:0] issue_src1 [ISSUE_WIDTH],
+  output logic [5:0] issue_src2 [ISSUE_WIDTH],
+  output logic [5:0] issue_dest [ISSUE_WIDTH],
+  output logic [3:0] issue_opcode [ISSUE_WIDTH],
+  output logic [ISSUE_WIDTH-1:0] issue_valid
 );
 
   typedef struct packed {
@@ -798,19 +800,21 @@ module IssueQueue #(
     logic src2_ready;
   } IQEntry;
 
-  IQEntry iq [QUEUE_SIZE-1:0];
-  integer i, j;
+  IQEntry iq [QUEUE_SIZE];
 
-  // Reset logic
-  always @(posedge CLOCK or posedge RESET) begin
+  integer i, j, issued;
+
+  always_ff @(posedge CLOCK or posedge RESET) begin
     if (RESET) begin
-      for (i = 0; i < QUEUE_SIZE; i = i + 1)
+      for (i = 0; i < QUEUE_SIZE; i++)
         iq[i].valid <= 0;
+      for (j = 0; j < ISSUE_WIDTH; j++)
+        issue_valid[j] <= 0;
     end else begin
-      // Wakeup logic
-      for (i = 0; i < QUEUE_SIZE; i = i + 1) begin
+      // Wakeup
+      for (i = 0; i < QUEUE_SIZE; i++) begin
         if (iq[i].valid) begin
-          for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+          for (j = 0; j < ISSUE_WIDTH; j++) begin
             if (wb_valid[j]) begin
               if (iq[i].src1 == wb_physReg[j]) iq[i].src1_ready <= 1;
               if (iq[i].src2 == wb_physReg[j]) iq[i].src2_ready <= 1;
@@ -819,44 +823,44 @@ module IssueQueue #(
         end
       end
 
-      // Enqueue logic
-      for (j = 0; j < ISSUE_WIDTH; j = j + 1) begin
+      // Enqueue
+      for (j = 0; j < ISSUE_WIDTH; j++) begin
         if (enq_valid[j]) begin
-          for (i = 0; i < QUEUE_SIZE; i = i + 1) begin
+          for (i = 0; i < QUEUE_SIZE; i++) begin
             if (!iq[i].valid) begin
-              iq[i].valid <= 1;
-              iq[i].src1 <= enq_src1[j];
-              iq[i].src2 <= enq_src2[j];
-              iq[i].dest <= enq_dest[j];
-              iq[i].opcode <= enq_opcode[j];
-              iq[i].src1_ready <= 0;
-              iq[i].src2_ready <= 0;
-              disable enqueue_loop;
+              iq[i].valid       <= 1;
+              iq[i].src1        <= enq_src1[j];
+              iq[i].src2        <= enq_src2[j];
+              iq[i].dest        <= enq_dest[j];
+              iq[i].opcode      <= enq_opcode[j];
+              iq[i].src1_ready  <= 0;
+              iq[i].src2_ready  <= 0;
+              break;
             end
           end
         end
       end
 
-      // Dispatch logic
-      integer issued = 0;
-      for (i = 0; i < QUEUE_SIZE && issued < ISSUE_WIDTH; i = i + 1) begin
+      // Dispatch
+      issued = 0;
+      for (i = 0; i < QUEUE_SIZE && issued < ISSUE_WIDTH; i++) begin
         if (iq[i].valid && iq[i].src1_ready && iq[i].src2_ready) begin
-          issue_valid[issued] <= 1;
-          issue_src1[issued] <= iq[i].src1;
-          issue_src2[issued] <= iq[i].src2;
-          issue_dest[issued] <= iq[i].dest;
-          issue_opcode[issued] <= iq[i].opcode;
-          iq[i].valid <= 0;
-          issued = issued + 1;
+          issue_valid[issued]   <= 1;
+          issue_src1[issued]    <= iq[i].src1;
+          issue_src2[issued]    <= iq[i].src2;
+          issue_dest[issued]    <= iq[i].dest;
+          issue_opcode[issued]  <= iq[i].opcode;
+          iq[i].valid           <= 0;
+          issued++;
         end
       end
 
-      // Clear unused outputs
-      for (j = issued; j < ISSUE_WIDTH; j = j + 1) begin
-        issue_valid[j] <= 0;
-        issue_src1[j] <= 6'b0;
-        issue_src2[j] <= 6'b0;
-        issue_dest[j] <= 6'b0;
+      // Clear unused dispatch slots
+      for (j = issued; j < ISSUE_WIDTH; j++) begin
+        issue_valid[j]  <= 0;
+        issue_src1[j]   <= 6'b0;
+        issue_src2[j]   <= 6'b0;
+        issue_dest[j]   <= 6'b0;
         issue_opcode[j] <= 4'b0;
       end
     end
@@ -871,107 +875,78 @@ module ExecutionUnitWrapper (
 
   // From Issue Queue
   input [3:0] issue_opcode [1:0],
-  input [5:0] issue_src1 [1:0],
-  input [5:0] issue_src2 [1:0],
-  input [5:0] issue_dest [1:0],
-  input issue_valid [1:0],
+  input [5:0] issue_src1   [1:0],
+  input [5:0] issue_src2   [1:0],
+  input [5:0] issue_dest   [1:0],
+  input       issue_valid  [1:0],
 
   // Operand values from PRF
-  input [31:0] src1_val [1:0],
-  input [31:0] src2_val [1:0],
+  input [63:0] src1_val    [1:0],
+  input [63:0] src2_val    [1:0],
 
   // Outputs to Writeback
   output reg [5:0] wb_dest [1:0],
-  output reg [31:0] wb_val [1:0],
-  output reg wb_valid [1:0]
+  output reg [63:0] wb_val [1:0],
+  output reg        wb_valid [1:0]
 );
 
   // ALUs
-  wire [31:0] alu_result [1:0];
-  wire alu_valid [1:0];
+  wire [63:0] alu_result [1:0];
+  wire        zero_flag  [1:0];
 
   ALU alu0 (
-    .opcode(issue_opcode[0]),
-    .src1(src1_val[0]),
-    .src2(src2_val[0]),
-    .result(alu_result[0]),
-    .valid(alu_valid[0])
+    .A(src1_val[0]),
+    .B(src2_val[0]),
+    .CONTROL(issue_opcode[0]),
+    .RESULT(alu_result[0]),
+    .ZEROFLAG(zero_flag[0])
   );
 
   ALU alu1 (
-    .opcode(issue_opcode[1]),
-    .src1(src1_val[1]),
-    .src2(src2_val[1]),
-    .result(alu_result[1]),
-    .valid(alu_valid[1])
+    .A(src1_val[1]),
+    .B(src2_val[1]),
+    .CONTROL(issue_opcode[1]),
+    .RESULT(alu_result[1]),
+    .ZEROFLAG(zero_flag[1])
   );
 
   always @(posedge CLOCK or posedge RESET) begin
     if (RESET) begin
       wb_valid[0] <= 0;
       wb_valid[1] <= 0;
-      wb_val[0] <= 32'b0;
-      wb_val[1] <= 32'b0;
-      wb_dest[0] <= 6'b0;
-      wb_dest[1] <= 6'b0;
+      wb_val[0]   <= 64'b0;
+      wb_val[1]   <= 64'b0;
+      wb_dest[0]  <= 6'b0;
+      wb_dest[1]  <= 6'b0;
     end else begin
-      wb_valid[0] <= issue_valid[0] & alu_valid[0];
-      wb_valid[1] <= issue_valid[1] & alu_valid[1];
-      wb_val[0] <= alu_result[0];
-      wb_val[1] <= alu_result[1];
-      wb_dest[0] <= issue_dest[0];
-      wb_dest[1] <= issue_dest[1];
+      wb_valid[0] <= issue_valid[0];
+      wb_valid[1] <= issue_valid[1];
+      wb_val[0]   <= alu_result[0];
+      wb_val[1]   <= alu_result[1];
+      wb_dest[0]  <= issue_dest[0];
+      wb_dest[1]  <= issue_dest[1];
     end
   end
 
 endmodule
 
-
-
-module ALU (
-  input [3:0] opcode,
-  input [31:0] src1,
-  input [31:0] src2,
-  output reg [31:0] result,
-  output valid
-);
-
-  assign valid = 1'b1;
-
-  always @(*) begin
-    case (opcode)
-      4'b0000: result = src1 + src2;   // ADD
-      4'b0001: result = src1 - src2;   // SUB
-      4'b0010: result = src1 & src2;   // AND
-      4'b0011: result = src1 | src2;   // OR
-      4'b0100: result = src1 ^ src2;   // XOR
-      4'b0101: result = src1 << src2[4:0]; // SLL
-      4'b0110: result = src1 >> src2[4:0]; // SRL
-      4'b0111: result = $signed(src1) >>> src2[4:0]; // SRA
-      default: result = 32'b0;
-    endcase
-  end
-endmodule
-   
-
-
 module BypassNetwork (
   // Inputs from Execution Units (for WB stage)
-  input [5:0] wb_dest [1:0],
-  input [31:0] wb_val [1:0],
-  input wb_valid [1:0],
+  input [5:0] wb_dest   [1:0],
+  input [63:0] wb_val   [1:0],
+  input        wb_valid [1:0],
 
   // Incoming source registers from Issue Queue
   input [5:0] issue_src1 [1:0],
   input [5:0] issue_src2 [1:0],
 
   // Original values from PRF
-  input [31:0] prf_src1_val [1:0],
-  input [31:0] prf_src2_val [1:0],
+  input [63:0] prf_src1_val [1:0],
+  input [63:0] prf_src2_val [1:0],
 
   // Output forwarded values to Execution Unit
-  output reg [31:0] final_src1_val [1:0],
-  output reg [31:0] final_src2_val [1:0]
+  output reg [63:0] final_src1_val [1:0],
+  output reg [63:0] final_src2_val [1:0]
 );
 
   integer i;
@@ -997,7 +972,6 @@ module BypassNetwork (
   end
 
 endmodule
-// Integration Hint: Wire final_srcX_val[i] into your ExecutionUnitWrapper instead of srcX_val[i] directly from PRF. This adds dynamic forwarding from in-flight instructions and reduces RAW stalls.
 
 module CommonDataBus #(
   parameter ISSUE_WIDTH = 2
@@ -1006,32 +980,34 @@ module CommonDataBus #(
   input RESET,
 
   // Inputs from Execution Units
-  input [ISSUE_WIDTH-1:0] exec_valid,
-  input [5:0] exec_physDest [ISSUE_WIDTH-1:0],
-  input [63:0] exec_result [ISSUE_WIDTH-1:0],
+  input  [ISSUE_WIDTH-1:0]    exec_valid,
+  input  [5:0]                exec_physDest [ISSUE_WIDTH-1:0],
+  input  [63:0]               exec_result   [ISSUE_WIDTH-1:0],
 
   // Outputs to ROB, PRF, IQ, etc.
-  output reg cdb_broadcast_valid [ISSUE_WIDTH-1:0],
-  output reg [5:0] cdb_physDest [ISSUE_WIDTH-1:0],
-  output reg [63:0] cdb_result [ISSUE_WIDTH-1:0]
+  output reg                  cdb_broadcast_valid [ISSUE_WIDTH-1:0],
+  output reg [5:0]            cdb_physDest        [ISSUE_WIDTH-1:0],
+  output reg [63:0]           cdb_result          [ISSUE_WIDTH-1:0]
 );
 
   integer i;
+
   always @(posedge CLOCK or posedge RESET) begin
     if (RESET) begin
       for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
         cdb_broadcast_valid[i] <= 0;
-        cdb_physDest[i] <= 6'b0;
-        cdb_result[i] <= 64'b0;
+        cdb_physDest[i]        <= 6'b0;
+        cdb_result[i]          <= 64'b0;
       end
     end else begin
       for (i = 0; i < ISSUE_WIDTH; i = i + 1) begin
         cdb_broadcast_valid[i] <= exec_valid[i];
-        cdb_physDest[i] <= exec_physDest[i];
-        cdb_result[i] <= exec_result[i];
+        cdb_physDest[i]        <= exec_physDest[i];
+        cdb_result[i]          <= exec_result[i];
       end
     end
   end
+
 endmodule
 
 
