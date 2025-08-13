@@ -12,26 +12,37 @@ module ARM_CPU
   output control_memwrite_out,
   output control_memread_out
 );
-	wire Hazard_PCWrite;
-	wire Hazard_IFIDWrite;
-
-	always @(posedge CLOCK) begin
-		if (Hazard_PCWrite !== 1'b1) begin
-			 if (PC === 64'bx) begin
-				PC <= 0;
-			 end else if (PCSrc_wire == 1'b1) begin
-				PC <= jump_PC_wire;
-			 end else begin
-				PC <= PC + 4;
-		end
-	 end
-	end
-
-  /* Stage : Instruction Fetch */
+	/* Stage : Instruction Fetch */
   wire PCSrc_wire;
   wire [63:0] jump_PC_wire;
   wire [63:0] IFID_PC;
   wire [31:0] IFID_IC;
+	wire Hazard_PCWrite;
+	wire Hazard_IFIDWrite;
+	wire is_svc;
+	wire [63:0] svc_handler_pc;
+
+	always @(posedge CLOCK) begin
+    if (RESET) begin
+        PC <= 0;
+    end
+    else if (is_svc) begin            // SVC trap
+        PC <= svc_handler_pc;
+    end
+    else if (Hazard_PCWrite !== 1'b1) begin
+        if (PC === 64'bx) begin
+            PC <= 0;
+        end
+        else if (PCSrc_wire == 1'b1) begin
+            PC <= jump_PC_wire;
+        end
+        else begin
+            PC <= PC + 4;
+        end
+    end
+end
+
+  
   IFID cache1 (CLOCK, PC, IC, Hazard_IFIDWrite, IFID_PC, IFID_IC);
 
 
@@ -49,8 +60,16 @@ module ARM_CPU
   wire CONTROL_memwrite; // M
   wire CONTROL_regwrite; // WB
   wire CONTROL_mem2reg; // WB
-  ARM_Control unit1 (IFID_IC[31:21], CONTROL_aluop, CONTROL_alusrc, CONTROL_isZeroBranch, CONTROL_isUnconBranch, CONTROL_memRead, CONTROL_memwrite, CONTROL_regwrite, CONTROL_mem2reg);
+	
+	ARM_Control unit1 (IFID_IC[31:21], CONTROL_aluop, CONTROL_alusrc, CONTROL_isZeroBranch, CONTROL_isUnconBranch, CONTROL_memRead, CONTROL_memwrite, CONTROL_regwrite, CONTROL_mem2reg, is_svc);
 
+	
+exception_unit exc_unit (
+  .is_svc(is_svc),
+  .pc(IFID_PC),
+  .handler_pc(svc_handler_pc)
+);
+	
   wire [1:0] CONTROL_aluop_wire; // EX
   wire CONTROL_alusrc_wire; // EX
   wire CONTROL_isZeroBranch_wire; // M
@@ -497,7 +516,8 @@ module ALU
       4'b0010 : RESULT = A + B;
       4'b0110 : RESULT = A - B;
       4'b0111 : RESULT = B;
-      4'b1100 : RESULT = ~(A | B);
+	  4'b1000 : RESULT = B;         // NEW: MOVZ
+      4'b1100 : RESULT = ~(A | B);  
       default : RESULT = 64'hxxxxxxxx;
     endcase
 
@@ -522,6 +542,7 @@ module ALU_Control
     case (ALU_Op)
       2'b00 : ALU_Out <= 4'b0010;
       2'b01 : ALU_Out <= 4'b0111;
+	  2'b11: ALU_Out <= 4'b1000;  // Map MOVZ to 4'b1000
       2'b10 : begin
 
         case (ALU_INSTRUCTION)
@@ -685,7 +706,10 @@ module SignExtend
         outImmediate[19:0] = inputInstruction[23:5];
         outImmediate[63:20] = {64{outImmediate[19]}};
 
-    end else begin // D Type, ignored if R type
+    end else if (inputInstruction[10:0] == 11'b11010010100) begin // MOVZ
+  		outImmediate = {48'b0, inputInstruction[20:5]};    // 16-bit immediate
+	end
+	else begin // D Type, ignored if R type
         outImmediate[9:0] = inputInstruction[20:12];
         outImmediate[63:10] = {64{outImmediate[9]}};
     end
@@ -720,7 +744,8 @@ module ARM_Control
   output reg control_memRead,
   output reg control_memwrite,
   output reg control_regwrite,
-  output reg control_mem2reg
+  output reg control_mem2reg,
+	output reg is_svc  
 );
 
   always @(instruction) begin
@@ -733,6 +758,7 @@ module ARM_Control
       control_isZeroBranch <= 1'b0;
       control_isUnconBranch <= 1'b1;
       control_regwrite <= 1'b0;
+		is_svc            <= 1'b0;
 
     end else if (instruction[10:3] == 8'b10110100) begin // CBZ
       control_mem2reg <= 1'bx;
@@ -743,6 +769,7 @@ module ARM_Control
       control_isZeroBranch <= 1'b1;
       control_isUnconBranch <= 1'b0;
       control_regwrite <= 1'b0;
+		is_svc            <= 1'b0;
 
     end else begin // R-Type Instructions
       control_isZeroBranch <= 1'b0;
@@ -756,6 +783,7 @@ module ARM_Control
           control_alusrc <= 1'b1;
           control_aluop <= 2'b00;
           control_regwrite <= 1'b1;
+			is_svc            <= 1'b0;
         end
 
         11'b11111000000 : begin // STUR
@@ -765,6 +793,7 @@ module ARM_Control
           control_alusrc <= 1'b1;
           control_aluop <= 2'b00;
           control_regwrite <= 1'b0;
+			is_svc            <= 1'b0;
         end
 
         11'b10001011000 : begin // ADD
@@ -774,6 +803,7 @@ module ARM_Control
           control_alusrc <= 1'b0;
           control_aluop <= 2'b10;
           control_regwrite <= 1'b1;
+			is_svc            <= 1'b0;
         end
 
         11'b11001011000 : begin // SUB
@@ -783,6 +813,7 @@ module ARM_Control
           control_alusrc <= 1'b0;
           control_aluop <= 2'b10;
           control_regwrite <= 1'b1;
+			is_svc            <= 1'b0;
         end
 
         11'b10001010000 : begin // AND
@@ -792,6 +823,7 @@ module ARM_Control
           control_alusrc <= 1'b0;
           control_aluop <= 2'b10;
           control_regwrite <= 1'b1;
+			is_svc            <= 1'b0;
         end
 
         11'b10101010000 : begin // ORR
@@ -801,9 +833,46 @@ module ARM_Control
           control_alusrc <= 1'b0;
           control_aluop <= 2'b10;
           control_regwrite <= 1'b1;
+			is_svc            <= 1'b0;
         end
+		  11'b11010100000: begin // SVC
+      
+	      control_aluop      <= 2'b00;  // Not used (but don't float)
+	      control_alusrc     <= 1'b0;   // Don't care
+	      control_isZeroBranch  <= 1'b0; // Not a branch
+	      control_isUnconBranch <= 1'b0; 
+	      control_memRead    <= 1'b0;    // No memory access
+	      control_memwrite   <= 1'b0;
+	      control_regwrite   <= 1'b0;    // No register write
+	      control_mem2reg   <= 1'b0;    // Don't care
+	      is_svc            <= 1'b1;    // New signal for exception unit
+    end
+								
+		11'b11010010100: begin  // MOVZ 
+	      control_aluop      <= 2'b11;      // New "MOVZ" ALU mode
+	      control_alusrc     <= 1'b1;       // Use immediate
+	      control_isZeroBranch  <= 1'b0;     // Not a branch
+	      control_isUnconBranch <= 1'b0;
+	      control_memRead    <= 1'b0;        // No memory access
+	      control_memwrite   <= 1'b0;
+	      control_regwrite   <= 1'b1;        // Write to register
+	      control_mem2reg   <= 1'b0;        // Result from ALU
+	      is_svc            <= 1'b0;        // Not a syscall
+    end
+		11'b11101011000: begin // SUBS 
+	      control_aluop      <= 2'b01;      // New "flag-setting" mode
+	      control_alusrc     <= 1'b0;       // Use registers (Xn - Xm)
+	      control_isZeroBranch  <= 1'b0;     // Not a branch (but sets Z flag!)
+	      control_isUnconBranch <= 1'b0;
+	      control_memRead    <= 1'b0;
+	      control_memwrite   <= 1'b0;
+	      control_regwrite   <= 1'b1;        // Write to register (optional)
+	      control_mem2reg   <= 1'b0;        // Result from ALU
+	      is_svc            <= 1'b0;
+    end
 
         default : begin // NOP
+			
           control_isZeroBranch <= 1'bx;
       	 control_isUnconBranch <= 1'bx;
           control_mem2reg <= 1'bx;
@@ -812,6 +881,7 @@ module ARM_Control
           control_alusrc <= 1'bx;
           control_aluop <= 2'bxx;
           control_regwrite <= 1'bx;
+			is_svc            <= 1'b0;
         end
       endcase
     end
