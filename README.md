@@ -1,10 +1,46 @@
-# SuperLEG: An ARM-based OoO Superscalar
+# An ARM-based OoO Superscalar (32-bit)
 
 ## Project Overview
 
 This project focuses on designing and implementing a **Superscalar LEG Processor with Simultaneous MultiThreading**. The processor is capable of processing **four threads** concurrently, with each thread able to execute **two instructions at a time**. Key architectural features include **Out-of-Order (OoO) execution**, **register renaming**, and a series of optimizations essential for efficient multithreaded processing.
 
-The goal of the project is to tape out the final CPU design using the **Tiny Tapeout service**, a platform that facilitates small-scale IC fabrication.
+## Updated LEGv8 ISA (32-bit) - Core Instructions
+
+**R-Type (Register)**
+
+ADD  Rd, Rn, Rm    // Rd = Rn + Rm
+SUB  Rd, Rn, Rm    // Rd = Rn - Rm  
+AND  Rd, Rn, Rm    // Rd = Rn & Rm
+ORR  Rd, Rn, Rm    // Rd = Rn | Rm
+XOR  Rd, Rn, Rm    // Rd = Rn ^ Rm
+SLL  Rd, Rn, Rm    // Rd = Rn << Rm[4:0]
+SRL  Rd, Rn, Rm    // Rd = Rn >> Rm[4:0] (logical)
+SRA  Rd, Rn, Rm    // Rd = Rn >>> Rm[4:0] (arithmetic)
+
+**I-Type (Immediate)**
+
+ADDI Rd, Rn, imm   // Rd = Rn + imm
+SUBI Rd, Rn, imm   // Rd = Rn - imm
+ANDI Rd, Rn, imm   // Rd = Rn & imm
+ORI  Rd, Rn, imm   // Rd = Rn | imm
+XORI Rd, Rn, imm   // Rd = Rn ^ imm
+SLLI Rd, Rn, imm   // Rd = Rn << imm[4:0]
+SRLI Rd, Rn, imm   // Rd = Rn >> imm[4:0] (logical)
+SRAI Rd, Rn, imm   // Rd = Rn >>> imm[4:0] (arithmetic)
+LUI  Rd, imm       // Rd = {imm[15:0], 16'b0}
+
+**D-Type (Load/Store)**
+
+LDUR Rd, [Rn, imm] // Rd = memory[Rn + imm]
+STUR Rd, [Rn, imm] // memory[Rn + imm] = Rd
+
+**B-Type (Branch)**
+
+B    label         // PC = PC + imm
+CBZ  Rn, label     // if (Rn == 0) PC = PC + imm
+CBNZ Rn, label     // if (Rn != 0) PC = PC + imm
+
+## Total: 21 instructions 
 
 ## Key Features and Goals
 
