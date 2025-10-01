@@ -1,16 +1,16 @@
-# LEGv8 SuperScalar w/ OoO & SMT
+# SuperLEG: An ARM-based OoO Superscalar
 
 ## Project Overview
 
-This project focuses on designing and implementing a **Superscalar LEGv8 Processor with Simultaneous MultiThreading**. The processor is capable of processing **four threads** concurrently, with each thread able to execute **two instructions at a time**. Key architectural features include **Out-of-Order (OoO) execution**, **register renaming**, and a series of optimizations essential for efficient multithreaded processing.
+This project focuses on designing and implementing a **Superscalar LEG Processor with Simultaneous MultiThreading**. The processor is capable of processing **four threads** concurrently, with each thread able to execute **two instructions at a time**. Key architectural features include **Out-of-Order (OoO) execution**, **register renaming**, and a series of optimizations essential for efficient multithreaded processing.
 
 The goal of the project is to tape out the final CPU design using the **Tiny Tapeout service**, a platform that facilitates small-scale IC fabrication.
 
 ## Key Features and Goals
 
 ### 1. **Multithreading and 2-Way Superscalar Execution**
-- **Multithreading**: The processor will handle **four threads** simultaneously, with each thread running independently and processing its own instruction stream.
-- **2-Way Superscalar**: Each thread is designed to fetch and execute **two instructions in parallel**, allowing a total of **eight instructions** to be processed per clock cycle across all threads.
+- **Multithreading**: The processor will handle **two threads** simultaneously, with each thread running independently and processing its own instruction stream.
+- **2-Way Superscalar**: Each thread is designed to fetch and execute **two instructions in parallel**, allowing a total of **4 instructions** to be processed per clock cycle across all threads.
 
 ### 2. **Out-of-Order (OoO) Execution**
 The CPU supports **Out-of-Order (OoO)** execution to maximize performance by dynamically reordering instructions. Instructions are executed as soon as their operands are available, reducing pipeline stalls due to dependencies or earlier instructions.
@@ -26,10 +26,6 @@ To handle **data hazards**, **register renaming** will be used. A set of physica
 - **Instruction Fetch**: Instructions are fetched in parallel for each thread, keeping the pipeline full and ensuring maximum throughput.
 - **Dependency Resolution**: The CPU analyzes instructions in each thread to determine **independent instructions** that can be executed in parallel. This avoids unnecessary stalling and ensures high utilization of resources.
 - **Branch Prediction**: A branch prediction mechanism is included to minimize pipeline stalls from control hazards.
-
-### 6. **Tiny Tapeout Goal**
-- The design will be fabricated using the **Tiny Tapeout** platform, allowing for the design to be produced as an **integrated circuit**.
-- The design will be verified via **FPGA simulation** before submission for tapeout, ensuring functionality and performance are optimized before fabrication.
 
 ## Fetch and Execute Process
 
@@ -49,6 +45,6 @@ Instructions are **retired** in the correct order, with results being written ba
 
 This project implements a state-of-the-art multithreaded, 2-way superscalar processor based on the LEGv8 architecture. Combining multithreading, superscalar execution, and advanced techniques like **OoO execution** and **register renaming**, the design aims to provide a high-performance processing solution capable of handling up to **eight instructions per cycle** across four threads.
 
-After simulation and verification, the design will be submitted for **tapeout** using Tiny Tapeout, turning this digital design into a physical IC.
+
 
 
