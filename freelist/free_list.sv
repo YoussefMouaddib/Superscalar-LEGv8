@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
+import core_pkg::*;
+
 module free_list #(
-    parameter int PHYS_REGS = 48
+    parameter int PHYS_REGS = coke_pkg: PREGS;
 )(
     input  logic         clk,
     input  logic         reset,
