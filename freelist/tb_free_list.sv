@@ -75,20 +75,20 @@ module tb_free_list_golden;
   endtask
 
   // Check outputs against golden model
-  task check_outputs(string context = "");
+  task check_outputs(string test_name);
     if (alloc_valid !== expected_alloc_valid) begin
-      $error("%s alloc_valid mismatch: expected=%0d, got=%0d", 
-             context, expected_alloc_valid, alloc_valid);
+      $error("Test %s: alloc_valid mismatch: expected=%0d, got=%0d", 
+             test_name, expected_alloc_valid, alloc_valid);
     end
     
     if (alloc_valid && expected_alloc_valid && (alloc_phys !== expected_alloc_phys)) begin
-      $error("%s alloc_phys mismatch: expected=%0d, got=%0d", 
-             context, expected_alloc_phys, alloc_phys);
+      $error("Test %s: alloc_phys mismatch: expected=%0d, got=%0d", 
+             test_name, expected_alloc_phys, alloc_phys);
     end
     
     // Check bounds
     if (alloc_valid && alloc_phys >= PHYS_REGS) begin
-      $error("%s alloc_phys out of bounds: %0d", context, alloc_phys);
+      $error("Test %s: alloc_phys out of bounds: %0d", test_name, alloc_phys);
     end
   endtask
 
@@ -228,9 +228,9 @@ module tb_free_list_golden;
     #10;
 
     // Final allocation count check
-    if (golden_alloc_count != dut.free_mask.count_ones()) begin
+    if (golden_alloc_count != (PHYS_REGS - $countones(dut.free_mask))) begin
       $error("Final count mismatch: golden=%0d, DUT=%0d", 
-             PHYS_REGS - golden_alloc_count, PHYS_REGS - dut.free_mask.count_ones());
+             golden_alloc_count, (PHYS_REGS - $countones(dut.free_mask)));
     end
 
     $display("=== Golden Model Free List: ALL TESTS PASSED ===");
