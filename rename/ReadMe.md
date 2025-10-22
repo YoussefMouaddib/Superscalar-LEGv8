@@ -48,11 +48,3 @@ It interacts with the **Rename Map Table (RMT)**, **Free List**, and **Reorder B
 - Module handles stalls gracefully when no registers are available.
 
 ---
-
-### **Next Stage**
-After successful verification, the rename stage connects to:
-- **Issue Queue (IQ):** For scheduling renamed instructions.
-- **Reorder Buffer (ROB):** For tracking instruction completion and commit.
-
----
-**Status:** ✅ Verified via SystemVerilog testbench `tb_rename_stage.sv`
