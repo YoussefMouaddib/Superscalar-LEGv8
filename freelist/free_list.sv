@@ -24,24 +24,28 @@ module free_list #(
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             free_mask <= {PHYS_REGS{1'b1}}; // all registers free
+            alloc_phys <= '0;
+            alloc_valid <= 1'b0;
         end else begin
+            // Default values
+            alloc_valid <= 1'b0;
+            alloc_phys <= '0;
+            
             if (alloc_en) begin
+                // Find first free register
                 for (int i = 0; i < PHYS_REGS; i++) begin
                     if (free_mask[i]) begin
                         free_mask[i] <= 1'b0; // allocate
                         alloc_phys  <= i;
                         alloc_valid <= 1'b1;
-                        disable for;
+                        break; // Use break instead of disable
                     end
                 end
-                // if none free
-                if (!alloc_valid)
-                    alloc_phys <= 0;
-            end else
-                alloc_valid <= 1'b0;
+            end
 
-            if (free_en)
+            if (free_en) begin
                 free_mask[free_phys] <= 1'b1; // release
+            end
         end
     end
 endmodule
