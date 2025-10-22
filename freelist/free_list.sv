@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module free_list #(
-    parameter int PHYS_REGS = coke_pkg: PREGS;
+    parameter int PHYS_REGS = core_pkg: PREGS;
 )(
     input  logic         clk,
     input  logic         reset,
