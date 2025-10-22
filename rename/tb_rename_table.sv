@@ -22,6 +22,7 @@ module tb_rename_table;
   logic        commit_en;
   logic [4:0]  commit_arch_rd;
   logic [5:0]  commit_phys_rd;
+  logic [5:0]  old_src1;
 
   // Instantiate DUT
   rename_table #(.ARCH_REGS(ARCH_REGS), .PHYS_REGS(PHYS_REGS)) dut (
@@ -91,10 +92,14 @@ module tb_rename_table;
     // read mapping before rename
     arch_rs1 = 5'd5; arch_rs2 = 5'd6;
     #5;
-    logic [5:0] old_src1 = phys_rs1;
-    // rename arch_rd = 5 -> new phys
-    arch_rd = 5'd5; new_phys_rd = 6'd30; rename_en = 1;
-    #10; rename_en = 0; #5;
+    old_src1 = phys_rs1;
+    // rename arch_rd = 5 to new phys
+    arch_rd = 5'd5; 
+    new_phys_rd = 6'd30; 
+    rename_en = 1;
+    #10; 
+    rename_en = 0; 
+    #5;
     // after rename, phys_rs1 should reflect new mapping, and must not equal old_src1 if allocation different
     arch_rs1 = 5'd5; #5;
     assert(phys_rs1 !== old_src1) else $fatal("SRC=DEST alias: phys mapping did not change");
