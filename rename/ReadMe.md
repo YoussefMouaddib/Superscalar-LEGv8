@@ -1,6 +1,5 @@
 # 🧩 Module: `rename_stage.sv`
 
----
 
 ### **Description**
 The `rename_stage` module handles **register renaming** — converting architectural register references from decoded instructions into physical register references.  
