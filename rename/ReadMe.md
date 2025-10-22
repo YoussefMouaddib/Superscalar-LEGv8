@@ -20,9 +20,42 @@ It interacts with the **Rename Map Table (RMT)**, **Free List**, and **Reorder B
   3. Updates the RMT entry for `rd` with the newly allocated physical register.
   4. Outputs the renamed instruction (with physical register numbers) to the **Dispatch Stage**.
 - **Outputs:**
-  - Renamed instruction bundle (includes physical `rd`, `rs1`, `rs2`)
-  - Valid and stall indicators
+  - Renamed instruction bundle (includes physical `rs1`, `rs2`)
 
+ ## Example
+ Initial State:
+
+All maps: ARCH 1 → PHYS 1, ARCH 2 → PHYS 2, etc.
+
+Cycle 1: Instruction ADD R2, R1, R3
+
+arch_rs1 = 1, arch_rs2 = 3 → phys_rs1 = 1, phys_rs2 = 3
+
+rename_en = 1, arch_rd = 2, new_phys_rd = 40
+
+Result: Current map now has ARCH 2 → PHYS 40
+
+Cycle 2: Instruction SUB R5, R2, R4
+
+arch_rs1 = 2 → phys_rs1 = 40 (gets the NEW physical register)
+
+rename_en = 1, arch_rd = 5, new_phys_rd = 41
+
+Result: Current map: ARCH 5 → PHYS 41
+
+Cycle 3: ADD instruction commits
+
+commit_en = 1, commit_arch_rd = 2, commit_phys_rd = 40
+
+Result: Committed map now has ARCH 2 → PHYS 40
+
+Key Insight:
+
+Current map lets new instructions immediately see the latest renames
+
+Committed map saves the "correct" state when instructions retire
+
+If we had a branch misprediction, we'd restore current map FROM committed map
 ---
 
 ### **Verification**
