@@ -1,3 +1,4 @@
+
 `timescale 1ns/1ps
 import core_pkg::*;
 
@@ -64,18 +65,22 @@ module tb_free_list_golden;
     end
   endtask
 
-  // Golden model free
+  // Golden model free - FIXED LOGIC
   task golden_free(input logic [5:0] phys);
     if (phys < PHYS_REGS) begin
-      golden_free_mask[phys] = 1'b1;
-      if (!golden_free_mask[phys]) begin // Was allocated
-        golden_alloc_count--;
+      // Check if register was actually allocated before freeing
+      if (golden_free_mask[phys] == 1'b0) begin
+        golden_alloc_count--;  // Only decrement if it was allocated
       end
+      golden_free_mask[phys] = 1'b1; // Mark as free
     end
   endtask
 
-  // Check outputs against golden model
+  // Check outputs against golden model - FIXED TIMING
   task check_outputs(string test_name);
+    // Wait for outputs to stabilize after clock edge
+    #1;
+    
     if (alloc_valid !== expected_alloc_valid) begin
       $error("Test %s: alloc_valid mismatch: expected=%0d, got=%0d", 
              test_name, expected_alloc_valid, alloc_valid);
@@ -118,6 +123,7 @@ module tb_free_list_golden;
       free_en = 1;
       golden_free(i);
       #10;
+      check_outputs($sformatf("Free cycle %0d", i));
       free_en = 0;
       #10;
     end
@@ -155,7 +161,7 @@ module tb_free_list_golden;
     alloc_en = 0;
     #10;
 
-    // Test 4: Concurrent alloc/free stress
+    // Test 4: Concurrent alloc/free stress - FIXED TIMING
     $display("Test 4: Concurrent alloc/free stress");
     do_reset();
     init_golden_model();
@@ -172,9 +178,8 @@ module tb_free_list_golden;
       if (alloc_en) golden_allocate();
       if (free_en) golden_free(free_phys);
       
-      #5; // Check mid-cycle
+      #10; // Wait full cycle for DUT to stabilize
       check_outputs($sformatf("Stress cycle %0d", cycle));
-      #5;
     end
 
     // Test 5: Allocation priority (should allocate lowest available)
@@ -187,6 +192,7 @@ module tb_free_list_golden;
       alloc_en = 1;
       golden_allocate();
       #10;
+      check_outputs($sformatf("Priority setup alloc %0d", i));
       alloc_en = 0;
       #10;
     end
@@ -199,6 +205,7 @@ module tb_free_list_golden;
     alloc_en = 1;
     golden_allocate();
     #10;
+    check_outputs("Priority test");
     if (alloc_valid && alloc_phys !== 2) begin
       $error("Priority test failed: expected phys=2, got=%0d", alloc_phys);
     end
@@ -212,7 +219,12 @@ module tb_free_list_golden;
     
     // Allocate until almost full
     for (int i = 0; i < PHYS_REGS - 2; i++) begin
-      alloc_en = 1; #10; alloc_en = 0; #10;
+      alloc_en = 1; 
+      golden_allocate();
+      #10; 
+      check_outputs($sformatf("Pre-alloc %0d", i));
+      alloc_en = 0; 
+      #10;
     end
     
     // Concurrent alloc + free
@@ -231,6 +243,8 @@ module tb_free_list_golden;
     if (golden_alloc_count != (PHYS_REGS - $countones(dut.free_mask))) begin
       $error("Final count mismatch: golden=%0d, DUT=%0d", 
              golden_alloc_count, (PHYS_REGS - $countones(dut.free_mask)));
+    end else begin
+      $display("Final count verified: %0d allocations", golden_alloc_count);
     end
 
     $display("=== Golden Model Free List: ALL TESTS PASSED ===");
