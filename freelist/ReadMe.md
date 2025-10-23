@@ -1,4 +1,4 @@
-# Free List Operation Example
+# ⛓️‍💥Free List Operation Example
 
 ## Initial State
 - **Free Mask**: All 48 bits = 1 (all registers free)
