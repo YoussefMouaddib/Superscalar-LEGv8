@@ -19,6 +19,7 @@ module free_list #(
 
     // internal bitmask: 1 = free, 0 = allocated
     logic [PHYS_REGS-1:0] free_mask;
+    logic [PHYS_REGS-1:0] free_mask_after_free;
 
     // next allocation logic
     always_ff @(posedge clk or posedge reset) begin
@@ -27,25 +28,30 @@ module free_list #(
             alloc_phys <= '0;
             alloc_valid <= 1'b0;
         end else begin
-            // Handle free operation FIRST (non-blocking)
+            // Calculate what free_mask will be after free operations
+            free_mask_after_free = free_mask;
             if (free_en) begin
-                free_mask[free_phys] <= 1'b1;
+                free_mask_after_free[free_phys] = 1'b1;
             end
             
-            // Handle allocation
+            // Use the post-free mask for allocation
             alloc_valid <= 1'b0;
             alloc_phys <= '0;
             
             if (alloc_en) begin
-                // Search for first free register in current free_mask
                 for (int i = 0; i < PHYS_REGS; i++) begin
-                    if (free_mask[i]) begin
-                        free_mask[i] <= 1'b0;  // Non-blocking assignment
+                    if (free_mask_after_free[i]) begin
                         alloc_phys <= i;
                         alloc_valid <= 1'b1;
                         break;
                     end
                 end
+            end
+            
+            // Update the actual free_mask with both operations
+            free_mask <= free_mask_after_free;
+            if (alloc_en && alloc_valid) begin
+                free_mask[alloc_phys] <= 1'b0;
             end
         end
     end
