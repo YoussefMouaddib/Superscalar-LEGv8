@@ -27,9 +27,14 @@ module free_list #(
             alloc_phys <= '0;
             alloc_valid <= 1'b0;
         end else begin
-            // Default values
-            alloc_valid <= 1'b0;
-            alloc_phys <= '0;
+            // Handle free operation FIRST (critical fix)
+            if (free_en) begin
+                free_mask[free_phys] <= 1'b1; // release
+            end
+
+            // Then handle allocation
+            alloc_valid <= 1'b0; // Default
+            alloc_phys <= '0;    // Default
             
             if (alloc_en) begin
                 // Find first free register
@@ -38,13 +43,9 @@ module free_list #(
                         free_mask[i] <= 1'b0; // allocate
                         alloc_phys  <= i;
                         alloc_valid <= 1'b1;
-                        break; // Use break instead of disable
+                        break;
                     end
                 end
-            end
-
-            if (free_en) begin
-                free_mask[free_phys] <= 1'b1; // release
             end
         end
     end
