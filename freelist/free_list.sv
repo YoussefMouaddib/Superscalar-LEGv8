@@ -28,7 +28,7 @@ module free_list #(
             alloc_valid <= 1'b0;
         end else begin
             // Create temporary updated free_mask
-            logic updated_mask = free_mask;
+            updated_mask = free_mask;
             
             // Apply free FIRST (combinational update)
             if (free_en)
