@@ -19,34 +19,38 @@ module free_list #(
 
     // internal bitmask: 1 = free, 0 = allocated
     logic [PHYS_REGS-1:0] free_mask;
-    
-    // Single pipeline stage - combine both operations
+    logic [PHYS_REGS-1:0] updated_mask;
+
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             free_mask <= {PHYS_REGS{1'b1}};
             alloc_phys <= '0;
             alloc_valid <= 1'b0;
         end else begin
-            // Default outputs
+            // Create temporary updated free_mask
+            logic updated_mask = free_mask;
+            
+            // Apply free FIRST (combinational update)
+            if (free_en)
+                updated_mask[free_phys] = 1'b1;
+                
+            // Then allocation searches updated mask
             alloc_valid <= 1'b0;
             alloc_phys <= '0;
             
-            // Handle free operation FIRST (using current cycle inputs)
-            if (free_en) begin
-                free_mask[free_phys] <= 1'b1;
-            end
-            
-            // Handle allocation SECOND (can see freed registers)
             if (alloc_en) begin
                 for (int i = 0; i < PHYS_REGS; i++) begin
-                    if (free_mask[i]) begin
-                        free_mask[i] <= 1'b0;
+                    if (updated_mask[i]) begin
                         alloc_phys <= i;
                         alloc_valid <= 1'b1;
+                        updated_mask[i] = 1'b0;  // Mark allocated
                         break;
                     end
                 end
             end
+            
+            // Update actual free_mask with both operations
+            free_mask <= updated_mask;
         end
     end
 
