@@ -19,7 +19,6 @@ module free_list #(
 
     // internal bitmask: 1 = free, 0 = allocated
     logic [PHYS_REGS-1:0] free_mask;
-    
     // Pipeline registers
     logic alloc_en_ff;
     logic free_en_ff;
