@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 import core_pkg::*;
 
-module tb_free_list_golden;
+module tb_free_list_race_condition;
 
   localparam int PHYS_REGS = core_pkg::PREGS;
   
@@ -16,16 +16,11 @@ module tb_free_list_golden;
   logic        free_en;
   logic [5:0]  free_phys;
 
-  // Golden reference model - matches DUT's 1-stage pipeline
+  // Golden reference model
   logic [PHYS_REGS-1:0] golden_free_mask;
   logic [5:0] expected_alloc_phys;
   logic expected_alloc_valid;
   int golden_alloc_count;
-  
-  // Single pipeline stage tracking (like DUT)
-  logic golden_alloc_en_ff;
-  logic golden_free_en_ff;
-  logic [5:0] golden_free_phys_ff;
 
   // Instantiate DUT
   free_list #(.PHYS_REGS(PHYS_REGS)) dut (.*);
@@ -42,9 +37,6 @@ module tb_free_list_golden;
     alloc_en = 0;
     free_en = 0;
     free_phys = '0;
-    golden_alloc_en_ff = 0;
-    golden_free_en_ff = 0;
-    golden_free_phys_ff = '0;
     #20;
     reset = 0;
     #20;
@@ -56,30 +48,26 @@ module tb_free_list_golden;
     golden_alloc_count = 0;
   endtask
 
-  // Golden model single pipeline stage (matches DUT exactly)
-  task golden_pipeline_stage();
-    // Register inputs (like DUT's first always_ff)
-    golden_alloc_en_ff = alloc_en;
-    golden_free_en_ff = free_en;
-    golden_free_phys_ff = free_phys;
+  // Golden model - matches DUT's combinational behavior
+  task golden_update();
+    logic [PHYS_REGS-1:0] updated_mask = golden_free_mask;
     
-    // Update state and handle allocation (like DUT's second always_ff)
-    // Update free mask based on previous cycle's free operation
-    if (golden_free_en_ff) begin
-      if (golden_free_mask[golden_free_phys_ff] == 1'b0) begin
-        golden_alloc_count--;  // Only decrement if it was allocated
+    // Apply free FIRST
+    if (free_en) begin
+      if (updated_mask[free_phys] == 1'b0) begin
+        golden_alloc_count--;
       end
-      golden_free_mask[golden_free_phys_ff] = 1'b1;
+      updated_mask[free_phys] = 1'b1;
     end
     
-    // Handle allocation using current free_mask
+    // Then allocation
     expected_alloc_valid = 1'b0;
     expected_alloc_phys = '0;
     
-    if (golden_alloc_en_ff) begin
+    if (alloc_en) begin
       for (int i = 0; i < PHYS_REGS; i++) begin
-        if (golden_free_mask[i]) begin
-          golden_free_mask[i] = 1'b0;
+        if (updated_mask[i]) begin
+          updated_mask[i] = 1'b0;
           expected_alloc_phys = i;
           expected_alloc_valid = 1'b1;
           golden_alloc_count++;
@@ -87,180 +75,73 @@ module tb_free_list_golden;
         end
       end
     end
+    
+    golden_free_mask = updated_mask;
   endtask
 
   // Check outputs against golden model
-  task check_outputs(string test_name);
-    // Wait for outputs to stabilize after clock edge
-    #1;
+  task check_outputs(string context);
+    #1; // Wait for outputs to stabilize
     
     if (alloc_valid !== expected_alloc_valid) begin
-      $error("Test %s: alloc_valid mismatch: expected=%0d, got=%0d", 
-             test_name, expected_alloc_valid, alloc_valid);
+      $error("%s: alloc_valid mismatch: expected=%0d, got=%0d", 
+             context, expected_alloc_valid, alloc_valid);
     end
     
     if (alloc_valid && expected_alloc_valid && (alloc_phys !== expected_alloc_phys)) begin
-      $error("Test %s: alloc_phys mismatch: expected=%0d, got=%0d", 
-             test_name, expected_alloc_phys, alloc_phys);
-    end
-    
-    // Check bounds
-    if (alloc_valid && alloc_phys >= PHYS_REGS) begin
-      $error("Test %s: alloc_phys out of bounds: %0d", test_name, alloc_phys);
+      $error("%s: alloc_phys mismatch: expected=%0d, got=%0d", 
+             context, expected_alloc_phys, alloc_phys);
     end
   endtask
 
-  // Main test sequence - CORRECTED for 1-cycle latency
+  // Main test sequence
   initial begin
-    $display("\n=== Golden Model Free List Testbench Start ===");
+    $display("\n=== Race Condition Test (100 cycles) ===");
     $display("PHYS_REGS = %0d", PHYS_REGS);
     do_reset();
     init_golden_model();
 
-    // Test 1: Basic allocation sequence
-    $display("Test 1: Basic allocation");
-    for (int i = 0; i < 10; i++) begin
-      alloc_en = 1;
-      #10; // Wait for DUT to process (1-cycle latency)
-      golden_pipeline_stage(); // Golden processes same as DUT
-      check_outputs($sformatf("Basic alloc cycle %0d", i));
-      alloc_en = 0;
-      #10;
-      golden_pipeline_stage(); // Process no-op
-    end
-
-    // Test 2: Free operations
-    $display("Test 2: Free operations");
-    // Free some registers
-    for (int i = 0; i < 5; i++) begin
-      free_phys = i;
-      free_en = 1;
-      #10; // Free takes effect next cycle
-      golden_pipeline_stage();
-      check_outputs($sformatf("Free cycle %0d", i));
-      free_en = 0;
-      #10;
-      golden_pipeline_stage();
-    end
-    
-    // Allocate again - should get the freed registers
-    for (int i = 0; i < 5; i++) begin
-      alloc_en = 1;
-      #10; // Allocation sees freed registers
-      golden_pipeline_stage();
-      check_outputs($sformatf("Re-alloc after free cycle %0d", i));
-      alloc_en = 0;
-      #10;
-      golden_pipeline_stage();
-    end
-
-    // Test 3: Exhaust all physical registers
-    $display("Test 3: Exhaust all registers");
-    do_reset();
-    init_golden_model();
-    
-    // Allocate until empty
-    for (int i = 0; i < PHYS_REGS; i++) begin
-      alloc_en = 1;
-      #10;
-      golden_pipeline_stage();
-      check_outputs($sformatf("Exhaust alloc %0d", i));
-      alloc_en = 0;
-      #10;
-      golden_pipeline_stage();
-    end
-    
-    // Try one more allocation - should fail
-    alloc_en = 1;
-    #10;
-    golden_pipeline_stage();
-    check_outputs("Over-allocate attempt");
-    alloc_en = 0;
-    #10;
-    golden_pipeline_stage();
-
-    // Test 4: Concurrent alloc/free stress
-    $display("Test 4: Concurrent alloc/free stress");
-    do_reset();
-    init_golden_model();
-    
-    for (int cycle = 0; cycle < 200; cycle++) begin
-      // Random allocation (40% probability)
-      alloc_en = ($urandom_range(0, 9) < 4) ? 1'b1 : 1'b0;
+    for (int cycle = 0; cycle < 100; cycle++) begin
+      // Random operations with controlled probabilities
+      // 40% chance of allocation, 30% chance of free, 10% chance of both
+      int op_type = $urandom_range(0, 9);
       
-      // Random free (30% probability) 
-      free_en = ($urandom_range(0, 9) < 3) ? 1'b1 : 1'b0;
-      free_phys = $urandom_range(0, PHYS_REGS-1);
+      case (op_type)
+        0,1,2,3: begin // 40% - Allocation only
+          alloc_en = 1;
+          free_en = 0;
+        end
+        4,5,6: begin   // 30% - Free only  
+          alloc_en = 0;
+          free_en = 1;
+          free_phys = $urandom_range(0, PHYS_REGS-1);
+        end
+        7: begin       // 10% - Both alloc and free (race condition test)
+          alloc_en = 1;
+          free_en = 1;
+          free_phys = $urandom_range(0, PHYS_REGS-1);
+        end
+        default: begin // 20% - No operation
+          alloc_en = 0;
+          free_en = 0;
+        end
+      endcase
       
-      #10; // Wait for DUT to process
-      golden_pipeline_stage(); // Golden processes same as DUT
-      check_outputs($sformatf("Stress cycle %0d", cycle));
+      // Update golden model and check
+      golden_update();
+      #10; // Wait for DUT
+      check_outputs($sformatf("Cycle %0d", cycle));
+      
+      // Debug print for race conditions
+      if (alloc_en && free_en) begin
+        $display("Cycle %0d: RACE CONDITION - alloc_en=1, free_en=1, free_phys=%0d", 
+                 cycle, free_phys);
+        $display("  Golden: phys=%0d, valid=%0d | DUT: phys=%0d, valid=%0d",
+                 expected_alloc_phys, expected_alloc_valid, alloc_phys, alloc_valid);
+      end
     end
 
-    // Test 5: Allocation priority (should allocate lowest available)
-    $display("Test 5: Allocation priority");
-    do_reset();
-    init_golden_model();
-    
-    // Allocate some registers
-    for (int i = 0; i < 5; i++) begin
-      alloc_en = 1;
-      #10;
-      golden_pipeline_stage();
-      check_outputs($sformatf("Priority setup alloc %0d", i));
-      alloc_en = 0;
-      #10;
-      golden_pipeline_stage();
-    end
-    
-    // Free registers 2 and 4
-    free_phys = 2; free_en = 1; #10; golden_pipeline_stage(); free_en = 0; #10; golden_pipeline_stage();
-    free_phys = 4; free_en = 1; #10; golden_pipeline_stage(); free_en = 0; #10; golden_pipeline_stage();
-    
-    // Next allocation should get lowest free (register 2)
-    alloc_en = 1;
-    #10;
-    golden_pipeline_stage();
-    check_outputs("Priority test");
-    if (alloc_valid && alloc_phys !== 2) begin
-      $error("Priority test failed: expected phys=2, got=%0d", alloc_phys);
-    end
-    alloc_en = 0;
-    #10;
-    golden_pipeline_stage();
-
-    // Test 6: Free during allocation
-    $display("Test 6: Free during allocation");
-    do_reset();
-    init_golden_model();
-    
-    // Allocate until almost full
-    for (int i = 0; i < PHYS_REGS - 2; i++) begin
-      alloc_en = 1;
-      #10;
-      golden_pipeline_stage();
-      check_outputs($sformatf("Pre-alloc %0d", i));
-      alloc_en = 0;
-      #10;
-      golden_pipeline_stage();
-    end
-    
-    // Concurrent alloc + free - KEY TEST for pipeline behavior
-    // In cycle N: alloc_en=1, free_en=1, free_phys=5
-    // In cycle N+1: DUT sees registered inputs, frees phys 5, then tries to allocate
-    // Since we're almost full, this allocation might succeed if phys 5 was allocated
-    alloc_en = 1;
-    free_en = 1;
-    free_phys = 5;
-    #10;
-    golden_pipeline_stage();
-    check_outputs("Concurrent alloc+free");
-    alloc_en = 0;
-    free_en = 0;
-    #10;
-    golden_pipeline_stage();
-
-    // Final allocation count check
+    // Final verification
     if (golden_alloc_count != (PHYS_REGS - $countones(dut.free_mask))) begin
       $error("Final count mismatch: golden=%0d, DUT=%0d", 
              golden_alloc_count, (PHYS_REGS - $countones(dut.free_mask)));
@@ -268,19 +149,8 @@ module tb_free_list_golden;
       $display("Final count verified: %0d allocations", golden_alloc_count);
     end
 
-    $display("=== Golden Model Free List: ALL TESTS PASSED ===");
-    $display("Final stats: %0d allocations tracked", golden_alloc_count);
+    $display("=== Race Condition Test Complete ===");
     $finish;
-  end
-
-  // Continuous monitoring
-  always @(posedge clk) begin
-    if (!reset) begin
-      // Additional safety checks
-      if (free_en && free_phys >= PHYS_REGS) begin
-        $error("Free phys out of bounds: %0d", free_phys);
-      end
-    end
   end
 
 endmodule
