@@ -61,7 +61,7 @@ module tb_free_list_simple;
     $display("  Output: alloc_phys = %0d, alloc_valid = %0d", alloc_phys, alloc_valid);
     
     
-    $display("Cycle 4: alloc_en = 1, free_en = 1, free_phys = 0");
+    $display("Cycle 4: alloc_en = 1, free_en = 1, free_phys = 1");
     alloc_en = 1;
     free_en = 1;
     free_phys = 1;
