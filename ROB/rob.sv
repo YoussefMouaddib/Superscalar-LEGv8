@@ -17,11 +17,11 @@ module rob #(
   // ---------- Allocation (from rename/dispatch)
   // alloc_en[i] = request to allocate an entry for the i-th packet (0..1)
   input  logic [core_pkg::ISSUE_WIDTH-1:0] alloc_en,                 // ISSUE_WIDTH==2
-  input  logic [4:0]                        alloc_arch_rd [core_pkg::ISSUE_WIDTH-1:0],
-  input  core_pkg::preg_tag_t               alloc_phys_rd [core_pkg::ISSUE_WIDTH-1:0],
+  input  logic [4:0]                        alloc_arch_rd [core_pkg::ISSUE_WIDTH],
+  input  core_pkg::preg_tag_t               alloc_phys_rd [core_pkg::ISSUE_WIDTH],
   output logic                              alloc_ok,                // high if allocation(s) succeeded (not full)
   // optional: return allocated ROB index(s) for tracking/wakeup (index0 primary, index1 secondary)
-  output logic [$clog2(ROB_SIZE)-1:0]       alloc_idx  [core_pkg::ISSUE_WIDTH-1:0],
+  output logic [$clog2(ROB_SIZE)-1:0]       alloc_idx  [core_pkg::ISSUE_WIDTH],
 
   // ---------- Wakeup / Mark ready (from execution result / CDB)
   input  logic                    mark_ready_en,
@@ -32,8 +32,8 @@ module rob #(
   // ---------- Commit outputs (to architectural state & freelist)
   // commit_valid[i] indicates commit slot i has valid commit info this cycle
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_valid,
-  output logic [4:0]                      commit_arch_rd [core_pkg::ISSUE_WIDTH-1:0],
-  output core_pkg::preg_tag_t             commit_phys_rd [core_pkg::ISSUE_WIDTH-1:0],
+  output logic [4:0]                      commit_arch_rd [core_pkg::ISSUE_WIDTH],
+  output core_pkg::preg_tag_t             commit_phys_rd [core_pkg::ISSUE_WIDTH],
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_exception, // exception flags for commit slots
 
   // ---------- Status / control
@@ -45,6 +45,7 @@ module rob #(
 
   // local sizes
   localparam int IDX_BITS = $clog2(ROB_SIZE);
+  localparam int ISSUE_W = core_pkg::ISSUE_WIDTH;
 
   // ROB entry definition
   typedef struct packed {
@@ -74,6 +75,15 @@ module rob #(
 
   // Initialize / reset
   always_ff @(posedge clk or posedge reset) begin
+    // Declare all variables at the beginning of the always block
+    int alloc_count;
+    int free_slots;
+    int reqs;
+    int cur_tail;
+    int commit_slots;
+    int look_idx;
+    int k, j;
+    
     if (reset) begin
       head <= '0;
       tail <= '0;
@@ -110,21 +120,21 @@ module rob #(
 
         // ---------- Allocation (up to ISSUE_WIDTH entries)
         // Note: allocate entries sequentially starting at tail. If not enough space, skip allocations.
-        int alloc_count = 0;
+        alloc_count = 0;
         alloc_ok <= 1'b0;
         // prepare default returned indices
-        for (int k = 0; k < core_pkg::ISSUE_WIDTH; k++) alloc_idx[k] <= '0;
+        for (k = 0; k < ISSUE_W; k++) alloc_idx[k] <= '0;
 
         if (alloc_en != 0) begin
           // compute available slots
-          int free_slots = ROB_SIZE - occupancy;
+          free_slots = ROB_SIZE - occupancy;
           // count requested allocs (popcount of alloc_en)
-          int reqs = 0;
-          for (int k = 0; k < core_pkg::ISSUE_WIDTH; k++) if (alloc_en[k]) reqs++;
+          reqs = 0;
+          for (k = 0; k < ISSUE_W; k++) if (alloc_en[k]) reqs++;
           if (reqs <= free_slots) begin
             // perform allocations
-            int cur_tail = tail;
-            for (int k = 0; k < core_pkg::ISSUE_WIDTH; k++) begin
+            cur_tail = tail;
+            for (k = 0; k < ISSUE_W; k++) begin
               if (alloc_en[k]) begin
                 rob_mem[cur_tail].valid   <= 1'b1;
                 rob_mem[cur_tail].ready   <= 1'b0;
@@ -150,16 +160,16 @@ module rob #(
         // ---------- Commit (up to ISSUE_WIDTH entries)
         // produce up to ISSUE_WIDTH commits if head entries are valid && ready
         // commit slot 0:
-        for (int j = 0; j < core_pkg::ISSUE_WIDTH; j++) begin
+        for (j = 0; j < ISSUE_W; j++) begin
           commit_valid[j] <= 1'b0;
           commit_arch_rd[j] <= '0;
           commit_phys_rd[j] <= '0;
           commit_exception[j] <= 1'b0;
         end
 
-        int commit_slots = 0;
-        int look_idx = head;
-        for (int j = 0; j < core_pkg::ISSUE_WIDTH; j++) begin
+        commit_slots = 0;
+        look_idx = head;
+        for (j = 0; j < ISSUE_W; j++) begin
           if (occupancy > 0) begin
             if (rob_mem[look_idx].valid && rob_mem[look_idx].ready) begin
               // produce commit j
