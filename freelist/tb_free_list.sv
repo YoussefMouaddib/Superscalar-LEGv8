@@ -50,7 +50,8 @@ module tb_free_list_race_condition;
 
   // Golden model - matches DUT's combinational behavior
   task golden_update();
-    logic [PHYS_REGS-1:0] updated_mask = golden_free_mask;
+    // Declare as automatic to avoid static variable issues
+    automatic logic [PHYS_REGS-1:0] updated_mask = golden_free_mask;
     
     // Apply free FIRST
     if (free_en) begin
@@ -80,17 +81,17 @@ module tb_free_list_race_condition;
   endtask
 
   // Check outputs against golden model
-  task check_outputs(string context);
+  task check_outputs(string test_context);
     #1; // Wait for outputs to stabilize
     
     if (alloc_valid !== expected_alloc_valid) begin
       $error("%s: alloc_valid mismatch: expected=%0d, got=%0d", 
-             context, expected_alloc_valid, alloc_valid);
+             test_context, expected_alloc_valid, alloc_valid);
     end
     
     if (alloc_valid && expected_alloc_valid && (alloc_phys !== expected_alloc_phys)) begin
       $error("%s: alloc_phys mismatch: expected=%0d, got=%0d", 
-             context, expected_alloc_phys, alloc_phys);
+             test_context, expected_alloc_phys, alloc_phys);
     end
   endtask
 
@@ -102,10 +103,10 @@ module tb_free_list_race_condition;
     init_golden_model();
 
     for (int cycle = 0; cycle < 100; cycle++) begin
-      // Random operations with controlled probabilities
-      // 40% chance of allocation, 30% chance of free, 10% chance of both
-      int op_type = $urandom_range(0, 9);
+      // Declare as automatic to avoid static variable issues
+      automatic int op_type = $urandom_range(0, 9);
       
+      // Random operations with controlled probabilities
       case (op_type)
         0,1,2,3: begin // 40% - Allocation only
           alloc_en = 1;
