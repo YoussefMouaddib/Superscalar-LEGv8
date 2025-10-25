@@ -32,6 +32,9 @@ module tb_rob_minimal;
   logic                   flush_en;
   logic [IDX_BITS-1:0]    flush_ptr;
 
+  // Store allocation indices for later use
+  logic [IDX_BITS-1:0] rob_idx_inst1, rob_idx_inst2, rob_idx_inst3, rob_idx_inst4;
+
   // Instantiate DUT
   rob dut (.*);
 
@@ -62,9 +65,11 @@ module tb_rob_minimal;
     alloc_arch_rd[1] = 5'd2;  // Instruction 2: writes to R2  
     alloc_phys_rd[1] = 6'd11; // Uses PHYS 11
     #10;
-    $display("  alloc_ok=%0d, alloc_idx[0]=%0d, alloc_idx[1]=%0d", 
-             alloc_ok, alloc_idx[0], alloc_idx[1]);
-    $display("  rob_full=%0d, rob_almost_full=%0d", rob_full, rob_almost_full);
+    // Store the ROB indices for later wakeup
+    rob_idx_inst1 = alloc_idx[0];
+    rob_idx_inst2 = alloc_idx[1];
+    $display("  Instruction 1 -> ROB[%0d], Instruction 2 -> ROB[%0d]", 
+             rob_idx_inst1, rob_idx_inst2);
 
     // Cycle 2: Issue next 2 instructions
     $display("\n--- Cycle 2: Issue Instructions 3-4 ---");
@@ -74,19 +79,21 @@ module tb_rob_minimal;
     alloc_arch_rd[1] = 5'd4;  // Instruction 4: writes to R4
     alloc_phys_rd[1] = 6'd13; // Uses PHYS 13
     #10;
-    $display("  alloc_ok=%0d, alloc_idx[0]=%0d, alloc_idx[1]=%0d",
-             alloc_ok, alloc_idx[0], alloc_idx[1]);
+    // Store the ROB indices for later wakeup
+    rob_idx_inst3 = alloc_idx[0];
+    rob_idx_inst4 = alloc_idx[1];
+    $display("  Instruction 3 -> ROB[%0d], Instruction 4 -> ROB[%0d]",
+             rob_idx_inst3, rob_idx_inst4);
 
     // Cycle 3: No new instructions, wait for execution
     $display("\n--- Cycle 3: Waiting for execution ---");
     alloc_en = 2'b00;
     #10;
-    $display("  No commits yet");
 
-    // Cycle 4: Instructions 1-2 complete execution
-    $display("\n--- Cycle 4: Instructions 1-2 complete ---");
+    // Cycle 4: Instruction 1 completes execution
+    $display("\n--- Cycle 4: Instruction 1 completes ---");
     mark_ready_en = 1;
-    mark_ready_idx = alloc_idx[0]; // Instruction 1 ready
+    mark_ready_idx = rob_idx_inst1; // Use stored index
     mark_ready_val = 1;
     mark_exception = 0;
     #10;
@@ -94,44 +101,54 @@ module tb_rob_minimal;
     
     // Cycle 5: Instruction 2 completes
     $display("\n--- Cycle 5: Instruction 2 completes ---");
-    mark_ready_idx = alloc_idx[1]; // Instruction 2 ready
+    mark_ready_idx = rob_idx_inst2; // Use stored index
     #10;
     $display("  Marked ROB entry %0d ready", mark_ready_idx);
-    $display("  Commits: valid=%b, arch_rd[0]=%0d, arch_rd[1]=%0d",
-             commit_valid, commit_arch_rd[0], commit_arch_rd[1]);
 
-    // Cycle 6: Instructions 3-4 complete execution
-    $display("\n--- Cycle 6: Instructions 3-4 complete ---");
-    mark_ready_idx = alloc_idx[0]; // From cycle 2 - Instruction 3 ready
+    // Cycle 6: Instruction 3 completes execution
+    $display("\n--- Cycle 6: Instruction 3 completes ---");
+    mark_ready_idx = rob_idx_inst3; // Use stored index
     #10;
     $display("  Marked ROB entry %0d ready", mark_ready_idx);
-    $display("  Commits: valid=%b, arch_rd[0]=%0d, arch_rd[1]=%0d", 
-             commit_valid, commit_arch_rd[0], commit_arch_rd[1]);
 
     // Cycle 7: Instruction 4 completes
     $display("\n--- Cycle 7: Instruction 4 completes ---");
-    mark_ready_idx = alloc_idx[1]; // From cycle 2 - Instruction 4 ready
+    mark_ready_idx = rob_idx_inst4; // Use stored index
     #10;
     $display("  Marked ROB entry %0d ready", mark_ready_idx);
-    $display("  Commits: valid=%b, arch_rd[0]=%0d, arch_rd[1]=%0d",
-             commit_valid, commit_arch_rd[0], commit_arch_rd[1]);
 
-    // Cycle 8: Check final commits
+    // Cycle 8: Check final state
     $display("\n--- Cycle 8: Final state ---");
     mark_ready_en = 0;
     #10;
-    $display("  Final commits: valid=%b", commit_valid);
-    $display("  rob_full=%0d, rob_almost_full=%0d", rob_full, rob_almost_full);
 
     $display("\n=== Test Complete ===");
     $finish;
   end
 
-  // Monitor to print all outputs every cycle
+  // Enhanced monitor to print ROB state every cycle
   always @(posedge clk) begin
     if (!reset) begin
-      $display("  [MONITOR] commit_valid=%b, arch_rd[0]=%0d->phys_rd[0]=%0d, arch_rd[1]=%0d->phys_rd[1]=%0d",
-               commit_valid, commit_arch_rd[0], commit_phys_rd[0], commit_arch_rd[1], commit_phys_rd[1]);
+      $display("\n=== Cycle Monitor ===");
+      $display("Inputs: alloc_en=%b, mark_ready_en=%b, mark_ready_idx=%0d", 
+               alloc_en, mark_ready_en, mark_ready_idx);
+      $display("Outputs: alloc_ok=%b, rob_full=%b, rob_almost_full=%b",
+               alloc_ok, rob_full, rob_almost_full);
+      $display("Alloc Indices: [0]=%0d, [1]=%0d", alloc_idx[0], alloc_idx[1]);
+      $display("Commits: valid=%b, arch_rd[0]=%0d->phys_rd[0]=%0d, arch_rd[1]=%0d->phys_rd[1]=%0d",
+               commit_valid, commit_arch_rd[0], commit_phys_rd[0], 
+               commit_arch_rd[1], commit_phys_rd[1]);
+      
+      // Print ROB memory contents
+      $display("ROB Memory (head=%0d, tail=%0d):", dut.head, dut.tail);
+      for (int i = 0; i < 8; i++) begin // Show first 8 entries
+        if (dut.rob_mem[i].valid) begin
+          $display("  [%0d]: valid=%b, ready=%b, arch_rd=%0d, phys_rd=%0d, exception=%b",
+                   i, dut.rob_mem[i].valid, dut.rob_mem[i].ready,
+                   dut.rob_mem[i].arch_rd, dut.rob_mem[i].phys_rd, 
+                   dut.rob_mem[i].exception);
+        end
+      end
     end
   end
 
