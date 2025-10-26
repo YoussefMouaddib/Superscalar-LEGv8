@@ -8,7 +8,7 @@ module tb_issue_queue;
   // Parameters
   localparam int ENTRIES = core_pkg::IQ_ENTRIES;
   localparam int ISSUE_W = core_pkg::ISSUE_WIDTH;
-  localparam int TAG_W = core_pkg::LOG2_PREGS;
+  localparam int TAG_W = $clog2(core_pkg::PREGS);
   localparam int CLK_PERIOD = 10;
 
   // DUT signals
