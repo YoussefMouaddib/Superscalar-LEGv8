@@ -1,4 +1,4 @@
-// issue_queue.sv
+// issue_queue.sv - ModelSim Compatible Version
 // Airtight Reservation Station - Grade A+ implementation
 // Features: 1-cycle wakeup latency, immediate forwarding, oldest-first selection
 `timescale 1ns/1ps
@@ -86,6 +86,9 @@ module issue_queue #(
   // Free entry tracking
   logic [ENTRIES-1:0] entry_used;
 
+  // Allocation tracking
+  logic alloc_ok_reg;
+
   // ============================================================
   //  CDB Registration - Critical for timing safety
   // ============================================================
@@ -109,9 +112,18 @@ module issue_queue #(
   //  Main State Machine - Airtight timing
   // ============================================================
   always_ff @(posedge clk or posedge reset) begin
+    // Declare all automatic variables at the start
+    automatic int i, b, c, a;
+    automatic int slot;
+    automatic int allocated;
+    automatic logic s1_ready, s2_ready;
+    automatic logic [31:0] s1_val, s2_val;
+    automatic logic will_issue;
+    
     if (reset) begin
       age_counter <= '0;
-      for (int i = 0; i < ENTRIES; i++) begin
+      alloc_ok_reg <= 1'b0;
+      for (i = 0; i < ENTRIES; i++) begin
         rs_mem[i] <= '{
           used: 1'b0, src1_ready: 1'b0, src2_ready: 1'b0,
           src1_tag: '0, src2_tag: '0, src1_val: '0, src2_val: '0,
@@ -119,13 +131,16 @@ module issue_queue #(
         };
       end
       entry_used <= '0;
+      for (i = 0; i < ISSUE_W; i++) begin
+        alloc_idx[i] <= '0;
+      end
     end else begin
-      age_counter <= age_counter + 1;
+      age_counter <= age_counter + 1'b1;
 
       // Phase 1: Safe CDB updates using registered values
-      for (int i = 0; i < ENTRIES; i++) begin
+      for (i = 0; i < ENTRIES; i++) begin
         if (rs_mem[i].used) begin
-          for (int b = 0; b < ISSUE_W; b++) begin
+          for (b = 0; b < ISSUE_W; b++) begin
             if (cdb_valid_ff[b]) begin
               if (!rs_mem[i].src1_ready && (rs_mem[i].src1_tag == cdb_tag_ff[b])) begin
                 rs_mem[i].src1_ready <= 1'b1;
@@ -142,14 +157,14 @@ module issue_queue #(
 
       // Phase 2: Commit processing (entries freed immediately)
       if (commit_clear_all) begin
-        for (int i = 0; i < ENTRIES; i++) begin
+        for (i = 0; i < ENTRIES; i++) begin
           rs_mem[i].used <= 1'b0;
           entry_used[i] <= 1'b0;
         end
       end else begin
-        for (int c = 0; c < ISSUE_W; c++) begin
+        for (c = 0; c < ISSUE_W; c++) begin
           if (commit_valid[c]) begin
-            for (int i = 0; i < ENTRIES; i++) begin
+            for (i = 0; i < ENTRIES; i++) begin
               if (rs_mem[i].used && (rs_mem[i].dst_rob == commit_idx[c])) begin
                 rs_mem[i].used <= 1'b0;
                 entry_used[i] <= 1'b0;
@@ -160,13 +175,13 @@ module issue_queue #(
       end
 
       // Phase 3: Allocation with immediate CDB forwarding
-      int allocated = 0;
-      for (int a = 0; a < ISSUE_W; a++) begin
+      allocated = 0;
+      for (a = 0; a < ISSUE_W; a++) begin
         alloc_idx[a] <= '0;
         if (alloc_en[a]) begin
           // Find first free slot
-          int slot = -1;
-          for (int i = 0; i < ENTRIES; i++) begin
+          slot = -1;
+          for (i = 0; i < ENTRIES; i++) begin
             if (!rs_mem[i].used && slot == -1) begin
               slot = i;
             end
@@ -174,13 +189,13 @@ module issue_queue #(
 
           if (slot != -1) begin
             // Compute ready states with immediate CDB forwarding
-            logic s1_ready = (alloc_src1_tag[a] == '0); // x0 register
-            logic s2_ready = (alloc_src2_tag[a] == '0);
-            logic [31:0] s1_val = alloc_src1_val[a];
-            logic [31:0] s2_val = alloc_src2_val[a];
+            s1_ready = (alloc_src1_tag[a] == '0); // x0 register
+            s2_ready = (alloc_src2_tag[a] == '0);
+            s1_val = alloc_src1_val[a];
+            s2_val = alloc_src2_val[a];
 
             // Critical: Immediate CDB forwarding for back-to-back dependencies
-            for (int b = 0; b < ISSUE_W; b++) begin
+            for (b = 0; b < ISSUE_W; b++) begin
               if (cdb_valid[b]) begin
                 if (!s1_ready && (alloc_src1_tag[a] == cdb_tag[b])) begin
                   s1_ready = 1'b1;
@@ -210,19 +225,19 @@ module issue_queue #(
             };
             entry_used[slot] <= 1'b1;
             alloc_idx[a] <= slot;
-            allocated++;
+            allocated = allocated + 1;
           end
         end
       end
 
       // Phase 4: Free issued entries immediately (optimization)
-      for (int i = 0; i < ENTRIES; i++) begin
+      for (i = 0; i < ENTRIES; i++) begin
         if (rs_mem[i].used) begin
-          logic will_issue = 1'b0;
+          will_issue = 1'b0;
           // Check if this entry will be issued this cycle
-          for (int p = 0; p < ISSUE_W; p++) begin
-            if (issue_valid[p] && (rs_mem[i].dst_rob == issue_dst_rob[p]) && 
-                (rs_mem[i].dst_phys == issue_dst_phys[p])) begin
+          for (b = 0; b < ISSUE_W; b++) begin
+            if (issue_valid[b] && (rs_mem[i].dst_rob == issue_dst_rob[b]) && 
+                (rs_mem[i].dst_phys == issue_dst_phys[b])) begin
               will_issue = 1'b1;
             end
           end
@@ -238,24 +253,33 @@ module issue_queue #(
         end
       end
 
-      alloc_ok <= (allocated == popcount(alloc_en));
+      // Calculate alloc_ok based on how many we wanted vs got
+      alloc_ok_reg <= (allocated == popcount(alloc_en));
     end
   end
 
+  // Assign registered output
+  assign alloc_ok = alloc_ok_reg;
+
   // ============================================================
-  //  Combinational Issue Selection - Oldest First
+  //  Helper Functions
   // ============================================================
   function automatic int popcount(input logic [ISSUE_W-1:0] vec);
-    int count = 0;
-    for (int i = 0; i < ISSUE_W; i++) count += vec[i];
+    int count;
+    count = 0;
+    for (int i = 0; i < ISSUE_W; i++) count = count + vec[i];
     return count;
   endfunction
 
   function automatic int find_oldest_ready(input bit is_alu);
-    int oldest_idx = -1;
-    logic [AGE_W-1:0] oldest_age = {AGE_W{1'b1}};
+    int oldest_idx;
+    logic [AGE_W-1:0] oldest_age;
+    int i;
     
-    for (int i = 0; i < ENTRIES; i++) begin
+    oldest_idx = -1;
+    oldest_age = {AGE_W{1'b1}};
+    
+    for (i = 0; i < ENTRIES; i++) begin
       if (rs_mem[i].used && rs_mem[i].src1_ready && rs_mem[i].src2_ready) begin
         if ((is_alu && (rs_mem[i].fu_type == 2'b00)) || 
             (!is_alu && (rs_mem[i].fu_type == 2'b01))) begin
@@ -269,9 +293,20 @@ module issue_queue #(
     return oldest_idx;
   endfunction
 
+  // ============================================================
+  //  Combinational Issue Selection - Oldest First
+  // ============================================================
   always_comb begin
+    // Declare automatic variables for combinational block
+    automatic int p, i, b;
+    automatic int candidate;
+    automatic logic [AGE_W-1:0] candidate_age;
+    automatic int alu_issued;
+    automatic bit [ENTRIES-1:0] issued_mask;
+    automatic int br_candidate;
+    
     // Default outputs
-    for (int p = 0; p < ISSUE_W; p++) begin
+    for (p = 0; p < ISSUE_W; p++) begin
       issue_valid[p] = 1'b0;
       issue_opcode[p] = '0;
       issue_src1_val[p] = '0;
@@ -280,19 +315,23 @@ module issue_queue #(
       issue_dst_rob[p] = '0;
     end
     br_valid = 1'b0;
-    br_opcode = '0; br_src1_val = '0; br_src2_val = '0; br_dst_phys = '0; br_dst_rob = '0;
+    br_opcode = '0; 
+    br_src1_val = '0; 
+    br_src2_val = '0; 
+    br_dst_phys = '0; 
+    br_dst_rob = '0;
 
     // ALU issue selection
-    int alu_issued = 0;
-    bit [ENTRIES-1:0] issued_mask = '0;
+    alu_issued = 0;
+    issued_mask = '0;
     
-    for (int p = 0; p < ISSUE_W; p++) begin
+    for (p = 0; p < ISSUE_W; p++) begin
       if (alu_issued >= ISSUE_W) break;
       
-      int candidate = -1;
-      logic [AGE_W-1:0] candidate_age = {AGE_W{1'b1}};
+      candidate = -1;
+      candidate_age = {AGE_W{1'b1}};
       
-      for (int i = 0; i < ENTRIES; i++) begin
+      for (i = 0; i < ENTRIES; i++) begin
         if (!issued_mask[i] && rs_mem[i].used && rs_mem[i].src1_ready && 
             rs_mem[i].src2_ready && (rs_mem[i].fu_type == 2'b00)) begin
           if (rs_mem[i].age < candidate_age) begin
@@ -310,12 +349,12 @@ module issue_queue #(
         issue_dst_phys[p] = rs_mem[candidate].dst_phys;
         issue_dst_rob[p] = rs_mem[candidate].dst_rob;
         issued_mask[candidate] = 1'b1;
-        alu_issued++;
+        alu_issued = alu_issued + 1;
       end
     end
 
     // Branch issue selection (independent)
-    int br_candidate = find_oldest_ready(0); // 0 = branch
+    br_candidate = find_oldest_ready(0); // 0 = branch
     if (br_candidate != -1) begin
       br_valid = 1'b1;
       br_opcode = rs_mem[br_candidate].opcode;
@@ -330,9 +369,12 @@ module issue_queue #(
   //  Status Flags
   // ============================================================
   always_comb begin
-    int used_count = 0;
-    for (int i = 0; i < ENTRIES; i++) begin
-      used_count += entry_used[i];
+    automatic int used_count;
+    automatic int i;
+    
+    used_count = 0;
+    for (i = 0; i < ENTRIES; i++) begin
+      used_count = used_count + entry_used[i];
     end
     
     rs_full = (used_count >= ENTRIES);
