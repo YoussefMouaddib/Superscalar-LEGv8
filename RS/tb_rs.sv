@@ -61,7 +61,7 @@ module tb_issue_queue;
   // ============================================================
   //  DUT Instantiation
   // ============================================================
-  issue_queue_airtight #(
+  issue_queue #(
     .ENTRIES(ENTRIES),
     .ISSUE_W(ISSUE_W),
     .TAG_W(TAG_W)
