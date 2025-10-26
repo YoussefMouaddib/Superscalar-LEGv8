@@ -2,23 +2,13 @@
 // Simulates realistic instruction flow with detailed cycle-by-cycle output
 `timescale 1ns/1ps
 
-// Minimal core_pkg definitions
-package core_pkg;
-  parameter int IQ_ENTRIES = 8;
-  parameter int ISSUE_WIDTH = 2;
-  parameter int PREGS = 64;
-  parameter int ROB_ENTRIES = 16;
-  
-  typedef logic [$clog2(PREGS)-1:0] preg_tag_t;
-endpackage
-
 module tb_issue_queue;
   import core_pkg::*;
 
   // Parameters
-  localparam int ENTRIES = 8;
-  localparam int ISSUE_W = 2;
-  localparam int TAG_W = $clog2(core_pkg::PREGS);
+  localparam int ENTRIES = core_pkg::IQ_ENTRIES;
+  localparam int ISSUE_W = core_pkg::ISSUE_WIDTH;
+  localparam int TAG_W = core_pkg::LOG2_PREGS;
   localparam int CLK_PERIOD = 10;
 
   // DUT signals
@@ -71,7 +61,7 @@ module tb_issue_queue;
   // ============================================================
   //  DUT Instantiation
   // ============================================================
-  issue_queue #(
+  issue_queue_airtight #(
     .ENTRIES(ENTRIES),
     .ISSUE_W(ISSUE_W),
     .TAG_W(TAG_W)
@@ -146,6 +136,8 @@ module tb_issue_queue;
   //  Monitoring Task
   // ============================================================
   task print_cycle_state();
+    automatic int i;
+    
     $display("\n========================================");
     $display("CYCLE %0d", cycle);
     $display("========================================");
@@ -153,7 +145,7 @@ module tb_issue_queue;
     // Inputs
     $display("\n--- INPUTS ---");
     $display("Alloc_en: %b", alloc_en);
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       if (alloc_en[i]) begin
         $display("  [%0d] %s p%0d = p%0d %s p%0d | ROB=%0d FU=%s (slot=%0d)", 
                  i, opcode_str(alloc_opcode[i]),
@@ -167,14 +159,14 @@ module tb_issue_queue;
     end
     
     $display("\nCDB_valid: %b", cdb_valid);
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       if (cdb_valid[i]) begin
         $display("  [%0d] p%0d = %0d", i, cdb_tag[i], cdb_value[i]);
       end
     end
 
     $display("\nCommit_valid: %b", commit_valid);
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       if (commit_valid[i]) begin
         $display("  [%0d] ROB[%0d] commits", i, commit_idx[i]);
       end
@@ -184,7 +176,7 @@ module tb_issue_queue;
     $display("\n--- RESERVATION STATION STATE ---");
     $display("Entry | Used | Rdy1 Rdy2 | Tag1  Tag2  | Val1      Val2      | Opcode | DstP | ROB | FU  | Age");
     $display("------|------|-----------|-------------|-----------|-----------|--------|------|-----|-----|----");
-    for (int i = 0; i < ENTRIES; i++) begin
+    for (i = 0; i < ENTRIES; i++) begin
       if (dut.rs_mem[i].used) begin
         $display("  %0d   |  %b   |  %b    %b   | p%-3d  p%-3d | %-9d %-9d | %-6s | p%-3d | %-3d | %-3s | %0d",
                  i, dut.rs_mem[i].used,
@@ -203,7 +195,7 @@ module tb_issue_queue;
     // Registered CDB State
     $display("\n--- REGISTERED CDB (cdb_valid_ff) ---");
     $display("cdb_valid_ff: %b", dut.cdb_valid_ff);
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       if (dut.cdb_valid_ff[i]) begin
         $display("  [%0d] p%0d = %0d", i, dut.cdb_tag_ff[i], dut.cdb_value_ff[i]);
       end
@@ -212,7 +204,7 @@ module tb_issue_queue;
     // Outputs
     $display("\n--- OUTPUTS (Combinational) ---");
     $display("Issue_valid: %b", issue_valid);
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       if (issue_valid[i]) begin
         $display("  ALU[%0d]: %s (src1=%0d, src2=%0d) -> p%0d [ROB=%0d]",
                  i, opcode_str(issue_opcode[i]),
@@ -237,6 +229,8 @@ module tb_issue_queue;
   //  Test Sequence - Realistic Instruction Flow
   // ============================================================
   initial begin
+    automatic int i;
+    
     $display("\n");
     $display("╔══════════════════════════════════════════════════════════════╗");
     $display("║  ISSUE QUEUE TESTBENCH - Realistic Instruction Flow         ║");
@@ -255,7 +249,7 @@ module tb_issue_queue;
     commit_valid = 0;
     commit_clear_all = 0;
     
-    for (int i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < ISSUE_W; i++) begin
       alloc_opcode[i] = 0;
       alloc_src1_tag[i] = 0;
       alloc_src2_tag[i] = 0;
