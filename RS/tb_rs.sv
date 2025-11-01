@@ -313,7 +313,7 @@ module tb_reservation_station;
 
     cdb_valid = '0;
     
-    #1;
+    #9;
     print_cycle_state();
 
     // ==================== CYCLE 2 ====================
@@ -351,7 +351,7 @@ module tb_reservation_station;
     cdb_tag[0] = 6'd10;
     cdb_value[0] = 64'd8; // 5 + 3 = 8
     
-    #1;
+    #9;
     print_cycle_state();
 
     // ==================== CYCLE 3 ====================
@@ -382,7 +382,7 @@ module tb_reservation_station;
     cdb_tag[0] = 6'd11;
     cdb_value[0] = 64'd56; // 8 * 7 = 56
     
-    #1;
+    #9;
     print_cycle_state();
 
     // ==================== CYCLE 4 ====================
@@ -397,7 +397,7 @@ module tb_reservation_station;
     cdb_tag[0] = 6'd13;
     cdb_value[0] = 64'd12; // 15 & 12 = 12
     
-    #1;
+    #9;
     print_cycle_state();
 
     // ==================== CYCLE 5 ====================
@@ -418,7 +418,7 @@ module tb_reservation_station;
     cdb_tag[1] = 6'd14;
     cdb_value[1] = 64'd13; // 12 | 9 = 13
     
-    #1;
+    #9;
     print_cycle_state();
 
     // ==================== CYCLE 6 ====================
@@ -429,7 +429,7 @@ module tb_reservation_station;
     alloc_en = '0;
     cdb_valid = '0;
     
-    #1;
+    #9;
     print_cycle_state();
 
     $display("\n\n╔══════════════════════════════════════════════════════════════╗");
