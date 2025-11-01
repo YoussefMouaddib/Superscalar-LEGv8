@@ -22,7 +22,7 @@ module reservation_station #(
     input  logic [ISSUE_W-1:0][7:0]  alloc_op,
     input  logic [ISSUE_W-1:0][5:0]  alloc_rob_tag,
 
-    // CDB broadcast (registered)
+    // CDB broadcast (NOW COMBINATIONAL - no registration)
     input  logic [CDB_W-1:0]         cdb_valid,
     input  logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag,
     input  logic [CDB_W-1:0][63:0]   cdb_value,
@@ -47,64 +47,72 @@ module reservation_station #(
         logic src2_ready;
         logic [7:0] opcode;
         logic [5:0] rob_tag;
-        logic [4:0] age;  // Reduced from 8 to 5 bits (sufficient for 16 entries)
+        logic [4:0] age;
     } rs_entry_t;
 
-    rs_entry_t rs_mem [RS_ENTRIES-1:0];
+    rs_entry_t rs_mem [0:RS_ENTRIES-1];
 
-    // === Register CDB Inputs (1-cycle latency) ===
-    logic [CDB_W-1:0]         cdb_valid_ff;
-    logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag_ff;
-    logic [CDB_W-1:0][63:0]   cdb_value_ff;
-
-    always_ff @(posedge clk) begin
-        cdb_valid_ff <= cdb_valid;
-        cdb_tag_ff   <= cdb_tag;
-        cdb_value_ff <= cdb_value;
+    // === Free Slot Tracking (combinational) ===
+    logic [RS_ENTRIES-1:0] free_slots;
+    always_comb begin
+        for (int i = 0; i < RS_ENTRIES; i++) begin
+            free_slots[i] = !rs_mem[i].valid;
+        end
     end
 
-    // === Allocation Logic ===
+    // === Allocation Logic (NOW COMBINATIONAL) ===
+    always_comb begin
+        // Default: keep current values unless allocated
+        for (int i = 0; i < RS_ENTRIES; i++) begin
+            if (!rs_mem[i].valid) begin
+                // Initialize potential new entry
+                rs_mem[i].valid = 1'b0;
+                rs_mem[i].dst_tag = '0;
+                rs_mem[i].src1_tag = '0;
+                rs_mem[i].src2_tag = '0;
+                rs_mem[i].src1_val = '0;
+                rs_mem[i].src2_val = '0;
+                rs_mem[i].src1_ready = 1'b0;
+                rs_mem[i].src2_ready = 1'b0;
+                rs_mem[i].opcode = '0;
+                rs_mem[i].rob_tag = '0;
+                rs_mem[i].age = '0;
+            end
+        end
+
+        // Perform allocations
+        automatic int current_slot = 0;
+        for (int a = 0; a < ISSUE_W; a++) begin
+            if (alloc_en[a] && current_slot < RS_ENTRIES) begin
+                // Find next free slot
+                while (current_slot < RS_ENTRIES && !free_slots[current_slot]) begin
+                    current_slot++;
+                end
+                if (current_slot < RS_ENTRIES) begin
+                    rs_mem[current_slot].valid = 1'b1;
+                    rs_mem[current_slot].dst_tag = alloc_dst_tag[a];
+                    rs_mem[current_slot].src1_tag = alloc_src1_tag[a];
+                    rs_mem[current_slot].src2_tag = alloc_src2_tag[a];
+                    rs_mem[current_slot].src1_val = alloc_src1_val[a];
+                    rs_mem[current_slot].src2_val = alloc_src2_val[a];
+                    rs_mem[current_slot].src1_ready = alloc_src1_ready[a];
+                    rs_mem[current_slot].src2_ready = alloc_src2_ready[a];
+                    rs_mem[current_slot].opcode = alloc_op[a];
+                    rs_mem[current_slot].rob_tag = alloc_rob_tag[a];
+                    rs_mem[current_slot].age = 5'd0;
+                    current_slot++;
+                end
+            end
+        end
+    end
+
+    // === Age Update (sequential) ===
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             for (int i = 0; i < RS_ENTRIES; i++) begin
-                rs_mem[i].valid <= 1'b0;
-                rs_mem[i].age   <= 0;
+                rs_mem[i].age <= '0;
             end
         end else begin
-            // Find free slots in parallel for all allocation requests
-            logic [RS_ENTRIES-1:0] free_slots;
-            for (int i = 0; i < RS_ENTRIES; i++) begin
-                free_slots[i] = !rs_mem[i].valid;
-            end
-
-            for (int a = 0; a < ISSUE_W; a++) begin
-                if (alloc_en[a]) begin
-                    automatic int found = -1;
-                    // Find first free slot for this allocation port
-                    for (int i = 0; i < RS_ENTRIES; i++) begin
-                        if (free_slots[i] && found == -1) begin
-                            found = i;
-                            free_slots[i] = 1'b0; // Mark as allocated
-                        end
-                    end
-
-                    if (found != -1) begin
-                        rs_mem[found].valid       <= 1'b1;
-                        rs_mem[found].dst_tag     <= alloc_dst_tag[a];
-                        rs_mem[found].src1_tag    <= alloc_src1_tag[a];
-                        rs_mem[found].src2_tag    <= alloc_src2_tag[a];
-                        rs_mem[found].src1_val    <= alloc_src1_val[a];
-                        rs_mem[found].src2_val    <= alloc_src2_val[a];
-                        rs_mem[found].src1_ready  <= alloc_src1_ready[a];
-                        rs_mem[found].src2_ready  <= alloc_src2_ready[a];
-                        rs_mem[found].opcode      <= alloc_op[a];
-                        rs_mem[found].rob_tag     <= alloc_rob_tag[a];
-                        rs_mem[found].age         <= 5'd0;
-                    end
-                end
-            end
-
-            // === Age Update ===
             for (int i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid) begin
                     rs_mem[i].age <= rs_mem[i].age + 1'b1;
@@ -113,18 +121,27 @@ module reservation_station #(
         end
     end
 
-    // === Operand Wakeup from CDB (Registered) ===
-    always_ff @(posedge clk) begin
+    // === Operand Wakeup from CDB (NOW COMBINATIONAL - no registration) ===
+    always_comb begin
         for (int i = 0; i < RS_ENTRIES; i++) begin
             if (rs_mem[i].valid) begin
-                for (int b = 0; b < CDB_W; b++) begin
-                    if (cdb_valid_ff[b] && (rs_mem[i].src1_tag == cdb_tag_ff[b])) begin
-                        rs_mem[i].src1_val   <= cdb_value_ff[b];
-                        rs_mem[i].src1_ready <= 1'b1;
+                // Check CDB for src1
+                if (!rs_mem[i].src1_ready) begin
+                    for (int b = 0; b < CDB_W; b++) begin
+                        if (cdb_valid[b] && (rs_mem[i].src1_tag == cdb_tag[b])) begin
+                            rs_mem[i].src1_val = cdb_value[b];
+                            rs_mem[i].src1_ready = 1'b1;
+                        end
                     end
-                    if (cdb_valid_ff[b] && (rs_mem[i].src2_tag == cdb_tag_ff[b])) begin
-                        rs_mem[i].src2_val   <= cdb_value_ff[b];
-                        rs_mem[i].src2_ready <= 1'b1;
+                end
+                
+                // Check CDB for src2
+                if (!rs_mem[i].src2_ready) begin
+                    for (int b = 0; b < CDB_W; b++) begin
+                        if (cdb_valid[b] && (rs_mem[i].src2_tag == cdb_tag[b])) begin
+                            rs_mem[i].src2_val = cdb_value[b];
+                            rs_mem[i].src2_ready = 1'b1;
+                        end
                     end
                 end
             end
@@ -133,26 +150,27 @@ module reservation_station #(
 
     // === Issue Selection (Oldest-First with Unique Entries) ===
     always_comb begin
-        // Declare all variables at the beginning
+        // Initialize outputs
+        for (int p = 0; p < ISSUE_W; p++) begin
+            issue_valid[p] = 1'b0;
+            issue_op[p] = '0;
+            issue_dst_tag[p] = '0;
+            issue_src1_val[p] = '0;
+            issue_src2_val[p] = '0;
+            issue_rob_tag[p] = '0;
+        end
+
         rs_entry_t oldest [ISSUE_W];
         int oldest_idx [ISSUE_W];
         logic [RS_ENTRIES-1:0] considered_entries;
         
-        // Initialize outputs
         for (int p = 0; p < ISSUE_W; p++) begin
-            issue_valid[p]     = 1'b0;
-            issue_op[p]        = '0;
-            issue_dst_tag[p]   = '0;
-            issue_src1_val[p]  = '0;
-            issue_src2_val[p]  = '0;
-            issue_rob_tag[p]   = '0;
-            oldest_idx[p]      = -1;
-            oldest[p].age      = 0;
+            oldest_idx[p] = -1;
+            oldest[p].age = 0;
         end
-
         considered_entries = '0;
 
-        // Multi-stage selection to ensure unique entries
+        // Multi-stage selection
         for (int p = 0; p < ISSUE_W; p++) begin
             for (int i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready && 
@@ -165,7 +183,6 @@ module reservation_station #(
                 end
             end
             
-            // Mark the selected entry as considered for subsequent ports
             if (issue_valid[p] && oldest_idx[p] != -1) begin
                 considered_entries[oldest_idx[p]] = 1'b1;
             end
@@ -174,33 +191,34 @@ module reservation_station #(
         // Assign issue outputs
         for (int p = 0; p < ISSUE_W; p++) begin
             if (issue_valid[p]) begin
-                issue_op[p]        = oldest[p].opcode;
-                issue_dst_tag[p]   = oldest[p].dst_tag;
-                issue_src1_val[p]  = oldest[p].src1_val;
-                issue_src2_val[p]  = oldest[p].src2_val;
-                issue_rob_tag[p]   = oldest[p].rob_tag;
+                issue_op[p] = oldest[p].opcode;
+                issue_dst_tag[p] = oldest[p].dst_tag;
+                issue_src1_val[p] = oldest[p].src1_val;
+                issue_src2_val[p] = oldest[p].src2_val;
+                issue_rob_tag[p] = oldest[p].rob_tag;
             end
         end
     end
 
-    // === Clear Issued Entries ===
-    always_ff @(posedge clk) begin
-        // Use the indices found during selection for efficient clearing
-        for (int p = 0; p < ISSUE_W; p++) begin
-            if (issue_valid[p]) begin
-                // In a real implementation, you'd use oldest_idx[p] directly
-                // For now, we'll find by rob_tag but this could be optimized
-                automatic int idx = -1;
-                for (int i = 0; i < RS_ENTRIES; i++) begin
-                    if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
-                        idx = i;
-                        break;
+    // === Clear Issued Entries (sequential) ===
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                rs_mem[i].valid <= 1'b0;
+            end
+        end else begin
+            // Clear entries that were issued
+            for (int p = 0; p < ISSUE_W; p++) begin
+                if (issue_valid[p]) begin
+                    // Find entry by rob_tag (could be optimized with indices)
+                    for (int i = 0; i < RS_ENTRIES; i++) begin
+                        if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
+                            rs_mem[i].valid <= 1'b0;
+                        end
                     end
-                end
-                if (idx != -1) begin
-                    rs_mem[idx].valid <= 1'b0;
                 end
             end
         end
     end
+
 endmodule
