@@ -47,7 +47,7 @@ module reservation_station #(
         logic src2_ready;
         logic [7:0] opcode;
         logic [5:0] rob_tag;
-        logic [7:0] age;
+        logic [4:0] age;  // Reduced from 8 to 5 bits (sufficient for 16 entries)
     } rs_entry_t;
 
     rs_entry_t rs_mem [RS_ENTRIES-1:0];
@@ -71,12 +71,22 @@ module reservation_station #(
                 rs_mem[i].age   <= 0;
             end
         end else begin
+            // Find free slots in parallel for all allocation requests
+            logic [RS_ENTRIES-1:0] free_slots;
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                free_slots[i] = !rs_mem[i].valid;
+            end
+
             for (int a = 0; a < ISSUE_W; a++) begin
                 if (alloc_en[a]) begin
-                    int found = -1;
-                    for (int i = 0; i < RS_ENTRIES; i++)
-                        if (!rs_mem[i].valid && found == -1)
+                    automatic int found = -1;
+                    // Find first free slot for this allocation port
+                    for (int i = 0; i < RS_ENTRIES; i++) begin
+                        if (free_slots[i] && found == -1) begin
                             found = i;
+                            free_slots[i] = 1'b0; // Mark as allocated
+                        end
+                    end
 
                     if (found != -1) begin
                         rs_mem[found].valid       <= 1'b1;
@@ -89,15 +99,17 @@ module reservation_station #(
                         rs_mem[found].src2_ready  <= alloc_src2_ready[a];
                         rs_mem[found].opcode      <= alloc_op[a];
                         rs_mem[found].rob_tag     <= alloc_rob_tag[a];
-                        rs_mem[found].age         <= 8'd0;
+                        rs_mem[found].age         <= 5'd0;
                     end
                 end
             end
 
             // === Age Update ===
-            for (int i = 0; i < RS_ENTRIES; i++)
-                if (rs_mem[i].valid)
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                if (rs_mem[i].valid) begin
                     rs_mem[i].age <= rs_mem[i].age + 1'b1;
+                end
+            end
         end
     end
 
@@ -119,8 +131,14 @@ module reservation_station #(
         end
     end
 
-    // === Issue Selection (Oldest-First) ===
+    // === Issue Selection (Oldest-First with Unique Entries) ===
     always_comb begin
+        // Declare all variables at the beginning
+        rs_entry_t oldest [ISSUE_W];
+        int oldest_idx [ISSUE_W];
+        logic [RS_ENTRIES-1:0] considered_entries;
+        
+        // Initialize outputs
         for (int p = 0; p < ISSUE_W; p++) begin
             issue_valid[p]     = 1'b0;
             issue_op[p]        = '0;
@@ -128,27 +146,32 @@ module reservation_station #(
             issue_src1_val[p]  = '0;
             issue_src2_val[p]  = '0;
             issue_rob_tag[p]   = '0;
+            oldest_idx[p]      = -1;
+            oldest[p].age      = 0;
         end
 
-        rs_entry_t oldest [ISSUE_W];
-        int oldest_idx [ISSUE_W];
+        considered_entries = '0;
+
+        // Multi-stage selection to ensure unique entries
         for (int p = 0; p < ISSUE_W; p++) begin
-            oldest[p].age = 0;
-            oldest_idx[p] = -1;
-        end
-
-        for (int i = 0; i < RS_ENTRIES; i++) begin
-            if (rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready) begin
-                for (int p = 0; p < ISSUE_W; p++) begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                if (rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready && 
+                    !considered_entries[i]) begin
                     if (!issue_valid[p] || (rs_mem[i].age > oldest[p].age)) begin
-                        oldest[p]     = rs_mem[i];
+                        oldest[p] = rs_mem[i];
                         oldest_idx[p] = i;
                         issue_valid[p] = 1'b1;
                     end
                 end
             end
+            
+            // Mark the selected entry as considered for subsequent ports
+            if (issue_valid[p] && oldest_idx[p] != -1) begin
+                considered_entries[oldest_idx[p]] = 1'b1;
+            end
         end
 
+        // Assign issue outputs
         for (int p = 0; p < ISSUE_W; p++) begin
             if (issue_valid[p]) begin
                 issue_op[p]        = oldest[p].opcode;
@@ -162,16 +185,22 @@ module reservation_station #(
 
     // === Clear Issued Entries ===
     always_ff @(posedge clk) begin
+        // Use the indices found during selection for efficient clearing
         for (int p = 0; p < ISSUE_W; p++) begin
             if (issue_valid[p]) begin
-                int idx = -1;
-                for (int i = 0; i < RS_ENTRIES; i++)
-                    if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p])
+                // In a real implementation, you'd use oldest_idx[p] directly
+                // For now, we'll find by rob_tag but this could be optimized
+                automatic int idx = -1;
+                for (int i = 0; i < RS_ENTRIES; i++) begin
+                    if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
                         idx = i;
-                if (idx != -1)
+                        break;
+                    end
+                end
+                if (idx != -1) begin
                     rs_mem[idx].valid <= 1'b0;
+                end
             end
         end
     end
 endmodule
-
