@@ -212,9 +212,7 @@ module tb_reservation_station;
   initial begin
     automatic int i;
     automatic int valid_count;
-    cdb_valid = '0;
-    cdb_tag = '0;
-    cdb_value = '0;
+
     
     $display("╔══════════════════════════════════════════════════════════════╗");
     $display("║  ZERO-LATENCY RESERVATION STATION TESTBENCH                ║");
