@@ -110,7 +110,10 @@ module tb_reservation_station;
   //  Monitoring Task - EXTREMELY DETAILED
   // ============================================================
   task print_cycle_state();
-    automatic int i, j;
+    automatic int i;
+    automatic int free_count;
+    automatic int ready_count;
+    automatic int waiting_count;
     
     $display("\n════════════════════════════════════════════════════════════════");
     $display("CYCLE %0d", cycle);
@@ -171,7 +174,7 @@ module tb_reservation_station;
     // Free Slot Analysis
     $display("\n🔍 FREE SLOT ANALYSIS");
     $display("────────────────────");
-    automatic int free_count = 0;
+    free_count = 0;
     for (i = 0; i < RS_ENTRIES; i++) begin
       if (!dut.rs_mem[i].valid) free_count++;
     end
@@ -212,8 +215,8 @@ module tb_reservation_station;
     // Dependency Analysis
     $display("\n🔗 DEPENDENCY ANALYSIS");
     $display("─────────────────────");
-    automatic int ready_count = 0;
-    automatic int waiting_count = 0;
+    ready_count = 0;
+    waiting_count = 0;
     for (i = 0; i < RS_ENTRIES; i++) begin
       if (dut.rs_mem[i].valid) begin
         if (dut.rs_mem[i].src1_ready && dut.rs_mem[i].src2_ready) begin
@@ -237,6 +240,7 @@ module tb_reservation_station;
   // ============================================================
   initial begin
     automatic int i;
+    automatic int valid_count;
     
     $display("\n");
     $display("╔══════════════════════════════════════════════════════════════╗");
@@ -433,8 +437,8 @@ module tb_reservation_station;
     $display("╚══════════════════════════════════════════════════════════════╝");
     
     // Final verification
-    automatic int valid_count = 0;
-    for (int i = 0; i < RS_ENTRIES; i++) begin
+    valid_count = 0;
+    for (i = 0; i < RS_ENTRIES; i++) begin
       if (dut.rs_mem[i].valid) valid_count++;
     end
     
