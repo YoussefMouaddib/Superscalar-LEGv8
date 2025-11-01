@@ -51,38 +51,23 @@ module reservation_station #(
     } rs_entry_t;
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
+    logic [4:0] age_ff [0:RS_ENTRIES-1]; // Sequential age storage
 
-    // === Free Slot Tracking (combinational) ===
-    logic [RS_ENTRIES-1:0] free_slots;
-    
+    // === Main Combinational Logic (Allocation + Wakeup) ===
     always_comb begin
+        // Temporary working copy of rs_mem
+        rs_entry_t rs_mem_comb [0:RS_ENTRIES-1];
+        logic [RS_ENTRIES-1:0] free_slots;
+        int current_slot;
+
+        // Initialize from current state
         for (int i = 0; i < RS_ENTRIES; i++) begin
+            rs_mem_comb[i] = rs_mem[i];
+            rs_mem_comb[i].age = age_ff[i]; // Use sequential age
             free_slots[i] = !rs_mem[i].valid;
         end
-    end
 
-    // === Allocation Logic (combinational) ===
-    always_comb begin
-        int current_slot;
-        
-        // Initialize all entries first
-        for (int i = 0; i < RS_ENTRIES; i++) begin
-            if (!rs_mem[i].valid) begin
-                rs_mem[i].valid = 1'b0;
-                rs_mem[i].dst_tag = '0;
-                rs_mem[i].src1_tag = '0;
-                rs_mem[i].src2_tag = '0;
-                rs_mem[i].src1_val = '0;
-                rs_mem[i].src2_val = '0;
-                rs_mem[i].src1_ready = 1'b0;
-                rs_mem[i].src2_ready = 1'b0;
-                rs_mem[i].opcode = '0;
-                rs_mem[i].rob_tag = '0;
-                rs_mem[i].age = '0;
-            end
-        end
-
-        // Perform allocations
+        // === Allocation ===
         current_slot = 0;
         for (int a = 0; a < ISSUE_W; a++) begin
             if (alloc_en[a] && current_slot < RS_ENTRIES) begin
@@ -91,68 +76,48 @@ module reservation_station #(
                     current_slot++;
                 end
                 if (current_slot < RS_ENTRIES) begin
-                    rs_mem[current_slot].valid = 1'b1;
-                    rs_mem[current_slot].dst_tag = alloc_dst_tag[a];
-                    rs_mem[current_slot].src1_tag = alloc_src1_tag[a];
-                    rs_mem[current_slot].src2_tag = alloc_src2_tag[a];
-                    rs_mem[current_slot].src1_val = alloc_src1_val[a];
-                    rs_mem[current_slot].src2_val = alloc_src2_val[a];
-                    rs_mem[current_slot].src1_ready = alloc_src1_ready[a];
-                    rs_mem[current_slot].src2_ready = alloc_src2_ready[a];
-                    rs_mem[current_slot].opcode = alloc_op[a];
-                    rs_mem[current_slot].rob_tag = alloc_rob_tag[a];
-                    rs_mem[current_slot].age = 5'd0;
+                    rs_mem_comb[current_slot].valid = 1'b1;
+                    rs_mem_comb[current_slot].dst_tag = alloc_dst_tag[a];
+                    rs_mem_comb[current_slot].src1_tag = alloc_src1_tag[a];
+                    rs_mem_comb[current_slot].src2_tag = alloc_src2_tag[a];
+                    rs_mem_comb[current_slot].src1_val = alloc_src1_val[a];
+                    rs_mem_comb[current_slot].src2_val = alloc_src2_val[a];
+                    rs_mem_comb[current_slot].src1_ready = alloc_src1_ready[a];
+                    rs_mem_comb[current_slot].src2_ready = alloc_src2_ready[a];
+                    rs_mem_comb[current_slot].opcode = alloc_op[a];
+                    rs_mem_comb[current_slot].rob_tag = alloc_rob_tag[a];
+                    rs_mem_comb[current_slot].age = 5'd0;
                     current_slot++;
                 end
             end
         end
-    end
 
-    // === Age Update (sequential) ===
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            for (int i = 0; i < RS_ENTRIES; i++) begin
-                rs_mem[i].age <= '0;
-            end
-        end else begin
-            for (int i = 0; i < RS_ENTRIES; i++) begin
-                if (rs_mem[i].valid) begin
-                    rs_mem[i].age <= rs_mem[i].age + 1'b1;
-                end
-            end
-        end
-    end
-
-    // === Operand Wakeup from CDB (combinational) ===
-    always_comb begin
+        // === Wakeup from CDB ===
         for (int i = 0; i < RS_ENTRIES; i++) begin
-            if (rs_mem[i].valid) begin
+            if (rs_mem_comb[i].valid) begin
                 // Check CDB for src1
-                if (!rs_mem[i].src1_ready) begin
+                if (!rs_mem_comb[i].src1_ready) begin
                     for (int b = 0; b < CDB_W; b++) begin
-                        if (cdb_valid[b] && (rs_mem[i].src1_tag == cdb_tag[b])) begin
-                            rs_mem[i].src1_val = cdb_value[b];
-                            rs_mem[i].src1_ready = 1'b1;
+                        if (cdb_valid[b] && (rs_mem_comb[i].src1_tag == cdb_tag[b])) begin
+                            rs_mem_comb[i].src1_val = cdb_value[b];
+                            rs_mem_comb[i].src1_ready = 1'b1;
                         end
                     end
                 end
                 
                 // Check CDB for src2
-                if (!rs_mem[i].src2_ready) begin
+                if (!rs_mem_comb[i].src2_ready) begin
                     for (int b = 0; b < CDB_W; b++) begin
-                        if (cdb_valid[b] && (rs_mem[i].src2_tag == cdb_tag[b])) begin
-                            rs_mem[i].src2_val = cdb_value[b];
-                            rs_mem[i].src2_ready = 1'b1;
+                        if (cdb_valid[b] && (rs_mem_comb[i].src2_tag == cdb_tag[b])) begin
+                            rs_mem_comb[i].src2_val = cdb_value[b];
+                            rs_mem_comb[i].src2_ready = 1'b1;
                         end
                     end
                 end
             end
         end
-    end
 
-    // === Issue Selection (combinational) ===
-    always_comb begin
-        // Declare all variables first
+        // === Issue Selection ===
         rs_entry_t oldest [ISSUE_W];
         int oldest_idx [ISSUE_W];
         logic [RS_ENTRIES-1:0] considered_entries;
@@ -174,10 +139,10 @@ module reservation_station #(
         // Multi-stage selection
         for (int p = 0; p < ISSUE_W; p++) begin
             for (int i = 0; i < RS_ENTRIES; i++) begin
-                if (rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready && 
+                if (rs_mem_comb[i].valid && rs_mem_comb[i].src1_ready && rs_mem_comb[i].src2_ready && 
                     !considered_entries[i]) begin
-                    if (!issue_valid[p] || (rs_mem[i].age > oldest[p].age)) begin
-                        oldest[p] = rs_mem[i];
+                    if (!issue_valid[p] || (rs_mem_comb[i].age > oldest[p].age)) begin
+                        oldest[p] = rs_mem_comb[i];
                         oldest_idx[p] = i;
                         issue_valid[p] = 1'b1;
                     end
@@ -197,6 +162,28 @@ module reservation_station #(
                 issue_src1_val[p] = oldest[p].src1_val;
                 issue_src2_val[p] = oldest[p].src2_val;
                 issue_rob_tag[p] = oldest[p].rob_tag;
+            end
+        end
+
+        // Update rs_mem with combinational result
+        for (int i = 0; i < RS_ENTRIES; i++) begin
+            rs_mem[i] = rs_mem_comb[i];
+        end
+    end
+
+    // === Age Update (sequential) ===
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                age_ff[i] <= '0;
+            end
+        end else begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                if (rs_mem[i].valid) begin
+                    age_ff[i] <= rs_mem[i].age + 1'b1;
+                end else begin
+                    age_ff[i] <= '0;
+                end
             end
         end
     end
