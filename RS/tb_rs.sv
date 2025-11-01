@@ -1,59 +1,44 @@
-// Minimal testbench for issue_queue_airtight
-// Simulates realistic instruction flow with detailed cycle-by-cycle output
+// Detailed testbench for reservation_station module
+// Extensive debugging output for cycle-by-cycle analysis
 `timescale 1ns/1ps
 
-module tb_issue_queue;
+module tb_reservation_station;
   import core_pkg::*;
 
   // Parameters
-  localparam int ENTRIES = core_pkg::IQ_ENTRIES;
-  localparam int ISSUE_W = core_pkg::ISSUE_WIDTH;
-  localparam int TAG_W = $clog2(core_pkg::PREGS);
+  localparam int RS_ENTRIES = 16;
+  localparam int ISSUE_W = 2;
+  localparam int CDB_W = 2;
+  localparam int PHYS_W = 6;
   localparam int CLK_PERIOD = 10;
 
   // DUT signals
   logic clk, reset;
   
-  // Allocation
+  // Allocation interface
   logic [ISSUE_W-1:0] alloc_en;
-  logic [3:0] alloc_opcode [ISSUE_W-1:0];
-  logic [TAG_W-1:0] alloc_src1_tag [ISSUE_W-1:0];
-  logic [TAG_W-1:0] alloc_src2_tag [ISSUE_W-1:0];
-  logic [31:0] alloc_src1_val [ISSUE_W-1:0];
-  logic [31:0] alloc_src2_val [ISSUE_W-1:0];
-  core_pkg::preg_tag_t alloc_dst_phys [ISSUE_W-1:0];
-  logic [4:0] alloc_dst_rob [ISSUE_W-1:0];
-  logic [1:0] alloc_fu_type [ISSUE_W-1:0];
-  logic alloc_ok;
-  logic [$clog2(ENTRIES)-1:0] alloc_idx [ISSUE_W-1:0];
+  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_dst_tag;
+  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_src1_tag;
+  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_src2_tag;
+  logic [ISSUE_W-1:0][63:0] alloc_src1_val;
+  logic [ISSUE_W-1:0][63:0] alloc_src2_val;
+  logic [ISSUE_W-1:0] alloc_src1_ready;
+  logic [ISSUE_W-1:0] alloc_src2_ready;
+  logic [ISSUE_W-1:0][7:0] alloc_op;
+  logic [ISSUE_W-1:0][5:0] alloc_rob_tag;
 
-  // CDB
-  logic [ISSUE_W-1:0] cdb_valid;
-  logic [TAG_W-1:0] cdb_tag [ISSUE_W-1:0];
-  logic [31:0] cdb_value [ISSUE_W-1:0];
+  // CDB broadcast
+  logic [CDB_W-1:0] cdb_valid;
+  logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag;
+  logic [CDB_W-1:0][63:0] cdb_value;
 
   // Issue outputs
   logic [ISSUE_W-1:0] issue_valid;
-  logic [3:0] issue_opcode [ISSUE_W-1:0];
-  logic [31:0] issue_src1_val [ISSUE_W-1:0];
-  logic [31:0] issue_src2_val [ISSUE_W-1:0];
-  core_pkg::preg_tag_t issue_dst_phys [ISSUE_W-1:0];
-  logic [4:0] issue_dst_rob [ISSUE_W-1:0];
-
-  // Branch port
-  logic br_valid;
-  logic [3:0] br_opcode;
-  logic [31:0] br_src1_val, br_src2_val;
-  core_pkg::preg_tag_t br_dst_phys;
-  logic [4:0] br_dst_rob;
-
-  // Commit
-  logic [ISSUE_W-1:0] commit_valid;
-  logic [$clog2(core_pkg::ROB_ENTRIES)-1:0] commit_idx [ISSUE_W-1:0];
-  logic commit_clear_all;
-
-  // Status
-  logic rs_full, rs_almost_full;
+  logic [ISSUE_W-1:0][7:0] issue_op;
+  logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag;
+  logic [ISSUE_W-1:0][63:0] issue_src1_val;
+  logic [ISSUE_W-1:0][63:0] issue_src2_val;
+  logic [ISSUE_W-1:0][5:0] issue_rob_tag;
 
   // Cycle counter
   int cycle;
@@ -61,44 +46,33 @@ module tb_issue_queue;
   // ============================================================
   //  DUT Instantiation
   // ============================================================
-  issue_queue #(
-    .ENTRIES(ENTRIES),
+  reservation_station #(
+    .RS_ENTRIES(RS_ENTRIES),
     .ISSUE_W(ISSUE_W),
-    .TAG_W(TAG_W)
+    .CDB_W(CDB_W),
+    .PHYS_W(PHYS_W)
   ) dut (
     .clk(clk),
     .reset(reset),
     .alloc_en(alloc_en),
-    .alloc_opcode(alloc_opcode),
+    .alloc_dst_tag(alloc_dst_tag),
     .alloc_src1_tag(alloc_src1_tag),
     .alloc_src2_tag(alloc_src2_tag),
     .alloc_src1_val(alloc_src1_val),
     .alloc_src2_val(alloc_src2_val),
-    .alloc_dst_phys(alloc_dst_phys),
-    .alloc_dst_rob(alloc_dst_rob),
-    .alloc_fu_type(alloc_fu_type),
-    .alloc_ok(alloc_ok),
-    .alloc_idx(alloc_idx),
+    .alloc_src1_ready(alloc_src1_ready),
+    .alloc_src2_ready(alloc_src2_ready),
+    .alloc_op(alloc_op),
+    .alloc_rob_tag(alloc_rob_tag),
     .cdb_valid(cdb_valid),
     .cdb_tag(cdb_tag),
     .cdb_value(cdb_value),
     .issue_valid(issue_valid),
-    .issue_opcode(issue_opcode),
+    .issue_op(issue_op),
+    .issue_dst_tag(issue_dst_tag),
     .issue_src1_val(issue_src1_val),
     .issue_src2_val(issue_src2_val),
-    .issue_dst_phys(issue_dst_phys),
-    .issue_dst_rob(issue_dst_rob),
-    .br_valid(br_valid),
-    .br_opcode(br_opcode),
-    .br_src1_val(br_src1_val),
-    .br_src2_val(br_src2_val),
-    .br_dst_phys(br_dst_phys),
-    .br_dst_rob(br_dst_rob),
-    .commit_valid(commit_valid),
-    .commit_idx(commit_idx),
-    .commit_clear_all(commit_clear_all),
-    .rs_full(rs_full),
-    .rs_almost_full(rs_almost_full)
+    .issue_rob_tag(issue_rob_tag)
   );
 
   // ============================================================
@@ -110,160 +84,194 @@ module tb_issue_queue;
   // ============================================================
   //  Helper Functions
   // ============================================================
-  function string opcode_str(input logic [3:0] op);
+  function string opcode_str(input logic [7:0] op);
     case(op)
-      4'h0: return "ADD";
-      4'h1: return "SUB";
-      4'h2: return "MUL";
-      4'h3: return "AND";
-      4'h4: return "OR";
-      4'h5: return "XOR";
-      4'h8: return "BEQ";
-      4'h9: return "BNE";
-      default: return "???";
+      8'h01: return "ADD  ";
+      8'h02: return "SUB  ";
+      8'h03: return "AND  ";
+      8'h04: return "OR   ";
+      8'h05: return "XOR  ";
+      8'h06: return "LSL  ";
+      8'h07: return "LSR  ";
+      8'h10: return "LDR  ";
+      8'h11: return "STR  ";
+      8'h20: return "B    ";
+      8'h21: return "BL   ";
+      8'h22: return "RET  ";
+      default: return "UNK  ";
     endcase
   endfunction
 
-  function string fu_type_str(input logic [1:0] fu);
-    case(fu)
-      2'b00: return "ALU";
-      2'b01: return "BR ";
-      default: return "???";
-    endcase
+  function string ready_str(input logic ready);
+    return ready ? "READY" : "WAIT ";
   endfunction
 
   // ============================================================
-  //  Monitoring Task
+  //  Monitoring Task - EXTREMELY DETAILED
   // ============================================================
   task print_cycle_state();
-    automatic int i;
+    automatic int i, j;
     
-    $display("\n========================================");
+    $display("\n════════════════════════════════════════════════════════════════");
     $display("CYCLE %0d", cycle);
-    $display("========================================");
+    $display("════════════════════════════════════════════════════════════════");
     
-    // Inputs
-    $display("\n--- INPUTS ---");
+    // Inputs Section
+    $display("\n📥 INPUTS");
+    $display("──────────");
+    
+    // Allocation Inputs
     $display("Alloc_en: %b", alloc_en);
     for (i = 0; i < ISSUE_W; i++) begin
       if (alloc_en[i]) begin
-        $display("  [%0d] %s p%0d = p%0d %s p%0d | ROB=%0d FU=%s (slot=%0d)", 
-                 i, opcode_str(alloc_opcode[i]),
-                 alloc_dst_phys[i], alloc_src1_tag[i], 
-                 opcode_str(alloc_opcode[i]), alloc_src2_tag[i],
-                 alloc_dst_rob[i], fu_type_str(alloc_fu_type[i]), alloc_idx[i]);
-        $display("      src1: tag=p%0d val=%0d | src2: tag=p%0d val=%0d",
-                 alloc_src1_tag[i], alloc_src1_val[i],
-                 alloc_src2_tag[i], alloc_src2_val[i]);
+        $display("  Port[%0d]: %s p%0d = p%0d %s p%0d | ROB=%0d", 
+                 i, opcode_str(alloc_op[i]),
+                 alloc_dst_tag[i], alloc_src1_tag[i], 
+                 opcode_str(alloc_op[i]), alloc_src2_tag[i],
+                 alloc_rob_tag[i]);
+        $display("           src1: tag=p%0d val=%-4d [%s]", 
+                 alloc_src1_tag[i], alloc_src1_val[i], ready_str(alloc_src1_ready[i]));
+        $display("           src2: tag=p%0d val=%-4d [%s]", 
+                 alloc_src2_tag[i], alloc_src2_val[i], ready_str(alloc_src2_ready[i]));
+      end else begin
+        $display("  Port[%0d]: --- IDLE ---", i);
       end
     end
     
+    // CDB Inputs
     $display("\nCDB_valid: %b", cdb_valid);
-    for (i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < CDB_W; i++) begin
       if (cdb_valid[i]) begin
-        $display("  [%0d] p%0d = %0d", i, cdb_tag[i], cdb_value[i]);
+        $display("  CDB[%0d]: p%0d = %0d", i, cdb_tag[i], cdb_value[i]);
+      end else begin
+        $display("  CDB[%0d]: --- IDLE ---", i);
       end
     end
 
-    $display("\nCommit_valid: %b", commit_valid);
-    for (i = 0; i < ISSUE_W; i++) begin
-      if (commit_valid[i]) begin
-        $display("  [%0d] ROB[%0d] commits", i, commit_idx[i]);
-      end
-    end
-
-    // RS Memory State
-    $display("\n--- RESERVATION STATION STATE ---");
-    $display("Entry | Used | Rdy1 Rdy2 | Tag1  Tag2  | Val1      Val2      | Opcode | DstP | ROB | FU  | Age");
-    $display("------|------|-----------|-------------|-----------|-----------|--------|------|-----|-----|----");
-    for (i = 0; i < ENTRIES; i++) begin
-      if (dut.rs_mem[i].used) begin
-        $display("  %0d   |  %b   |  %b    %b   | p%-3d  p%-3d | %-9d %-9d | %-6s | p%-3d | %-3d | %-3s | %0d",
-                 i, dut.rs_mem[i].used,
+    // RS Memory State - COMPLETE DUMP
+    $display("\n💾 RESERVATION STATION STATE (%0d entries)", RS_ENTRIES);
+    $display("────────────────────────────────────────────────────────────────");
+    $display("Entry | V | Rdy1 Rdy2 | Tag1  Tag2  | Val1      Val2      | Operation         | DstP | ROB  | Age");
+    $display("──────┼───┼───────────┼─────────────┼─────────────────────┼───────────────────┼──────┼──────┼────");
+    for (i = 0; i < RS_ENTRIES; i++) begin
+      if (dut.rs_mem[i].valid) begin
+        $display("  %2d  | %b |  %b     %b   | p%-3d  p%-3d | %-9d %-9d | %s → p%-2d [ROB%0d] | %0d",
+                 i, dut.rs_mem[i].valid,
                  dut.rs_mem[i].src1_ready, dut.rs_mem[i].src2_ready,
                  dut.rs_mem[i].src1_tag, dut.rs_mem[i].src2_tag,
                  dut.rs_mem[i].src1_val, dut.rs_mem[i].src2_val,
                  opcode_str(dut.rs_mem[i].opcode),
-                 dut.rs_mem[i].dst_phys, dut.rs_mem[i].dst_rob,
-                 fu_type_str(dut.rs_mem[i].fu_type),
+                 dut.rs_mem[i].dst_tag, dut.rs_mem[i].rob_tag,
                  dut.rs_mem[i].age);
       end else begin
-        $display("  %0d   |  0   |  -    -   | -     -    | -         -         | -      | -    | -   | -   | -", i);
+        $display("  %2d  | 0 |  -     -   | -     -    | -         -         | -                 | -    | -    | -", i);
       end
     end
 
-    // Registered CDB State
-    $display("\n--- REGISTERED CDB (cdb_valid_ff) ---");
+    // Free Slot Analysis
+    $display("\n🔍 FREE SLOT ANALYSIS");
+    $display("────────────────────");
+    automatic int free_count = 0;
+    for (i = 0; i < RS_ENTRIES; i++) begin
+      if (!dut.rs_mem[i].valid) free_count++;
+    end
+    $display("Free slots: %0d/%0d", free_count, RS_ENTRIES);
+    $write("Free slot indices: ");
+    for (i = 0; i < RS_ENTRIES; i++) begin
+      if (!dut.rs_mem[i].valid) $write("%0d ", i);
+    end
+    $display("");
+
+    // Registered CDB State (CRITICAL FOR TIMING ANALYSIS)
+    $display("\n⏰ REGISTERED CDB STATE (cdb_valid_ff)");
+    $display("───────────────────────────────────────");
     $display("cdb_valid_ff: %b", dut.cdb_valid_ff);
-    for (i = 0; i < ISSUE_W; i++) begin
+    for (i = 0; i < CDB_W; i++) begin
       if (dut.cdb_valid_ff[i]) begin
-        $display("  [%0d] p%0d = %0d", i, dut.cdb_tag_ff[i], dut.cdb_value_ff[i]);
+        $display("  CDB_ff[%0d]: p%0d = %0d", i, dut.cdb_tag_ff[i], dut.cdb_value_ff[i]);
+      end else begin
+        $display("  CDB_ff[%0d]: --- IDLE ---", i);
       end
     end
 
-    // Outputs
-    $display("\n--- OUTPUTS (Combinational) ---");
+    // Outputs Section
+    $display("\n📤 OUTPUTS");
+    $display("──────────");
     $display("Issue_valid: %b", issue_valid);
     for (i = 0; i < ISSUE_W; i++) begin
       if (issue_valid[i]) begin
-        $display("  ALU[%0d]: %s (src1=%0d, src2=%0d) -> p%0d [ROB=%0d]",
-                 i, opcode_str(issue_opcode[i]),
+        $display("  Issue[%0d]: %s (src1=%0d, src2=%0d) → p%0d [ROB=%0d]",
+                 i, opcode_str(issue_op[i]),
                  issue_src1_val[i], issue_src2_val[i],
-                 issue_dst_phys[i], issue_dst_rob[i]);
+                 issue_dst_tag[i], issue_rob_tag[i]);
+      end else begin
+        $display("  Issue[%0d]: --- NO ISSUE ---", i);
       end
     end
 
-    if (br_valid) begin
-      $display("  BR: %s (src1=%0d, src2=%0d) -> p%0d [ROB=%0d]",
-               opcode_str(br_opcode),
-               br_src1_val, br_src2_val,
-               br_dst_phys, br_dst_rob);
+    // Dependency Analysis
+    $display("\n🔗 DEPENDENCY ANALYSIS");
+    $display("─────────────────────");
+    automatic int ready_count = 0;
+    automatic int waiting_count = 0;
+    for (i = 0; i < RS_ENTRIES; i++) begin
+      if (dut.rs_mem[i].valid) begin
+        if (dut.rs_mem[i].src1_ready && dut.rs_mem[i].src2_ready) begin
+          ready_count++;
+          $display("  Entry %2d: READY for issue (age=%0d)", i, dut.rs_mem[i].age);
+        end else begin
+          waiting_count++;
+          $display("  Entry %2d: WAITING - src1:%s src2:%s", i, 
+                   ready_str(dut.rs_mem[i].src1_ready), 
+                   ready_str(dut.rs_mem[i].src2_ready));
+        end
+      end
     end
+    $display("Ready entries: %0d, Waiting entries: %0d", ready_count, waiting_count);
 
-    $display("\nStatus: alloc_ok=%b | rs_full=%b | rs_almost_full=%b",
-             alloc_ok, rs_full, rs_almost_full);
-    $display("Age Counter: %0d", dut.age_counter);
+    $display("\n════════════════════════════════════════════════════════════════");
   endtask
 
   // ============================================================
-  //  Test Sequence - Realistic Instruction Flow
+  //  Test Sequence - Realistic Dependency Chain
   // ============================================================
   initial begin
     automatic int i;
     
     $display("\n");
     $display("╔══════════════════════════════════════════════════════════════╗");
-    $display("║  ISSUE QUEUE TESTBENCH - Realistic Instruction Flow         ║");
+    $display("║  RESERVATION STATION TESTBENCH - Dependency Chain Test      ║");
     $display("╚══════════════════════════════════════════════════════════════╝");
-    $display("\nTest Instructions:");
-    $display("  I0: ADD p10 = p1 + p2   (ROB[0], ALU) - both srcs ready");
-    $display("  I1: MUL p11 = p10 + p3  (ROB[1], ALU) - depends on I0");
-    $display("  I2: SUB p12 = p11 + p4  (ROB[2], ALU) - depends on I1");
-    $display("  I3: AND p13 = p5 + p6   (ROB[3], ALU) - independent");
+    
+    $display("\n📋 TEST INSTRUCTION SEQUENCE:");
+    $display("─────────────────────────────");
+    $display("I0: ADD  p10 = p1(5) + p2(3)     [ROB0] - both ready");
+    $display("I1: MUL  p11 = p10(?) + p3(7)    [ROB1] - depends on I0");
+    $display("I2: SUB  p12 = p11(?) + p4(2)    [ROB2] - depends on I1");  
+    $display("I3: AND  p13 = p5(15) + p6(12)   [ROB3] - independent");
+    $display("I4: OR   p14 = p13(?) + p7(9)    [ROB4] - depends on I3");
     
     // Initialize
     cycle = 0;
     reset = 1;
-    alloc_en = 0;
-    cdb_valid = 0;
-    commit_valid = 0;
-    commit_clear_all = 0;
+    alloc_en = '0;
+    cdb_valid = '0;
     
     for (i = 0; i < ISSUE_W; i++) begin
-      alloc_opcode[i] = 0;
-      alloc_src1_tag[i] = 0;
-      alloc_src2_tag[i] = 0;
-      alloc_src1_val[i] = 0;
-      alloc_src2_val[i] = 0;
-      alloc_dst_phys[i] = 0;
-      alloc_dst_rob[i] = 0;
-      alloc_fu_type[i] = 0;
-      cdb_tag[i] = 0;
-      cdb_value[i] = 0;
-      commit_idx[i] = 0;
+      alloc_dst_tag[i] = '0;
+      alloc_src1_tag[i] = '0;
+      alloc_src2_tag[i] = '0;
+      alloc_src1_val[i] = '0;
+      alloc_src2_val[i] = '0;
+      alloc_src1_ready[i] = '0;
+      alloc_src2_ready[i] = '0;
+      alloc_op[i] = '0;
+      alloc_rob_tag[i] = '0;
+      cdb_tag[i] = '0;
+      cdb_value[i] = '0;
     end
 
-    // Reset
+    // Reset Cycle
     @(posedge clk);
     cycle++;
     reset = 0;
@@ -272,46 +280,72 @@ module tb_issue_queue;
     // ==================== CYCLE 1 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> ALLOCATING I0 and I1 <<<");
+    $display("\n\n🎯 CYCLE 1: ALLOCATING I0 and I1");
     
-    // I0: ADD p10 = p1 + p2 (both ready, values 5 and 3)
+    // I0: ADD p10 = p1 + p2 (both ready)
     alloc_en = 2'b11;
-    alloc_opcode[0] = 4'h0; // ADD
+    
+    // Port 0: I0
+    alloc_op[0] = 8'h01; // ADD
+    alloc_dst_tag[0] = 6'd10;
     alloc_src1_tag[0] = 6'd1;
     alloc_src2_tag[0] = 6'd2;
-    alloc_src1_val[0] = 32'd5;   // p1 = 5
-    alloc_src2_val[0] = 32'd3;   // p2 = 3
-    alloc_dst_phys[0] = 6'd10;
-    alloc_dst_rob[0] = 5'd0;
-    alloc_fu_type[0] = 2'b00; // ALU
+    alloc_src1_val[0] = 64'd5;   // p1 = 5
+    alloc_src2_val[0] = 64'd3;   // p2 = 3
+    alloc_src1_ready[0] = 1'b1;
+    alloc_src2_ready[0] = 1'b1;
+    alloc_rob_tag[0] = 6'd0;
 
-    // I1: MUL p11 = p10 + p3 (p10 not ready yet, p3 ready = 7)
-    alloc_opcode[1] = 4'h2; // MUL
+    // Port 1: I1 - depends on I0 (p10 not ready)
+    alloc_op[1] = 8'h02; // MUL (using SUB opcode as MUL)
+    alloc_dst_tag[1] = 6'd11;
     alloc_src1_tag[1] = 6'd10; // Waits for p10 from I0
     alloc_src2_tag[1] = 6'd3;
-    alloc_src1_val[1] = 32'd0;   // Not ready
-    alloc_src2_val[1] = 32'd7;   // p3 = 7
-    alloc_dst_phys[1] = 6'd11;
-    alloc_dst_rob[1] = 5'd1;
-    alloc_fu_type[1] = 2'b00; // ALU
+    alloc_src1_val[1] = 64'd0;   // Not ready
+    alloc_src2_val[1] = 64'd7;   // p3 = 7
+    alloc_src1_ready[1] = 1'b0;  // p10 not ready
+    alloc_src2_ready[1] = 1'b1;  // p3 ready
+    alloc_rob_tag[1] = 6'd1;
 
-    cdb_valid = 0;
-    commit_valid = 0;
+    cdb_valid = '0;
     
-    #1; // Let combinational logic settle
+    #1;
     print_cycle_state();
 
     // ==================== CYCLE 2 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> I0 ISSUES and EXECUTES (produces p10=8) <<<");
+    $display("\n\n🎯 CYCLE 2: I0 ISSUES, ALLOCATE I2 and I3");
     
-    alloc_en = 0; // No new allocations
+    // I0 should issue (both operands ready)
+    alloc_en = 2'b11;
     
-    // I0 completes execution, broadcasts on CDB
+    // Port 0: I2 - depends on I1 (p11 not ready)
+    alloc_op[0] = 8'h02; // SUB
+    alloc_dst_tag[0] = 6'd12;
+    alloc_src1_tag[0] = 6'd11; // Waits for p11 from I1
+    alloc_src2_tag[0] = 6'd4;
+    alloc_src1_val[0] = 64'd0;   // Not ready
+    alloc_src2_val[0] = 64'd2;   // p4 = 2
+    alloc_src1_ready[0] = 1'b0;
+    alloc_src2_ready[0] = 1'b1;
+    alloc_rob_tag[0] = 6'd2;
+
+    // Port 1: I3 - independent (both ready)
+    alloc_op[1] = 8'h03; // AND
+    alloc_dst_tag[1] = 6'd13;
+    alloc_src1_tag[1] = 6'd5;
+    alloc_src2_tag[1] = 6'd6;
+    alloc_src1_val[1] = 64'd15;  // p5 = 15
+    alloc_src2_val[1] = 64'd12;  // p6 = 12
+    alloc_src1_ready[1] = 1'b1;
+    alloc_src2_ready[1] = 1'b1;
+    alloc_rob_tag[1] = 6'd3;
+
+    // I0 completes execution, broadcasts p10=8
     cdb_valid = 2'b01;
-    cdb_tag[0] = 6'd10;  // p10
-    cdb_value[0] = 32'd8; // 5 + 3 = 8
+    cdb_tag[0] = 6'd10;
+    cdb_value[0] = 64'd8; // 5 + 3 = 8
     
     #1;
     print_cycle_state();
@@ -319,30 +353,30 @@ module tb_issue_queue;
     // ==================== CYCLE 3 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> I1 WAKES UP (p10 ready), ALLOCATE I2 and I3 <<<");
+    $display("\n\n🎯 CYCLE 3: I1 WAKES UP, I3 ISSUES, ALLOCATE I4");
     
-    // I2: SUB p12 = p11 + p4 (p11 not ready, p4 ready = 2)
-    alloc_en = 2'b11;
-    alloc_opcode[0] = 4'h1; // SUB
-    alloc_src1_tag[0] = 6'd11; // Waits for p11 from I1
-    alloc_src2_tag[0] = 6'd4;
-    alloc_src1_val[0] = 32'd0;   // Not ready
-    alloc_src2_val[0] = 32'd2;   // p4 = 2
-    alloc_dst_phys[0] = 6'd12;
-    alloc_dst_rob[0] = 5'd2;
-    alloc_fu_type[0] = 2'b00; // ALU
+    // I1 should wake up (p10 now available via CDB_ff)
+    // I3 should issue (both ready)
+    alloc_en = 2'b01;
+    
+    // Port 0: I4 - depends on I3 (p13 not ready)
+    alloc_op[0] = 8'h04; // OR
+    alloc_dst_tag[0] = 6'd14;
+    alloc_src1_tag[0] = 6'd13; // Waits for p13 from I3
+    alloc_src2_tag[0] = 6'd7;
+    alloc_src1_val[0] = 64'd0;   // Not ready
+    alloc_src2_val[0] = 64'd9;   // p7 = 9
+    alloc_src1_ready[0] = 1'b0;
+    alloc_src2_ready[0] = 1'b1;
+    alloc_rob_tag[0] = 6'd4;
 
-    // I3: AND p13 = p5 + p6 (both ready)
-    alloc_opcode[1] = 4'h3; // AND
-    alloc_src1_tag[1] = 6'd5;
-    alloc_src2_tag[1] = 6'd6;
-    alloc_src1_val[1] = 32'd15;  // p5 = 15
-    alloc_src2_val[1] = 32'd12;  // p6 = 12
-    alloc_dst_phys[1] = 6'd13;
-    alloc_dst_rob[1] = 5'd3;
-    alloc_fu_type[1] = 2'b00; // ALU
+    // Port 1: no allocation
+    alloc_en[1] = 1'b0;
 
-    cdb_valid = 0; // Clear CDB
+    // I1 completes execution, broadcasts p11=56
+    cdb_valid = 2'b01;
+    cdb_tag[0] = 6'd11;
+    cdb_value[0] = 64'd56; // 8 * 7 = 56
     
     #1;
     print_cycle_state();
@@ -350,18 +384,14 @@ module tb_issue_queue;
     // ==================== CYCLE 4 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> I1 and I3 ISSUE (both ready), I1 produces p11=56 <<<");
+    $display("\n\n🎯 CYCLE 4: I2 WAKES UP, I1 and I3 COMPLETE");
     
-    alloc_en = 0;
+    alloc_en = '0;
     
-    // I1 completes
+    // I3 completes execution, broadcasts p13=12
     cdb_valid = 2'b01;
-    cdb_tag[0] = 6'd11;   // p11
-    cdb_value[0] = 32'd56; // 8 * 7 = 56
-    
-    // I0 commits
-    commit_valid = 2'b01;
-    commit_idx[0] = 5'd0;
+    cdb_tag[0] = 6'd13;
+    cdb_value[0] = 64'd12; // 15 & 12 = 12
     
     #1;
     print_cycle_state();
@@ -369,14 +399,20 @@ module tb_issue_queue;
     // ==================== CYCLE 5 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> I2 WAKES UP (p11 ready), I3 produces p13=12 <<<");
+    $display("\n\n🎯 CYCLE 5: I2 and I4 ISSUE, CHAIN COMPLETE");
     
+    alloc_en = '0;
+    
+    // I2 and I4 should both issue now
+    // I2 completes, broadcasts p12=54
     cdb_valid = 2'b01;
-    cdb_tag[0] = 6'd13;   // p13
-    cdb_value[0] = 32'd12; // 15 & 12 = 12
+    cdb_tag[0] = 6'd12;
+    cdb_value[0] = 64'd54; // 56 - 2 = 54
     
-    commit_valid = 2'b01;
-    commit_idx[0] = 5'd1; // I1 commits
+    // I4 completes, broadcasts p14=13  
+    cdb_valid[1] = 1'b1;
+    cdb_tag[1] = 6'd14;
+    cdb_value[1] = 64'd13; // 12 | 9 = 13
     
     #1;
     print_cycle_state();
@@ -384,34 +420,29 @@ module tb_issue_queue;
     // ==================== CYCLE 6 ====================
     @(posedge clk);
     cycle++;
-    $display("\n\n>>> I2 ISSUES (now ready), produces p12=54 <<<");
+    $display("\n\n🎯 CYCLE 6: FINAL STATE - ALL ENTRIES SHOULD BE CLEAR");
     
-    cdb_valid = 2'b01;
-    cdb_tag[0] = 6'd12;   // p12
-    cdb_value[0] = 32'd54; // 56 - 2 = 54
-    
-    commit_valid = 2'b11;
-    commit_idx[0] = 5'd2; // I2 commits
-    commit_idx[1] = 5'd3; // I3 commits
-    
-    #1;
-    print_cycle_state();
-
-    // ==================== CYCLE 7 ====================
-    @(posedge clk);
-    cycle++;
-    $display("\n\n>>> ALL INSTRUCTIONS COMPLETE <<<");
-    
-    alloc_en = 0;
-    cdb_valid = 0;
-    commit_valid = 0;
+    alloc_en = '0;
+    cdb_valid = '0;
     
     #1;
     print_cycle_state();
 
     $display("\n\n╔══════════════════════════════════════════════════════════════╗");
-    $display("║  TEST COMPLETE - All instructions executed successfully      ║");
-    $display("╚══════════════════════════════════════════════════════════════╝\n");
+    $display("║  TEST COMPLETE - Verifying final state                        ║");
+    $display("╚══════════════════════════════════════════════════════════════╝");
+    
+    // Final verification
+    automatic int valid_count = 0;
+    for (int i = 0; i < RS_ENTRIES; i++) begin
+      if (dut.rs_mem[i].valid) valid_count++;
+    end
+    
+    if (valid_count == 0) begin
+      $display("✅ SUCCESS: All entries cleared - dependency chain resolved correctly!");
+    end else begin
+      $display("❌ FAILURE: %0d entries still valid - possible issue with clearing", valid_count);
+    end
     
     #100;
     $finish;
@@ -420,7 +451,7 @@ module tb_issue_queue;
   // Timeout
   initial begin
     #10000;
-    $display("ERROR: Simulation timeout!");
+    $display("❌ ERROR: Simulation timeout!");
     $finish;
   end
 
