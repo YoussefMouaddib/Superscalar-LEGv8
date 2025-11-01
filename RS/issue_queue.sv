@@ -53,23 +53,41 @@ module reservation_station #(
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
     logic [4:0] age_ff [0:RS_ENTRIES-1]; // Sequential age storage
 
-    // === Main Combinational Logic (Allocation + Wakeup) ===
+    // === Main Combinational Logic (Allocation + Wakeup + Selection) ===
     always_comb begin
-        // Temporary working copy of rs_mem
+        // Declare ALL variables at the beginning
         rs_entry_t rs_mem_comb [0:RS_ENTRIES-1];
         logic [RS_ENTRIES-1:0] free_slots;
         int current_slot;
-
+        rs_entry_t oldest [ISSUE_W];
+        int oldest_idx [ISSUE_W];
+        logic [RS_ENTRIES-1:0] considered_entries;
+        int i, a, b, p;
+        
         // Initialize from current state
-        for (int i = 0; i < RS_ENTRIES; i++) begin
+        for (i = 0; i < RS_ENTRIES; i++) begin
             rs_mem_comb[i] = rs_mem[i];
             rs_mem_comb[i].age = age_ff[i]; // Use sequential age
             free_slots[i] = !rs_mem[i].valid;
         end
 
+        // Initialize outputs
+        for (p = 0; p < ISSUE_W; p++) begin
+            issue_valid[p] = 1'b0;
+            issue_op[p] = '0;
+            issue_dst_tag[p] = '0;
+            issue_src1_val[p] = '0;
+            issue_src2_val[p] = '0;
+            issue_rob_tag[p] = '0;
+            oldest_idx[p] = -1;
+            oldest[p].age = 0;
+        end
+
+        considered_entries = '0;
+
         // === Allocation ===
         current_slot = 0;
-        for (int a = 0; a < ISSUE_W; a++) begin
+        for (a = 0; a < ISSUE_W; a++) begin
             if (alloc_en[a] && current_slot < RS_ENTRIES) begin
                 // Find next free slot
                 while (current_slot < RS_ENTRIES && !free_slots[current_slot]) begin
@@ -93,11 +111,11 @@ module reservation_station #(
         end
 
         // === Wakeup from CDB ===
-        for (int i = 0; i < RS_ENTRIES; i++) begin
+        for (i = 0; i < RS_ENTRIES; i++) begin
             if (rs_mem_comb[i].valid) begin
                 // Check CDB for src1
                 if (!rs_mem_comb[i].src1_ready) begin
-                    for (int b = 0; b < CDB_W; b++) begin
+                    for (b = 0; b < CDB_W; b++) begin
                         if (cdb_valid[b] && (rs_mem_comb[i].src1_tag == cdb_tag[b])) begin
                             rs_mem_comb[i].src1_val = cdb_value[b];
                             rs_mem_comb[i].src1_ready = 1'b1;
@@ -107,7 +125,7 @@ module reservation_station #(
                 
                 // Check CDB for src2
                 if (!rs_mem_comb[i].src2_ready) begin
-                    for (int b = 0; b < CDB_W; b++) begin
+                    for (b = 0; b < CDB_W; b++) begin
                         if (cdb_valid[b] && (rs_mem_comb[i].src2_tag == cdb_tag[b])) begin
                             rs_mem_comb[i].src2_val = cdb_value[b];
                             rs_mem_comb[i].src2_ready = 1'b1;
@@ -118,27 +136,8 @@ module reservation_station #(
         end
 
         // === Issue Selection ===
-        rs_entry_t oldest [ISSUE_W];
-        int oldest_idx [ISSUE_W];
-        logic [RS_ENTRIES-1:0] considered_entries;
-        
-        // Initialize outputs
-        for (int p = 0; p < ISSUE_W; p++) begin
-            issue_valid[p] = 1'b0;
-            issue_op[p] = '0;
-            issue_dst_tag[p] = '0;
-            issue_src1_val[p] = '0;
-            issue_src2_val[p] = '0;
-            issue_rob_tag[p] = '0;
-            oldest_idx[p] = -1;
-            oldest[p].age = 0;
-        end
-
-        considered_entries = '0;
-
-        // Multi-stage selection
-        for (int p = 0; p < ISSUE_W; p++) begin
-            for (int i = 0; i < RS_ENTRIES; i++) begin
+        for (p = 0; p < ISSUE_W; p++) begin
+            for (i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem_comb[i].valid && rs_mem_comb[i].src1_ready && rs_mem_comb[i].src2_ready && 
                     !considered_entries[i]) begin
                     if (!issue_valid[p] || (rs_mem_comb[i].age > oldest[p].age)) begin
@@ -155,7 +154,7 @@ module reservation_station #(
         end
 
         // Assign issue outputs
-        for (int p = 0; p < ISSUE_W; p++) begin
+        for (p = 0; p < ISSUE_W; p++) begin
             if (issue_valid[p]) begin
                 issue_op[p] = oldest[p].opcode;
                 issue_dst_tag[p] = oldest[p].dst_tag;
@@ -166,7 +165,7 @@ module reservation_station #(
         end
 
         // Update rs_mem with combinational result
-        for (int i = 0; i < RS_ENTRIES; i++) begin
+        for (i = 0; i < RS_ENTRIES; i++) begin
             rs_mem[i] = rs_mem_comb[i];
         end
     end
