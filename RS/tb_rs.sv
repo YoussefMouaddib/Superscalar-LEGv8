@@ -81,27 +81,25 @@ module tb_reservation_station;
   always #(CLK_PERIOD/2) clk = ~clk;
 
   // ============================================================
-  //  CDB Generation (ZERO LATENCY - combinational)
+  //  CDB Generation 
   // ============================================================
-  always_comb begin
-    cdb_valid = '0;
-    cdb_tag = '0;
-    cdb_value = '0;
+  always_ff@(posedge clk) begin
+    
     
     // CDB broadcasts results in the SAME cycle as issue
     for (int i = 0; i < ISSUE_W; i++) begin
       if (issue_valid[i]) begin
-        cdb_valid[i] = 1'b1;
-        cdb_tag[i] = issue_dst_tag[i];
+        cdb_valid[i] <= 1'b1;
+        cdb_tag[i] <= issue_dst_tag[i];
         
         // Calculate result based on opcode (simplified)
         case (issue_op[i])
-          8'h01: cdb_value[i] = issue_src1_val[i] + issue_src2_val[i]; // ADD
-          8'h02: cdb_value[i] = issue_src1_val[i] - issue_src2_val[i]; // SUB
-          8'h03: cdb_value[i] = issue_src1_val[i] & issue_src2_val[i]; // AND
-          8'h04: cdb_value[i] = issue_src1_val[i] | issue_src2_val[i]; // OR
-          8'h05: cdb_value[i] = issue_src1_val[i] ^ issue_src2_val[i]; // XOR
-          default: cdb_value[i] = issue_src1_val[i];
+          8'h01: cdb_value[i] <= issue_src1_val[i] + issue_src2_val[i]; // ADD
+          8'h02: cdb_value[i] <= issue_src1_val[i] - issue_src2_val[i]; // SUB
+          8'h03: cdb_value[i] <= issue_src1_val[i] & issue_src2_val[i]; // AND
+          8'h04: cdb_value[i] <= issue_src1_val[i] | issue_src2_val[i]; // OR
+          8'h05: cdb_value[i] <= issue_src1_val[i] ^ issue_src2_val[i]; // XOR
+          default: cdb_value[i] <= issue_src1_val[i];
         endcase
       end
     end
@@ -214,6 +212,9 @@ module tb_reservation_station;
   initial begin
     automatic int i;
     automatic int valid_count;
+    cdb_valid = '0;
+    cdb_tag = '0;
+    cdb_value = '0;
     
     $display("╔══════════════════════════════════════════════════════════════╗");
     $display("║  ZERO-LATENCY RESERVATION STATION TESTBENCH                ║");
