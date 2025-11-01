@@ -52,23 +52,40 @@ module reservation_station #(
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
     logic [4:0] age_ff [0:RS_ENTRIES-1]; // Sequential age storage
+    logic [ISSUE_W-1:0] issue_valid_ff;  // Registered issue flags for clearing
 
     // === Main Combinational Logic (Allocation + Wakeup + Selection) ===
     always_comb begin
         // Declare ALL variables at the beginning
         rs_entry_t rs_mem_comb [0:RS_ENTRIES-1];
         logic [RS_ENTRIES-1:0] free_slots;
+        logic [RS_ENTRIES-1:0] clear_mask;
         int current_slot;
         rs_entry_t oldest [ISSUE_W];
         int oldest_idx [ISSUE_W];
         logic [RS_ENTRIES-1:0] considered_entries;
         int i, a, b, p;
         
-        // Initialize from current state
+        // Initialize clear mask from previous cycle's issue
+        clear_mask = '0;
+        for (p = 0; p < ISSUE_W; p++) begin
+            if (issue_valid_ff[p]) begin
+                for (i = 0; i < RS_ENTRIES; i++) begin
+                    if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
+                        clear_mask[i] = 1'b1;
+                    end
+                end
+            end
+        end
+
+        // Initialize from current state (apply clearing)
         for (i = 0; i < RS_ENTRIES; i++) begin
             rs_mem_comb[i] = rs_mem[i];
+            if (clear_mask[i]) begin
+                rs_mem_comb[i].valid = 1'b0; // Clear issued entries
+            end
             rs_mem_comb[i].age = age_ff[i]; // Use sequential age
-            free_slots[i] = !rs_mem[i].valid;
+            free_slots[i] = !rs_mem_comb[i].valid;
         end
 
         // Initialize outputs
@@ -170,39 +187,23 @@ module reservation_station #(
         end
     end
 
-    // === Age Update (sequential) ===
+    // === Age Update and Issue Registration (sequential) ===
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             for (int i = 0; i < RS_ENTRIES; i++) begin
                 age_ff[i] <= '0;
             end
+            issue_valid_ff <= '0;
         end else begin
+            // Register issue flags for clearing in next cycle
+            issue_valid_ff <= issue_valid;
+            
+            // Update ages
             for (int i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid) begin
                     age_ff[i] <= rs_mem[i].age + 1'b1;
                 end else begin
                     age_ff[i] <= '0;
-                end
-            end
-        end
-    end
-
-    // === Clear Issued Entries (sequential) ===
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            for (int i = 0; i < RS_ENTRIES; i++) begin
-                rs_mem[i].valid <= 1'b0;
-            end
-        end else begin
-            // Clear entries that were issued
-            for (int p = 0; p < ISSUE_W; p++) begin
-                if (issue_valid[p]) begin
-                    // Find entry by rob_tag
-                    for (int i = 0; i < RS_ENTRIES; i++) begin
-                        if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
-                            rs_mem[i].valid <= 1'b0;
-                        end
-                    end
                 end
             end
         end
