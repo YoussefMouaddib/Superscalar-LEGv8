@@ -54,18 +54,20 @@ module reservation_station #(
 
     // === Free Slot Tracking (combinational) ===
     logic [RS_ENTRIES-1:0] free_slots;
+    
     always_comb begin
         for (int i = 0; i < RS_ENTRIES; i++) begin
             free_slots[i] = !rs_mem[i].valid;
         end
     end
 
-    // === Allocation Logic (NOW COMBINATIONAL) ===
+    // === Allocation Logic (combinational) ===
     always_comb begin
-        // Default: keep current values unless allocated
+        int current_slot;
+        
+        // Initialize all entries first
         for (int i = 0; i < RS_ENTRIES; i++) begin
             if (!rs_mem[i].valid) begin
-                // Initialize potential new entry
                 rs_mem[i].valid = 1'b0;
                 rs_mem[i].dst_tag = '0;
                 rs_mem[i].src1_tag = '0;
@@ -81,7 +83,7 @@ module reservation_station #(
         end
 
         // Perform allocations
-        automatic int current_slot = 0;
+        current_slot = 0;
         for (int a = 0; a < ISSUE_W; a++) begin
             if (alloc_en[a] && current_slot < RS_ENTRIES) begin
                 // Find next free slot
@@ -121,7 +123,7 @@ module reservation_station #(
         end
     end
 
-    // === Operand Wakeup from CDB (NOW COMBINATIONAL - no registration) ===
+    // === Operand Wakeup from CDB (combinational) ===
     always_comb begin
         for (int i = 0; i < RS_ENTRIES; i++) begin
             if (rs_mem[i].valid) begin
@@ -148,8 +150,13 @@ module reservation_station #(
         end
     end
 
-    // === Issue Selection (Oldest-First with Unique Entries) ===
+    // === Issue Selection (combinational) ===
     always_comb begin
+        // Declare all variables first
+        rs_entry_t oldest [ISSUE_W];
+        int oldest_idx [ISSUE_W];
+        logic [RS_ENTRIES-1:0] considered_entries;
+        
         // Initialize outputs
         for (int p = 0; p < ISSUE_W; p++) begin
             issue_valid[p] = 1'b0;
@@ -158,16 +165,10 @@ module reservation_station #(
             issue_src1_val[p] = '0;
             issue_src2_val[p] = '0;
             issue_rob_tag[p] = '0;
-        end
-
-        rs_entry_t oldest [ISSUE_W];
-        int oldest_idx [ISSUE_W];
-        logic [RS_ENTRIES-1:0] considered_entries;
-        
-        for (int p = 0; p < ISSUE_W; p++) begin
             oldest_idx[p] = -1;
             oldest[p].age = 0;
         end
+
         considered_entries = '0;
 
         // Multi-stage selection
@@ -210,7 +211,7 @@ module reservation_station #(
             // Clear entries that were issued
             for (int p = 0; p < ISSUE_W; p++) begin
                 if (issue_valid[p]) begin
-                    // Find entry by rob_tag (could be optimized with indices)
+                    // Find entry by rob_tag
                     for (int i = 0; i < RS_ENTRIES; i++) begin
                         if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
                             rs_mem[i].valid <= 1'b0;
