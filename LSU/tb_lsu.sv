@@ -100,26 +100,24 @@ module tb_lsu;
   initial clk = 0;
   always #(CLK_PERIOD/2) clk = ~clk;
 
-  // ============================================================
+    // ============================================================
   //  Memory Model (Simple Scratchpad + MMIO)
   // ============================================================
   logic [XLEN-1:0] scratchpad [0:1023]; // 4KB scratchpad
   logic [3:0] mem_delay_counter;
   logic mem_delay_active;
 
-  // Initialize scratchpad in initial block
-  initial begin
-    // Initialize scratchpad with test data
-    for (int i = 0; i < 1024; i++) begin
-      scratchpad[i] = i * 4; // Address as data for easy verification
-    end
-    scratchpad[0] = 32'h12345678;  // Test location 0
-    scratchpad[1] = 32'hABCDEF01;  // Test location 4  
-    scratchpad[2] = 32'hDEADBEEF;  // Test location 8
-  end
-
+  // Initialize scratchpad - MUST be in the same always_ff as writes
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
+      // Initialize scratchpad with test data
+      for (int i = 0; i < 1024; i++) begin
+        scratchpad[i] <= i * 4; // Address as data for easy verification
+      end
+      scratchpad[0] <= 32'h12345678;  // Test location 0
+      scratchpad[1] <= 32'hABCDEF01;  // Test location 4  
+      scratchpad[2] <= 32'hDEADBEEF;  // Test location 8
+      
       mem_ready <= 1'b0;
       mem_delay_counter <= '0;
       mem_delay_active <= 1'b0;
@@ -147,7 +145,7 @@ module tb_lsu;
           mem_delay_active <= 1'b0;
           
           if (mem_we) begin
-            // Write operation - use non-blocking assignment for scratchpad
+            // Write operation
             if (mem_addr[31:28] != 4'hF) begin
               scratchpad[mem_addr[15:2]] <= mem_wdata;
             end
@@ -164,7 +162,7 @@ module tb_lsu;
       end
     end
   end
-
+  
   // ============================================================
   //  Helper Functions
   // ============================================================
