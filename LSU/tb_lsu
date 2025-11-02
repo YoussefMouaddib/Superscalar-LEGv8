@@ -1,0 +1,504 @@
+// Detailed LSU Testbench with Visual Debugging
+`timescale 1ns/1ps
+
+module tb_lsu;
+  import core_pkg::*;
+
+  // Parameters
+  localparam int LQ_ENTRIES = 8;
+  localparam int SQ_ENTRIES = 8;
+  localparam int XLEN = 32;
+  localparam int CLK_PERIOD = 10;
+
+  // DUT signals
+  logic clk, reset;
+  
+  // Allocation interface
+  logic alloc_en;
+  logic is_load;
+  logic [7:0] opcode;
+  logic [XLEN-1:0] base_addr;
+  logic [XLEN-1:0] offset;
+  logic [4:0] arch_rs1;
+  logic [4:0] arch_rs2;
+  logic [4:0] arch_rd;
+  logic [5:0] phys_rd;
+  logic [5:0] rob_idx;
+
+  // PRF interface
+  logic [XLEN-1:0] store_data_val;
+  logic store_data_ready;
+
+  // CDB interface
+  logic cdb_valid;
+  logic [5:0] cdb_tag;
+  logic [XLEN-1:0] cdb_value;
+  logic cdb_exception;
+
+  // ROB interface
+  logic commit_en;
+  logic commit_is_store;
+  logic [5:0] commit_rob_idx;
+  logic lsu_exception;
+  logic [4:0] lsu_exception_cause;
+
+  // Memory interface
+  logic mem_req;
+  logic mem_we;
+  logic [XLEN-1:0] mem_addr;
+  logic [XLEN-1:0] mem_wdata;
+  logic mem_ready;
+  logic [XLEN-1:0] mem_rdata;
+  logic mem_error;
+
+  // Cycle counter
+  int cycle;
+
+  // ============================================================
+  //  DUT Instantiation
+  // ============================================================
+  lsu #(
+    .LQ_ENTRIES(LQ_ENTRIES),
+    .SQ_ENTRIES(SQ_ENTRIES),
+    .XLEN(XLEN)
+  ) dut (
+    .clk(clk),
+    .reset(reset),
+    .alloc_en(alloc_en),
+    .is_load(is_load),
+    .opcode(opcode),
+    .base_addr(base_addr),
+    .offset(offset),
+    .arch_rs1(arch_rs1),
+    .arch_rs2(arch_rs2),
+    .arch_rd(arch_rd),
+    .phys_rd(phys_rd),
+    .rob_idx(rob_idx),
+    .store_data_val(store_data_val),
+    .store_data_ready(store_data_ready),
+    .cdb_valid(cdb_valid),
+    .cdb_tag(cdb_tag),
+    .cdb_value(cdb_value),
+    .cdb_exception(cdb_exception),
+    .commit_en(commit_en),
+    .commit_is_store(commit_is_store),
+    .commit_rob_idx(commit_rob_idx),
+    .lsu_exception(lsu_exception),
+    .lsu_exception_cause(lsu_exception_cause),
+    .mem_req(mem_req),
+    .mem_we(mem_we),
+    .mem_addr(mem_addr),
+    .mem_wdata(mem_wdata),
+    .mem_ready(mem_ready),
+    .mem_rdata(mem_rdata),
+    .mem_error(mem_error)
+  );
+
+  // ============================================================
+  //  Clock Generation
+  // ============================================================
+  initial clk = 0;
+  always #(CLK_PERIOD/2) clk = ~clk;
+
+  // ============================================================
+  //  Memory Model (Simple Scratchpad + MMIO)
+  // ============================================================
+  logic [XLEN-1:0] scratchpad [0:1023]; // 4KB scratchpad
+  logic [3:0] mem_delay_counter;
+  logic mem_delay_active;
+
+  initial begin
+    // Initialize scratchpad with test data
+    for (int i = 0; i < 1024; i++) begin
+      scratchpad[i] = i * 4; // Address as data for easy verification
+    end
+    scratchpad[0] = 32'h12345678;  // Test location 0
+    scratchpad[1] = 32'hABCDEF01;  // Test location 4
+    scratchpad[2] = 32'hDEADBEEF;  // Test location 8
+  end
+
+  always_ff @(posedge clk or posedge reset) begin
+    if (reset) begin
+      mem_ready <= 1'b0;
+      mem_delay_counter <= '0;
+      mem_delay_active <= 1'b0;
+      mem_error <= 1'b0;
+    end else begin
+      mem_ready <= 1'b0;
+      
+      if (mem_req && !mem_delay_active) begin
+        // Start memory access with 1-cycle delay for scratchpad
+        mem_delay_active <= 1'b1;
+        mem_delay_counter <= 4'd1;
+        
+        // Check for MMIO space
+        if (mem_addr[31:28] == 4'hF) begin
+          mem_delay_counter <= 4'd4; // MMIO takes 4 cycles
+        end
+      end
+      
+      if (mem_delay_active) begin
+        if (mem_delay_counter > 0) begin
+          mem_delay_counter <= mem_delay_counter - 1;
+        end else begin
+          // Memory access complete
+          mem_ready <= 1'b1;
+          mem_delay_active <= 1'b0;
+          
+          if (mem_we) begin
+            // Write operation
+            if (mem_addr[31:28] != 4'hF) begin
+              scratchpad[mem_addr[15:2]] <= mem_wdata;
+            end
+            mem_rdata <= mem_wdata; // For store completion
+          end else begin
+            // Read operation
+            if (mem_addr[31:28] == 4'hF) begin
+              mem_rdata <= 32'hDEADBEEF; // MMIO read
+            end else begin
+              mem_rdata <= scratchpad[mem_addr[15:2]];
+            end
+          end
+        end
+      end
+    end
+  end
+
+  // ============================================================
+  //  Helper Functions
+  // ============================================================
+  function string opcode_str(input logic [7:0] op);
+    case(op)
+      8'h10: return "LDR  ";
+      8'h11: return "STR  ";
+      8'h30: return "CAS  ";
+      default: return "UNK  ";
+    endcase
+  endfunction
+
+  function string mem_state_str(input logic [2:0] state);
+    case(state)
+      0: return "IDLE  ";
+      1: return "READ  ";
+      2: return "WRITE ";
+      3: return "CAS_RD";
+      4: return "CAS_CMP";
+      5: return "CAS_WR";
+      6: return "MMIO  ";
+      default: return "UNK   ";
+    endcase
+  endfunction
+
+  function string exception_str(input logic [4:0] cause);
+    case(cause)
+      5'h1: return "MISALIGN_LD";
+      5'h2: return "MISALIGN_ST";
+      5'h3: return "MEM_ERROR  ";
+      default: return "NONE       ";
+    endcase
+  endfunction
+
+  // ============================================================
+  //  Visual Monitoring Task - EXTREMELY DETAILED
+  // ============================================================
+  task print_cycle_state();
+    automatic int i;
+    
+    $display("\n════════════════════════════════════════════════════════════════");
+    $display("CYCLE %0d", cycle);
+    $display("════════════════════════════════════════════════════════════════");
+    
+    // Inputs Section
+    $display("\n📥 INPUTS TO LSU");
+    $display("────────────────");
+    $display("Alloc_en: %b | is_load: %b | opcode: %s", alloc_en, is_load, opcode_str(opcode));
+    if (alloc_en) begin
+      $display("Base: 0x%8h | Offset: 0x%8h | Addr: 0x%8h", base_addr, offset, base_addr + offset);
+      $display("Arch: rs1=x%0d rs2=x%0d rd=x%0d | Phys: p%0d | ROB: %0d", 
+               arch_rs1, arch_rs2, arch_rd, phys_rd, rob_idx);
+      if (!is_load) begin
+        $display("Store data: 0x%8h [%s]", store_data_val, store_data_ready ? "READY" : "WAIT");
+      end
+    end
+    
+    $display("Commit_en: %b | is_store: %b | rob_idx: %0d", commit_en, commit_is_store, commit_rob_idx);
+
+    // Load Queue Visualization
+    $display("\n📥 LOAD QUEUE (%0d entries)", LQ_ENTRIES);
+    $display("Entry | V | Cmp | Exc | CAS | Address    | Dest | ROB | Data");
+    $display("──────┼───┼─────┼─────┼─────┼────────────┼──────┼─────┼─────────");
+    for (i = 0; i < LQ_ENTRIES; i++) begin
+      if (dut.lq[i].valid) begin
+        $display("  %0d   | %b |  %b  |  %b  |  %b  | 0x%8h | p%-2d  | %-2d  | 0x%8h", 
+                 i, dut.lq[i].valid, dut.lq[i].completed, dut.lq[i].exception,
+                 dut.lq[i].is_cas, dut.lq[i].addr, dut.lq[i].dest_tag,
+                 dut.lq[i].rob_idx, dut.lq[i].data);
+      end else begin
+        $display("  %0d   | 0 |  -  |  -  |  -  | -          | -    | -   | -", i);
+      end
+    end
+    $display("Head: %0d | Tail: %0d", dut.lq_head, dut.lq_tail);
+
+    // Store Queue Visualization
+    $display("\n💾 STORE QUEUE (%0d entries)", SQ_ENTRIES);
+    $display("Entry | V | Cmt | Exc | CAS | Address    | ROB | Data       | Compare");
+    $display("──────┼───┼─────┼─────┼─────┼────────────┼─────┼────────────┼─────────");
+    for (i = 0; i < SQ_ENTRIES; i++) begin
+      if (dut.sq[i].valid) begin
+        $display("  %0d   | %b |  %b  |  %b  |  %b  | 0x%8h | %-2d  | 0x%8h | 0x%8h", 
+                 i, dut.sq[i].valid, dut.sq[i].committed, dut.sq[i].exception,
+                 dut.sq[i].is_cas, dut.sq[i].addr, dut.sq[i].rob_idx,
+                 dut.sq[i].data, dut.sq[i].cas_compare);
+      end else begin
+        $display("  %0d   | 0 |  -  |  -  |  -  | -          | -   | -          | -", i);
+      end
+    end
+    $display("Head: %0d | Tail: %0d", dut.sq_head, dut.sq_tail);
+
+    // Memory Pipeline State
+    $display("\n⚡ MEMORY PIPELINE STATE");
+    $display("State: %s | LQ Index: %0d", mem_state_str(dut.mem_state), dut.mem_lq_index);
+    $display("CAS Read Value: 0x%8h | MMIO Counter: %0d", dut.cas_read_value, dut.mmio_counter);
+
+    // Memory Interface
+    $display("\n🔌 MEMORY INTERFACE");
+    $display("Req: %b | WE: %b | Addr: 0x%8h | WData: 0x%8h", 
+             mem_req, mem_we, mem_addr, mem_wdata);
+    $display("Ready: %b | RData: 0x%8h | Error: %b", 
+             mem_ready, mem_rdata, mem_error);
+
+    // Outputs Section
+    $display("\n📤 OUTPUTS FROM LSU");
+    $display("──────────────────");
+    $display("CDB: valid=%b | tag=p%0d | value=0x%8h | exception=%b",
+             cdb_valid, cdb_tag, cdb_value, cdb_exception);
+    $display("Exception: %b | Cause: %s", lsu_exception, exception_str(lsu_exception_cause));
+
+    // Forwarding Analysis
+    $display("\n🔍 STORE-TO-LOAD FORWARDING ANALYSIS");
+    $display("Next load to process from LQ[%0d]: Addr=0x%8h", 
+             (dut.lq_head) % LQ_ENTRIES, dut.lq[(dut.lq_head) % LQ_ENTRIES].addr);
+    if (dut.lq[(dut.lq_head) % LQ_ENTRIES].valid) begin
+      automatic logic [XLEN-1:0] fwd_data = dut.check_forwarding(dut.lq[(dut.lq_head) % LQ_ENTRIES].addr);
+      if (fwd_data !== 'x) begin
+        $display("✅ FORWARDING AVAILABLE: 0x%8h", fwd_data);
+      end else begin
+        $display("❌ NO FORWARDING - will access memory");
+      end
+    end
+
+    $display("════════════════════════════════════════════════════════════════");
+  endtask
+
+  // ============================================================
+  //  Test Sequence - Realistic Memory Access Pattern
+  // ============================================================
+  initial begin
+    automatic int i;
+    
+    $display("╔══════════════════════════════════════════════════════════════╗");
+    $display("║  LSU TESTBENCH - Memory Access Patterns                     ║");
+    $display("╚══════════════════════════════════════════════════════════════╝");
+    
+    $display("\n📋 TEST SCENARIO:");
+    $display("L0: LDR  p20 = [0x00000000]  (load from addr 0)");
+    $display("S1: STR  p21 → [0x00000004]  (store to addr 4)");
+    $display("L2: LDR  p22 = [0x00000004]  (load from addr 4 - should forward)");
+    $display("L3: LDR  p23 = [0x00000008]  (load from addr 8)");
+    $display("S4: STR  p24 → [0x0000000C]  (store to addr 12)");
+    $display("C5: CAS  p25 = [0x00000000], compare=0x12345678, swap=0x55555555");
+    $display("L6: LDR  p26 = [0xF0000000]  (MMIO load)");
+    
+    // Initialize
+    cycle = 0;
+    reset = 1;
+    alloc_en = 0;
+    commit_en = 0;
+    store_data_ready = 1;
+    base_addr = '0;
+    offset = '0;
+    opcode = '0;
+    arch_rs1 = '0;
+    arch_rs2 = '0;
+    arch_rd = '0;
+    phys_rd = '0;
+    rob_idx = '0;
+    store_data_val = '0;
+    commit_rob_idx = '0;
+
+    // Reset
+    @(posedge clk);
+    cycle++;
+    reset = 0;
+    print_cycle_state();
+
+    // ==================== CYCLE 1 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 1: ALLOCATE L0 (LDR p20 = [0x00000000])");
+    
+    alloc_en = 1;
+    is_load = 1;
+    opcode = 8'h10; // LDR
+    base_addr = 32'h00000000;
+    offset = 32'h0;
+    arch_rs1 = 5'd1;
+    arch_rd = 5'd20;
+    phys_rd = 6'd20;
+    rob_idx = 6'd0;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 2 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 2: ALLOCATE S1 (STR p21 → [0x00000004]), L0 SHOULD ACCESS MEMORY");
+    
+    alloc_en = 1;
+    is_load = 0;
+    opcode = 8'h11; // STR
+    base_addr = 32'h00000004;
+    offset = 32'h0;
+    arch_rs1 = 5'd2;
+    arch_rs2 = 5'd21;
+    store_data_val = 32'hAAAA5555;
+    phys_rd = 6'd21;
+    rob_idx = 6'd1;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 3 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 3: ALLOCATE L2 (LDR p22 = [0x00000004]), L0 COMPLETES, S1 COMMIT");
+    
+    alloc_en = 1;
+    is_load = 1;
+    opcode = 8'h10; // LDR
+    base_addr = 32'h00000004;
+    offset = 32'h0;
+    arch_rs1 = 5'd3;
+    arch_rd = 5'd22;
+    phys_rd = 6'd22;
+    rob_idx = 6'd2;
+    
+    // Commit S1 (store)
+    commit_en = 1;
+    commit_is_store = 1;
+    commit_rob_idx = 6'd1;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 4 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 4: ALLOCATE L3 (LDR p23 = [0x00000008]), L2 SHOULD FORWARD FROM S1");
+    
+    alloc_en = 1;
+    is_load = 1;
+    opcode = 8'h10; // LDR
+    base_addr = 32'h00000008;
+    offset = 32'h0;
+    arch_rs1 = 5'd4;
+    arch_rd = 5'd23;
+    phys_rd = 6'd23;
+    rob_idx = 6'd3;
+    
+    commit_en = 0;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 5 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 5: ALLOCATE S4 (STR p24 → [0x0000000C]), L3 ACCESSES MEMORY");
+    
+    alloc_en = 1;
+    is_load = 0;
+    opcode = 8'h11; // STR
+    base_addr = 32'h0000000C;
+    offset = 32'h0;
+    arch_rs1 = 5'd5;
+    arch_rs2 = 5'd24;
+    store_data_val = 32'hBBBB6666;
+    phys_rd = 6'd24;
+    rob_idx = 6'd4;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 6 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 6: ALLOCATE C5 (CAS p25 = [0x00000000])");
+    
+    alloc_en = 1;
+    is_load = 1; // CAS is treated as load+store
+    opcode = 8'h30; // CAS
+    base_addr = 32'h00000000;
+    offset = 32'h0;
+    arch_rs1 = 5'd6;
+    arch_rs2 = 5'd25;
+    arch_rd = 5'd25;
+    store_data_val = 32'h12345678; // Compare value
+    phys_rd = 6'd25;
+    rob_idx = 6'd5;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 7 ====================
+    @(posedge clk);
+    cycle++;
+    $display("\n🎯 CYCLE 7: ALLOCATE L6 (MMIO LDR p26 = [0xF0000000])");
+    
+    alloc_en = 1;
+    is_load = 1;
+    opcode = 8'h10; // LDR
+    base_addr = 32'hF0000000;
+    offset = 32'h0;
+    arch_rs1 = 5'd7;
+    arch_rd = 5'd26;
+    phys_rd = 6'd26;
+    rob_idx = 6'd6;
+    
+    #9;
+    print_cycle_state();
+
+    // ==================== CYCLE 8-12 ====================
+    // Let pipeline drain
+    for (i = 8; i <= 12; i++) begin
+      @(posedge clk);
+      cycle++;
+      $display("\n🎯 CYCLE %0d: PIPELINE DRAINING", i);
+      alloc_en = 0;
+      commit_en = 0;
+      #9;
+      print_cycle_state();
+    end
+
+    $display("\n\n╔══════════════════════════════════════════════════════════════╗");
+    $display("║  TEST COMPLETE - Verifying final memory state               ║");
+    $display("╚══════════════════════════════════════════════════════════════╝");
+    
+    // Final memory verification
+    $display("Scratchpad[0x0]: 0x%8h (should be 0x55555555 if CAS succeeded)", scratchpad[0]);
+    $display("Scratchpad[0x4]: 0x%8h (should be 0xAAAA5555)", scratchpad[1]);
+    $display("Scratchpad[0x8]: 0x%8h (should be 0xDEADBEEF)", scratchpad[2]);
+    $display("Scratchpad[0xC]: 0x%8h (should be 0xBBBB6666)", scratchpad[3]);
+    
+    #100;
+    $finish;
+  end
+
+  initial begin
+    #10000;
+    $display("❌ ERROR: Simulation timeout!");
+    $finish;
+  end
+
+endmodule
