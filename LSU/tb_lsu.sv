@@ -107,13 +107,14 @@ module tb_lsu;
   logic [3:0] mem_delay_counter;
   logic mem_delay_active;
 
+  // Initialize scratchpad in initial block
   initial begin
     // Initialize scratchpad with test data
     for (int i = 0; i < 1024; i++) begin
       scratchpad[i] = i * 4; // Address as data for easy verification
     end
     scratchpad[0] = 32'h12345678;  // Test location 0
-    scratchpad[1] = 32'hABCDEF01;  // Test location 4
+    scratchpad[1] = 32'hABCDEF01;  // Test location 4  
     scratchpad[2] = 32'hDEADBEEF;  // Test location 8
   end
 
@@ -146,7 +147,7 @@ module tb_lsu;
           mem_delay_active <= 1'b0;
           
           if (mem_we) begin
-            // Write operation
+            // Write operation - use non-blocking assignment for scratchpad
             if (mem_addr[31:28] != 4'hF) begin
               scratchpad[mem_addr[15:2]] <= mem_wdata;
             end
