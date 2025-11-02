@@ -147,15 +147,16 @@ end
 // ============================================================
 // Store-to-Load Forwarding Logic
 // ============================================================
-function logic [XLEN-1:0] check_forwarding(input logic [XLEN-1:0] load_addr);
+function automatic logic [XLEN-1:0] check_forwarding(input logic [XLEN-1:0] load_addr);
     logic [XLEN-1:0] forwarded_data;
     logic forward_found;
+    int i;
     
     forwarded_data = '0;
     forward_found = 1'b0;
     
     // Search Store Queue for matching addresses (youngest older store wins)
-    for (int i = 0; i < SQ_ENTRIES; i++) begin
+    for (i = 0; i < SQ_ENTRIES; i++) begin
         if (sq[i].valid && !sq[i].exception && 
             sq[i].addr == load_addr && sq[i].committed) begin
             forwarded_data = sq[i].data;
@@ -191,12 +192,19 @@ logic [XLEN-1:0] cdb_value_next;
 logic cdb_exception_next;
 
 always_ff @(posedge clk or posedge reset) begin
+    // Declare all loop variables at the beginning
+    automatic int i;
+    automatic int index;
+    automatic logic [XLEN-1:0] forwarded_data;
+    
     if (reset) begin
         mem_state <= MEM_IDLE;
         mem_req <= 1'b0;
         mem_we <= 1'b0;
         cdb_valid <= 1'b0;
         mmio_counter <= '0;
+        cdb_valid_next <= 1'b0;
+        cdb_exception_next <= 1'b0;
     end else begin
         cdb_valid <= cdb_valid_next;
         cdb_tag <= cdb_tag_next;
@@ -210,14 +218,13 @@ always_ff @(posedge clk or posedge reset) begin
         case (mem_state)
             MEM_IDLE: begin
                 // Look for next load to process
-                for (int i = 0; i < LQ_ENTRIES; i++) begin
-                    int index = (lq_head + i) % LQ_ENTRIES;
+                for (i = 0; i < LQ_ENTRIES; i++) begin
+                    index = (lq_head + i) % LQ_ENTRIES;
                     if (lq[index].valid && !lq[index].completed && !lq[index].exception) begin
                         mem_lq_index <= index;
                         
                         // Check for store-to-load forwarding first
-                        automatic logic [XLEN-1:0] forwarded_data = 
-                            check_forwarding(lq[index].addr);
+                        forwarded_data = check_forwarding(lq[index].addr);
                         
                         if (forwarded_data !== 'x) begin
                             // Forward from store queue
@@ -276,7 +283,7 @@ always_ff @(posedge clk or posedge reset) begin
             
             MEM_CAS_COMPARE: begin
                 // Find corresponding store queue entry for CAS
-                for (int i = 0; i < SQ_ENTRIES; i++) begin
+                for (i = 0; i < SQ_ENTRIES; i++) begin
                     if (sq[i].valid && sq[i].rob_idx == lq[mem_lq_index].rob_idx) begin
                         if (cas_read_value == sq[i].cas_compare) begin
                             // Compare successful - proceed with write
@@ -305,7 +312,7 @@ always_ff @(posedge clk or posedge reset) begin
                     mem_req <= 1'b0;
                     // CAS succeeded - complete with the written value
                     lq[mem_lq_index].completed <= 1'b1;
-                    for (int i = 0; i < SQ_ENTRIES; i++) begin
+                    for (i = 0; i < SQ_ENTRIES; i++) begin
                         if (sq[i].valid && sq[i].rob_idx == lq[mem_lq_index].rob_idx) begin
                             lq[mem_lq_index].data <= sq[i].data;
                             break;
@@ -313,7 +320,7 @@ always_ff @(posedge clk or posedge reset) begin
                     end
                     cdb_valid_next <= 1'b1;
                     cdb_tag_next <= lq[mem_lq_index].dest_tag;
-                    for (int i = 0; i < SQ_ENTRIES; i++) begin
+                    for (i = 0; i < SQ_ENTRIES; i++) begin
                         if (sq[i].valid && sq[i].rob_idx == lq[mem_lq_index].rob_idx) begin
                             cdb_value_next <= sq[i].data;
                             break;
@@ -344,7 +351,7 @@ always_ff @(posedge clk or posedge reset) begin
         
         // Process committed stores (write to memory)
         if (commit_en && commit_is_store) begin
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
+            for (i = 0; i < SQ_ENTRIES; i++) begin
                 if (sq[i].valid && sq[i].rob_idx == commit_rob_idx && 
                     !sq[i].is_cas && mem_state == MEM_IDLE) begin
                     // Write store to memory (non-CAS stores only)
@@ -373,18 +380,20 @@ end
 // Exception Handling
 // ============================================================
 always_comb begin
+    automatic int i;
+    
     lsu_exception = 1'b0;
     lsu_exception_cause = '0;
     
     // Check for misaligned accesses in LQ/SQ
-    for (int i = 0; i < LQ_ENTRIES; i++) begin
+    for (i = 0; i < LQ_ENTRIES; i++) begin
         if (lq[i].valid && lq[i].exception) begin
             lsu_exception = 1'b1;
             lsu_exception_cause = 5'h1; // Misaligned load
         end
     end
     
-    for (int i = 0; i < SQ_ENTRIES; i++) begin
+    for (i = 0; i < SQ_ENTRIES; i++) begin
         if (sq[i].valid && sq[i].exception) begin
             lsu_exception = 1'b1;
             lsu_exception_cause = 5'h2; // Misaligned store
@@ -403,7 +412,9 @@ end
 // ============================================================
 // Remove completed loads from LQ
 always_ff @(posedge clk) begin
-    for (int i = 0; i < LQ_ENTRIES; i++) begin
+    automatic int i;
+    
+    for (i = 0; i < LQ_ENTRIES; i++) begin
         if (lq[i].valid && lq[i].completed) begin
             lq[i].valid <= 1'b0;
         end
@@ -412,7 +423,9 @@ end
 
 // Remove committed CAS operations from SQ
 always_ff @(posedge clk) begin
-    for (int i = 0; i < SQ_ENTRIES; i++) begin
+    automatic int i;
+    
+    for (i = 0; i < SQ_ENTRIES; i++) begin
         if (sq[i].valid && sq[i].committed && sq[i].is_cas) begin
             sq[i].valid <= 1'b0;
         end
