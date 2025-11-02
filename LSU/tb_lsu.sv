@@ -1,9 +1,9 @@
 // Detailed LSU Testbench with Visual Debugging
 `timescale 1ns/1ps
+import core_pkg::*;
 
 module tb_lsu;
-  import core_pkg::*;
-
+  
   // Parameters
   localparam int LQ_ENTRIES = 8;
   localparam int SQ_ENTRIES = 8;
