@@ -1,6 +1,6 @@
 module fetch #(
-    parameter int unsigned INSTR_WIDTH = 32,
-    parameter int unsigned ADDR_WIDTH = 32
+    parameter int INSTR_WIDTH = core_pkg::XLEN,
+    parameter int ADDR_WIDTH = core_pkg::XLEN
 )(
     input  logic                   clk_i,
     input  logic                   rst_ni,
