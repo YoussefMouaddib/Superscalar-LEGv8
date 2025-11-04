@@ -1,112 +1,99 @@
-`timescale 1ns/1ps
-import core_pkg::*;
-
 module fetch #(
-  parameter int FETCH_W       = 2,
-  parameter int PC_W          = 32,
-  parameter int INSTR_W       = 32
+    parameter int unsigned INSTR_WIDTH = 32,
+    parameter int unsigned ADDR_WIDTH = 32
 )(
-  input  logic                clk,
-  input  logic                reset,
-
-  // Control from pipeline/backpressure
-  input  logic                fetch_en,      // allow fetch
-  input  logic                stall,         // hold fetch outputs
-
-  // Branch redirect
-  input  logic                redirect_en,
-  input  logic [PC_W-1:0]     redirect_pc,   // new PC to fetch from
-
-  // IF -> ID bundle (two-wide)
-  output logic [FETCH_W-1:0]          if_valid,   // valid fetch slots
-  output logic [PC_W-1:0]             if_pc  [FETCH_W-1:0],
-  output logic [INSTR_W-1:0]          if_instr [FETCH_W-1:0],
-
-  // Instruction memory interface
-  output logic [PC_W-1:0]    imem_addr0,    // First instruction address
-  output logic [PC_W-1:0]    imem_addr1,    // Second instruction address  
-  output logic               imem_ren,      // read enable
-  input  logic [INSTR_W-1:0] imem_rdata0,   // First instruction data
-  input  logic [INSTR_W-1:0] imem_rdata1    // Second instruction data
+    input  logic                   clk_i,
+    input  logic                   rst_ni,
+    
+    // Control signals
+    input  logic                   fetch_en_i,
+    input  logic                   stall_i,
+    input  logic                   redirect_i,
+    input  logic [ADDR_WIDTH-1:0]  redirect_pc_i,
+    
+    // Instruction memory interface
+    output logic                   imem_ren_o,
+    output logic [ADDR_WIDTH-1:0]  imem_addr0_o,
+    output logic [ADDR_WIDTH-1:0]  imem_addr1_o,
+    input  logic [INSTR_WIDTH-1:0] imem_rdata0_i,
+    input  logic [INSTR_WIDTH-1:0] imem_rdata1_i,
+    input  logic                   imem_rvalid_i,
+    
+    // Output to decode
+    output logic [1:0]             if_valid_o,
+    output logic [ADDR_WIDTH-1:0]  if_pc0_o,
+    output logic [ADDR_WIDTH-1:0]  if_pc1_o,
+    output logic [INSTR_WIDTH-1:0] if_instr0_o,
+    output logic [INSTR_WIDTH-1:0] if_instr1_o
 );
 
-  // PC register - points to next fetch address
-  logic [PC_W-1:0] pc_reg;
+    logic [ADDR_WIDTH-1:0] pc_q, pc_d;
+    logic [ADDR_WIDTH-1:0] next_pc;
+    logic [ADDR_WIDTH-1:0] saved_pc0, saved_pc1;
+    logic [INSTR_WIDTH-1:0] saved_instr0, saved_instr1;
+    logic saved_valid0, saved_valid1;
+    logic fetching;
 
-  // Pipeline registers for memory response
-  logic [PC_W-1:0] resp_pc0, resp_pc1;
-  logic [INSTR_W-1:0] resp_instr0, resp_instr1;
-  logic resp_valid;
-
-  // ============================================================
-  //  PC Management and Memory Request
-  // ============================================================
-  always_ff @(posedge clk or posedge reset) begin
-    if (reset) begin
-      pc_reg <= '0;
-      imem_ren <= 1'b0;
-    end else begin
-      // Branch redirect has highest priority
-      if (redirect_en) begin
-        pc_reg <= redirect_pc;
-        imem_ren <= 1'b0; // Cancel any pending request
-      end 
-      // Normal fetch operation
-      else if (fetch_en && !stall) begin
-        // Present addresses to instruction memory
-        imem_addr0 <= pc_reg;
-        imem_addr1 <= pc_reg + 32'd4;
-        imem_ren <= 1'b1;
-        
-        // Advance PC for next fetch
-        pc_reg <= pc_reg + (4 * FETCH_W);
-      end else begin
-        // No fetch this cycle
-        imem_ren <= 1'b0;
-      end
+    // PC update logic
+    always_comb begin
+        if (redirect_i) begin
+            next_pc = redirect_pc_i;
+        end else if (fetch_en_i && !stall_i) begin
+            next_pc = pc_q + 8; // 2 instructions per cycle
+        end else begin
+            next_pc = pc_q;
+        end
     end
-  end
 
-  // ============================================================
-  //  Memory Response Handling (1-cycle latency)
-  // ============================================================
-  always_ff @(posedge clk or posedge reset) begin
-    if (reset) begin
-      resp_valid <= 1'b0;
-      resp_pc0 <= '0;
-      resp_pc1 <= '0;
-      resp_instr0 <= '0;
-      resp_instr1 <= '0;
-    end else begin
-      // Capture memory response - data is available 1 cycle after request
-      resp_valid <= imem_ren && !redirect_en; // Only valid if request was made and not cancelled
-      
-      if (imem_ren && !redirect_en) begin
-        resp_pc0 <= imem_addr0;
-        resp_pc1 <= imem_addr1;
-        resp_instr0 <= imem_rdata0;
-        resp_instr1 <= imem_rdata1;
-      end
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            pc_q <= '0;
+        end else begin
+            pc_q <= next_pc;
+        end
     end
-  end
 
-  // ============================================================
-  //  Output Stage
-  // ============================================================
-  always_ff @(posedge clk or posedge reset) begin
-    if (reset) begin
-      if_valid <= '0;
-    end else if (!stall) begin
-      // Deliver instructions to decode stage
-      if_valid <= {FETCH_W{resp_valid}};
-      if_pc[0] <= resp_pc0;
-      if_pc[1] <= resp_pc1;
-      if_instr[0] <= resp_instr0;
-      if_instr[1] <= resp_instr1;
-    end else begin
-      // Stall - hold outputs or clear them
-      if_valid <= '0;
+    // Memory interface
+    assign imem_ren_o = fetch_en_i && !redirect_i;
+    assign imem_addr0_o = pc_q;
+    assign imem_addr1_o = pc_q + 4;
+
+    // Output register - FIXED: Track PCs along with instructions
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            saved_pc0 <= '0;
+            saved_pc1 <= '0;
+            saved_instr0 <= '0;
+            saved_instr1 <= '0;
+            saved_valid0 <= 1'b0;
+            saved_valid1 <= 1'b0;
+        end else if (!stall_i) begin
+            if (redirect_i) begin
+                // On redirect, invalidate current outputs
+                saved_valid0 <= 1'b0;
+                saved_valid1 <= 1'b0;
+            end else if (imem_rvalid_i) begin
+                // Save both PCs and instructions together
+                saved_pc0 <= imem_addr0_o;
+                saved_pc1 <= imem_addr1_o;
+                saved_instr0 <= imem_rdata0_i;
+                saved_instr1 <= imem_rdata1_i;
+                saved_valid0 <= 1'b1;
+                saved_valid1 <= 1'b1;
+            end else begin
+                // No valid data from memory
+                saved_valid0 <= 1'b0;
+                saved_valid1 <= 1'b0;
+            end
+        end
+        // If stall_i is asserted, keep the same values
     end
-  end
+
+    // Output assignments
+    assign if_valid_o = {saved_valid1, saved_valid0};
+    assign if_pc0_o = saved_pc0;
+    assign if_pc1_o = saved_pc1;
+    assign if_instr0_o = saved_instr0;
+    assign if_instr1_o = saved_instr1;
 
 endmodule
