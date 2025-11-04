@@ -6,7 +6,7 @@ module fetch_tb;
   // Parameters
   parameter int PC_W = core_pkg::XLEN;
   parameter int INSTR_W = core_pkg::XLEN;
-  parameter int FETCH_W = core_pkg::ISSUE__WIDTH;
+  parameter int FETCH_W = core_pkg::FETCH_WIDTH;
 
   // DUT signals
   logic clk, reset;
