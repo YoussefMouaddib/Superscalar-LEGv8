@@ -15,14 +15,18 @@ module fetch_tb;
   logic [ADDR_WIDTH-1:0] redirect_pc;
 
   logic [FETCH_W-1:0]          if_valid;
-  logic [ADDR_WIDTH-1:0]             if_pc  [FETCH_W-1:0];
-  logic [INSTR_WIDTH-1:0]          if_instr [FETCH_W-1:0];
+  logic [ADDR_WIDTH-1:0]       if_pc  [FETCH_W];
+  logic [INSTR_WIDTH-1:0]      if_instr [FETCH_W];
 
   logic [ADDR_WIDTH-1:0] imem_addr0, imem_addr1;
   logic imem_ren;
   logic [INSTR_WIDTH-1:0] imem_rdata0, imem_rdata1;
+  
+  // NEW: imem response interface
+  logic [ADDR_WIDTH-1:0] imem_pc [FETCH_W];
+  logic imem_valid;
 
-  // DUT
+  // DUT - NO parameters needed
   fetch dut (
     .clk(clk),
     .reset(reset),
@@ -37,16 +41,36 @@ module fetch_tb;
     .imem_addr1(imem_addr1),
     .imem_ren(imem_ren),
     .imem_rdata0(imem_rdata0),
-    .imem_rdata1(imem_rdata1)
+    .imem_rdata1(imem_rdata1),
+    .imem_pc(imem_pc),     // NEW
+    .imem_valid(imem_valid) // NEW
   );
 
   // Dual-port instruction memory (synchronous BRAM with 1-cycle latency)
   logic [INSTR_WIDTH-1:0] imem [0:15];
   
+  // Request tracking for proper response generation
+  logic [ADDR_WIDTH-1:0] saved_addr0, saved_addr1;
+  logic saved_ren;
+  
   always_ff @(posedge clk) begin
-    if (imem_ren) begin
-      imem_rdata0 <= imem[imem_addr0[5:2]];  // word addressing
-      imem_rdata1 <= imem[imem_addr1[5:2]];  // word addressing  
+    if (reset) begin
+      saved_ren <= 1'b0;
+      imem_valid <= 1'b0;
+    end else begin
+      // Save request for next cycle response
+      saved_ren <= imem_ren;
+      saved_addr0 <= imem_addr0;
+      saved_addr1 <= imem_addr1;
+      
+      // Generate response with 1-cycle latency
+      imem_valid <= saved_ren;
+      if (saved_ren) begin
+        imem_rdata0 <= imem[saved_addr0[5:2]];  // word addressing
+        imem_rdata1 <= imem[saved_addr1[5:2]];  // word addressing
+        imem_pc[0] <= saved_addr0;              // Return the PCs we received
+        imem_pc[1] <= saved_addr1;
+      end
     end
   end
 
@@ -70,6 +94,8 @@ module fetch_tb;
     $display("imem_ren: %b | Addr0: 0x%08h | Addr1: 0x%08h", 
              imem_ren, imem_addr0, imem_addr1);
     $display("imem_rdata0: 0x%08h | imem_rdata1: 0x%08h", imem_rdata0, imem_rdata1);
+    $display("imem_pc0: 0x%08h | imem_pc1: 0x%08h | imem_valid: %b", 
+             imem_pc[0], imem_pc[1], imem_valid);  // NEW
     
     $display("\n📤 OUTPUTS:");
     $display("if_valid: {%b,%b}", if_valid[1], if_valid[0]);
@@ -103,6 +129,11 @@ module fetch_tb;
     redirect_en = 0;
     redirect_pc = '0;
     cycle = 0;
+    
+    // Initialize new signals
+    imem_valid = 1'b0;
+    imem_pc[0] = '0;
+    imem_pc[1] = '0;
 
     // Reset
     repeat (2) @(posedge clk);
