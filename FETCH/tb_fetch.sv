@@ -4,9 +4,9 @@ import core_pkg::*;
 module fetch_tb;
 
   // Parameters
-  localparam int PC_W     = 32;
-  localparam int INSTR_W  = 32;
-  localparam int FETCH_W  = 2;
+  parameter int PC_W = core_pkg::XLEN;
+  parameter int INSTR_W = core_pkg::XLEN;
+  parameter int FETCH_W = core_pkg::ISSUE__WIDTH;
 
   // DUT signals
   logic clk, reset;
