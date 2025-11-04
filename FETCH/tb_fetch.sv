@@ -24,8 +24,8 @@ module fetch_tb;
 
   // DUT
   fetch #(
-    .INSTR_WIDTH(INSTR_WIDTH)
-    .ADDR_WIDTH(ADDR_WIDTH),
+    .INSTR_WIDTH(INSTR_WIDTH),
+    .ADDR_WIDTH(ADDR_WIDTH)
   ) dut (
     .clk(clk),
     .reset(reset),
