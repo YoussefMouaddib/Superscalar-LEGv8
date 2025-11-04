@@ -57,6 +57,10 @@ module fetch_tb;
     if (reset) begin
       saved_ren <= 1'b0;
       imem_valid <= 1'b0;
+      imem_rdata0 <= '0;
+      imem_rdata1 <= '0;
+      imem_pc[0] <= '0;
+      imem_pc[1] <= '0;
     end else begin
       // Save request for next cycle response
       saved_ren <= imem_ren;
@@ -70,6 +74,8 @@ module fetch_tb;
         imem_rdata1 <= imem[saved_addr1[5:2]];  // word addressing
         imem_pc[0] <= saved_addr0;              // Return the PCs we received
         imem_pc[1] <= saved_addr1;
+      end else begin
+        imem_valid <= 1'b0;
       end
     end
   end
@@ -95,7 +101,7 @@ module fetch_tb;
              imem_ren, imem_addr0, imem_addr1);
     $display("imem_rdata0: 0x%08h | imem_rdata1: 0x%08h", imem_rdata0, imem_rdata1);
     $display("imem_pc0: 0x%08h | imem_pc1: 0x%08h | imem_valid: %b", 
-             imem_pc[0], imem_pc[1], imem_valid);  // NEW
+             imem_pc[0], imem_pc[1], imem_valid);
     
     $display("\n📤 OUTPUTS:");
     $display("if_valid: {%b,%b}", if_valid[1], if_valid[0]);
@@ -129,11 +135,6 @@ module fetch_tb;
     redirect_en = 0;
     redirect_pc = '0;
     cycle = 0;
-    
-    // Initialize new signals
-    imem_valid = 1'b0;
-    imem_pc[0] = '0;
-    imem_pc[1] = '0;
 
     // Reset
     repeat (2) @(posedge clk);
