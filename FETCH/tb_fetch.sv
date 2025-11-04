@@ -23,10 +23,7 @@ module fetch_tb;
   logic [INSTR_WIDTH-1:0] imem_rdata0, imem_rdata1;
 
   // DUT
-  fetch #(
-    .INSTR_WIDTH(INSTR_WIDTH),
-    .ADDR_WIDTH(ADDR_WIDTH)
-  ) dut (
+  fetch dut (
     .clk(clk),
     .reset(reset),
     .fetch_en(fetch_en),
