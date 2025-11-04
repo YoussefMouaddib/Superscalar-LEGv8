@@ -4,29 +4,28 @@ import core_pkg::*;
 module fetch_tb;
 
   // Parameters
-  parameter int PC_W = core_pkg::XLEN;
-  parameter int INSTR_W = core_pkg::XLEN;
+  parameter int ADDR_WIDTH = core_pkg::XLEN;
+  parameter int INSTR_WIDTH = core_pkg::XLEN;
   parameter int FETCH_W = core_pkg::FETCH_WIDTH;
 
   // DUT signals
   logic clk, reset;
   logic fetch_en, stall;
   logic redirect_en;
-  logic [PC_W-1:0] redirect_pc;
+  logic [ADDR_WIDTH-1:0] redirect_pc;
 
   logic [FETCH_W-1:0]          if_valid;
-  logic [PC_W-1:0]             if_pc  [FETCH_W-1:0];
-  logic [INSTR_W-1:0]          if_instr [FETCH_W-1:0];
+  logic [ADDR_WIDTH-1:0]             if_pc  [FETCH_W-1:0];
+  logic [INSTR_WIDTH-1:0]          if_instr [FETCH_W-1:0];
 
-  logic [PC_W-1:0] imem_addr0, imem_addr1;
+  logic [ADDR_WIDTH-1:0] imem_addr0, imem_addr1;
   logic imem_ren;
-  logic [INSTR_W-1:0] imem_rdata0, imem_rdata1;
+  logic [INSTR_WIDTH-1:0] imem_rdata0, imem_rdata1;
 
   // DUT
   fetch #(
-    .FETCH_W(FETCH_W),
-    .PC_W(PC_W),
-    .INSTR_W(INSTR_W)
+    .INSTR_WIDTH(INSTR_WIDTH)
+    .ADDR_WIDTH(ADDR_WIDTH),
   ) dut (
     .clk(clk),
     .reset(reset),
@@ -45,7 +44,7 @@ module fetch_tb;
   );
 
   // Dual-port instruction memory (synchronous BRAM with 1-cycle latency)
-  logic [INSTR_W-1:0] imem [0:15];
+  logic [INSTR_WIDTH-1:0] imem [0:15];
   
   always_ff @(posedge clk) begin
     if (imem_ren) begin
