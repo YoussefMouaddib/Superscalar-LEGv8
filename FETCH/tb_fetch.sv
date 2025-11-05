@@ -22,11 +22,11 @@ module fetch_tb;
   logic imem_ren;
   logic [INSTR_WIDTH-1:0] imem_rdata0, imem_rdata1;
   
-  // NEW: imem response interface
+  // imem response interface
   logic [ADDR_WIDTH-1:0] imem_pc [FETCH_W];
   logic imem_valid;
 
-  // DUT - NO parameters needed
+  // DUT
   fetch dut (
     .clk(clk),
     .reset(reset),
@@ -42,38 +42,30 @@ module fetch_tb;
     .imem_ren(imem_ren),
     .imem_rdata0(imem_rdata0),
     .imem_rdata1(imem_rdata1),
-    .imem_pc(imem_pc),     // NEW
-    .imem_valid(imem_valid) // NEW
+    .imem_pc(imem_pc),
+    .imem_valid(imem_valid)
   );
 
   // Dual-port instruction memory (synchronous BRAM with 1-cycle latency)
   logic [INSTR_WIDTH-1:0] imem [0:15];
   
-  // Request tracking for proper response generation
-  logic [ADDR_WIDTH-1:0] saved_addr0, saved_addr1;
-  logic saved_ren;
-  
+  // FIXED: Only 1-cycle latency for memory response
   always_ff @(posedge clk) begin
     if (reset) begin
-      saved_ren <= 1'b0;
       imem_valid <= 1'b0;
       imem_rdata0 <= '0;
       imem_rdata1 <= '0;
       imem_pc[0] <= '0;
       imem_pc[1] <= '0;
     end else begin
-      // Save request for next cycle response
-      saved_ren <= imem_ren;
-      saved_addr0 <= imem_addr0;
-      saved_addr1 <= imem_addr1;
+      // Generate response in THE VERY NEXT CYCLE
+      imem_valid <= imem_ren;  // Directly use current cycle's ren
       
-      // Generate response with 1-cycle latency
-      imem_valid <= saved_ren;
-      if (saved_ren) begin
-        imem_rdata0 <= imem[saved_addr0[5:2]];  // word addressing
-        imem_rdata1 <= imem[saved_addr1[5:2]];  // word addressing
-        imem_pc[0] <= saved_addr0;              // Return the PCs we received
-        imem_pc[1] <= saved_addr1;
+      if (imem_ren) begin
+        imem_rdata0 <= imem[imem_addr0[5:2]];  // word addressing
+        imem_rdata1 <= imem[imem_addr1[5:2]];  // word addressing
+        imem_pc[0] <= imem_addr0;              // Return the PCs we received THIS cycle
+        imem_pc[1] <= imem_addr1;
       end else begin
         imem_valid <= 1'b0;
       end
