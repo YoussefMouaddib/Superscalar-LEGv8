@@ -117,7 +117,7 @@ module fetch_tb;
     
     // Verification check
     if (if_valid[0]) begin
-      logic [INSTR_WIDTH-1:0] expected_instr0 = imem[if_pc[0][5:2]];
+      automatic logic [INSTR_WIDTH-1:0] expected_instr0 = imem[if_pc[0][5:2]];
       if (if_instr[0] !== expected_instr0) begin
         $display("  ⚠️  ERROR: SLOT[0] instruction mismatch!");
         $display("      Expected: 0x%08h, Got: 0x%08h", expected_instr0, if_instr[0]);
@@ -127,7 +127,7 @@ module fetch_tb;
     end
     
     if (if_valid[1]) begin
-      logic [INSTR_WIDTH-1:0] expected_instr1 = imem[if_pc[1][5:2]];
+      automatic logic [INSTR_WIDTH-1:0] expected_instr1 = imem[if_pc[1][5:2]];
       if (if_instr[1] !== expected_instr1) begin
         $display("  ⚠️  ERROR: SLOT[1] instruction mismatch!");
         $display("      Expected: 0x%08h, Got: 0x%08h", expected_instr1, if_instr[1]);
