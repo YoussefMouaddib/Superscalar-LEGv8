@@ -100,7 +100,7 @@ module fetch_decode_tb;
   // Cycle counter
   int cycle;
 
-  // Instruction disassembly helper - FIXED with automatic variables
+  // Instruction disassembly helper for LEGv8 encoding
   function string disassemble_instr(input logic [XLEN-1:0] instr, input logic [XLEN-1:0] pc);
     automatic logic [5:0] opcode;
     automatic logic [4:0] rd, rn, rm;
@@ -126,12 +126,12 @@ module fetch_decode_tb;
       // B label
       6'b100000: begin
         imm26 = instr[25:0];
-        return $sformatf("B 0x%08h", pc + {{6{imm26[25]}}, imm26, 2'b00});
+        return $sformatf("B 0x%08h", pc + ({{6{imm26[25]}}, imm26, 2'b00}));
       end
       // CBZ Xn, label
       6'b100100: begin
         imm19 = instr[23:5];
-        return $sformatf("CBZ x%0d, 0x%08h", rn, pc + {{13{imm19[18]}}, imm19, 2'b00});
+        return $sformatf("CBZ x%0d, 0x%08h", rn, pc + ({{13{imm19[18]}}, imm19, 2'b00}));
       end
       // NOP
       6'b111111: return "NOP";
@@ -152,7 +152,8 @@ module fetch_decode_tb;
     $display("   Outputs → if_valid: {%b,%b}", if_valid[1], if_valid[0]);
     for (int i = 0; i < FETCH_W; i++) begin
       if (if_valid[i]) begin
-        $display("     SLOT[%0d] ✅: PC=0x%08h INSTR=0x%08h", i, if_pc[i], if_instr[i]);
+        $display("     SLOT[%0d] ✅: PC=0x%08h INSTR=0x%08h  %s", i, if_pc[i], if_instr[i], 
+                 disassemble_instr(if_instr[i], if_pc[i]));
       end else begin
         $display("     SLOT[%0d] ❌: PC=0x%08h INSTR=0x%08h", i, if_pc[i], if_instr[i]);
       end
@@ -188,19 +189,32 @@ module fetch_decode_tb;
     $display("");
   endtask
 
-  // Initialize instruction memory with 6 test instructions
+  // Initialize instruction memory with 6 test instructions USING LEGv8 ENCODING
   initial begin
-    // Initialize memory with test pattern
-    imem[0] = 32'h8B020000; // ADD x0, x0, x2
-    imem[1] = 32'h910003E1; // ADDI x1, x0, #1
-    imem[2] = 32'hF8400022; // LDR x2, [x1, #0]
-    imem[3] = 32'hF8000023; // STR x3, [x1, #0]  
-    imem[4] = 32'h14000002; // B +8 (to PC 0x10)
-    imem[5] = 32'hB4000044; // CBZ x4, +8 (to PC 0x14)
+    // LEGv8 ENCODING (Patterson & Hennessy textbook format)
+    // [31:26]=opcode, [25:21]=Rd, [20:16]=Rn, [15:11]=Rm, [10:0]=other
+    
+    // ADD x1, x2, x3
+    imem[0] = 32'b000000_00001_00010_00011_00000000000; // 0x00821800
+    
+    // ADDI x4, x5, #42  
+    imem[1] = 32'b001000_00100_00101_000000101010;      // 0x2105002A
+    
+    // LDR x6, [x7, #8]
+    imem[2] = 32'b010000_00110_00111_000000001000;      // 0x41870008
+    
+    // STR x8, [x9, #16]
+    imem[3] = 32'b010001_01000_01001_000000010000;      // 0x44890010
+    
+    // B +32 (to PC 0x20)
+    imem[4] = 32'b100000_000000000000000000001000;      // 0x80000008
+    
+    // CBZ x10, +16 (to PC 0x14)  
+    imem[5] = 32'b100100_01010_0000000000000001000;     // 0x92800008
     
     // Fill rest with NOPs
     for (int i = 6; i < 16; i++)
-      imem[i] = 32'hD503201F; // NOP
+      imem[i] = 32'b111111_00000_00000_00000_00000000000; // 0xFC000000
   end
 
   // Test sequence
@@ -217,7 +231,7 @@ module fetch_decode_tb;
     fetch_en = 1;
 
     $display("🚀 STARTING FETCH-DECODE SIMULATION");
-    $display("📋 TEST INSTRUCTIONS:");
+    $display("📋 TEST INSTRUCTIONS (LEGv8 Encoding):");
     $display("   0x00: %s", disassemble_instr(imem[0], 32'h00));
     $display("   0x04: %s", disassemble_instr(imem[1], 32'h04));  
     $display("   0x08: %s", disassemble_instr(imem[2], 32'h08));
