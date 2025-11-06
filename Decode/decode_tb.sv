@@ -189,32 +189,38 @@ module fetch_decode_tb;
     $display("");
   endtask
 
-  // Initialize instruction memory with 6 test instructions USING LEGv8 ENCODING
+  // Initialize instruction memory with 6 test instructions USING CORRECT HEX VALUES
   initial begin
-    // LEGv8 ENCODING (Patterson & Hennessy textbook format)
-    // [31:26]=opcode, [25:21]=Rd, [20:16]=Rn, [15:11]=Rm, [10:0]=other
+    // LEGv8 ENCODING - Using proper hex values to avoid binary literal issues
+    // Format: [31:26]=opcode, [25:21]=Rd, [20:16]=Rn, [15:11]=Rm, [10:0]=other
     
     // ADD x1, x2, x3
-    imem[0] = 32'b000000_00001_00010_00011_00000000000; // 0x00821800
+    // opcode=000000 (ADD), Rd=00001 (x1), Rn=00010 (x2), Rm=00011 (x3)
+    imem[0] = 32'h00821800; // ADD x1, x2, x3
     
     // ADDI x4, x5, #42  
-    imem[1] = 32'b001000_00100_00101_000000101010;      // 0x2105002A
+    // opcode=001000 (ADDI), Rd=00100 (x4), Rn=00101 (x5), imm12=000000101010
+    imem[1] = 32'h2105002A; // ADDI x4, x5, #42
     
     // LDR x6, [x7, #8]
-    imem[2] = 32'b010000_00110_00111_000000001000;      // 0x41870008
+    // opcode=010000 (LDR), Rt=00110 (x6), Rn=00111 (x7), imm12=000000001000
+    imem[2] = 32'h41870008; // LDR x6, [x7, #8]
     
     // STR x8, [x9, #16]
-    imem[3] = 32'b010001_01000_01001_000000010000;      // 0x44890010
+    // opcode=010001 (STR), Rt=01000 (x8), Rn=01001 (x9), imm12=000000010000  
+    imem[3] = 32'h44890010; // STR x8, [x9, #16]
     
     // B +32 (to PC 0x20)
-    imem[4] = 32'b100000_000000000000000000001000;      // 0x80000008
+    // opcode=100000 (B), imm26=00000000000000000000001000
+    imem[4] = 32'h80000008; // B +32
     
     // CBZ x10, +16 (to PC 0x14)  
-    imem[5] = 32'b100100_01010_0000000000000001000;     // 0x92800008
+    // opcode=100100 (CBZ), Rt=01010 (x10), imm19=0000000000000001000
+    imem[5] = 32'h92800008; // CBZ x10, +16
     
-    // Fill rest with NOPs
+    // Fill rest with NOPs (opcode=111111)
     for (int i = 6; i < 16; i++)
-      imem[i] = 32'b111111_00000_00000_00000_00000000000; // 0xFC000000
+      imem[i] = 32'hFC000000; // NOP
   end
 
   // Test sequence
