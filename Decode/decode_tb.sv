@@ -100,6 +100,45 @@ module fetch_decode_tb;
   // Cycle counter
   int cycle;
 
+  // Instruction disassembly helper - FIXED with automatic variables
+  function string disassemble_instr(input logic [XLEN-1:0] instr, input logic [XLEN-1:0] pc);
+    automatic logic [5:0] opcode;
+    automatic logic [4:0] rd, rn, rm;
+    automatic logic [11:0] imm12;
+    automatic logic [25:0] imm26;
+    automatic logic [18:0] imm19;
+    
+    opcode = instr[31:26];
+    rd = instr[25:21];
+    rn = instr[20:16];
+    rm = instr[15:11];
+    imm12 = instr[11:0];
+    
+    case (opcode)
+      // ADD Xd, Xn, Xm
+      6'b000000: return $sformatf("ADD x%0d, x%0d, x%0d", rd, rn, rm);
+      // ADDI Xd, Xn, #imm
+      6'b001000: return $sformatf("ADDI x%0d, x%0d, #0x%03h", rd, rn, imm12);
+      // LDR Xt, [Xn, #imm]
+      6'b010000: return $sformatf("LDR x%0d, [x%0d, #0x%03h]", rd, rn, imm12);
+      // STR Xt, [Xn, #imm]  
+      6'b010001: return $sformatf("STR x%0d, [x%0d, #0x%03h]", rd, rn, imm12);
+      // B label
+      6'b100000: begin
+        imm26 = instr[25:0];
+        return $sformatf("B 0x%08h", pc + {{6{imm26[25]}}, imm26, 2'b00});
+      end
+      // CBZ Xn, label
+      6'b100100: begin
+        imm19 = instr[23:5];
+        return $sformatf("CBZ x%0d, 0x%08h", rn, pc + {{13{imm19[18]}}, imm19, 2'b00});
+      end
+      // NOP
+      6'b111111: return "NOP";
+      default: return $sformatf("UNKNOWN (opcode: 0x%02h)", opcode);
+    endcase
+  endfunction
+
   // Enhanced trace printing
   task print_cycle_state;
     $display("═══════════════════════════════════════════════════════════════════════════════");
@@ -148,33 +187,6 @@ module fetch_decode_tb;
     end
     $display("");
   endtask
-
-  // Instruction disassembly helper
-  function string disassemble_instr(input logic [XLEN-1:0] instr, input logic [XLEN-1:0] pc);
-    logic [5:0] opcode = instr[31:26];
-    logic [4:0] rd = instr[25:21];
-    logic [4:0] rn = instr[20:16];
-    logic [4:0] rm = instr[15:11];
-    logic [11:0] imm12 = instr[11:0];
-    
-    case (opcode)
-      // ADD Xd, Xn, Xm
-      6'b000000: return $sformatf("ADD x%0d, x%0d, x%0d", rd, rn, rm);
-      // ADDI Xd, Xn, #imm
-      6'b001000: return $sformatf("ADDI x%0d, x%0d, #0x%03h", rd, rn, imm12);
-      // LDR Xt, [Xn, #imm]
-      6'b010000: return $sformatf("LDR x%0d, [x%0d, #0x%03h]", rd, rn, imm12);
-      // STR Xt, [Xn, #imm]  
-      6'b010001: return $sformatf("STR x%0d, [x%0d, #0x%03h]", rd, rn, imm12);
-      // B label
-      6'b100000: return $sformatf("B 0x%08h", pc + {{6{instr[25]}}, instr[25:0], 2'b00});
-      // CBZ Xn, label
-      6'b100100: return $sformatf("CBZ x%0d, 0x%08h", rn, pc + {{13{instr[23]}}, instr[23:5], 2'b00});
-      // NOP
-      6'b111111: return "NOP";
-      default: return $sformatf("UNKNOWN (opcode: 0x%02h)", opcode);
-    endcase
-  endfunction
 
   // Initialize instruction memory with 6 test instructions
   initial begin
