@@ -32,6 +32,13 @@ module decode (
 
   // Internal instruction decoding
   always_comb begin
+    // Declare ALL variables at the beginning with automatic
+    automatic logic [5:0] opcode_6bit;
+    automatic logic [4:0] rd, rn, rm;
+    automatic logic [11:0] imm12;
+    automatic logic [25:0] imm26;
+    automatic logic [18:0] imm19;
+    
     decode_stall = 1'b0;
     fetch_stall_req = 1'b0;
     
@@ -41,11 +48,11 @@ module decode (
       
       if (if_valid[i] && rename_ready) begin
         // Extract basic fields (consistent with LEGv8-style encoding)
-        logic [5:0] opcode_6bit = if_instr[i][31:26];
-        logic [4:0] rd  = if_instr[i][25:21];
-        logic [4:0] rn  = if_instr[i][20:16]; 
-        logic [4:0] rm  = if_instr[i][15:11];
-        logic [11:0] imm12 = if_instr[i][11:0];
+        opcode_6bit = if_instr[i][31:26];
+        rd  = if_instr[i][25:21];
+        rn  = if_instr[i][20:16]; 
+        rm  = if_instr[i][15:11];
+        imm12 = if_instr[i][11:0];
         
         // Default values
         decode_arch_rd[i] = rd;
@@ -93,7 +100,7 @@ module decode (
             decode_opcode[i] = 8'b10000000;
             decode_is_branch[i] = 1'b1;
             // Calculate branch target (PC + sign-extended imm26 << 2)
-            logic [25:0] imm26 = if_instr[i][25:0];
+            imm26 = if_instr[i][25:0];
             decode_branch_target[i] = if_pc[i] + {{6{imm26[25]}}, imm26, 2'b00};
           end
           
@@ -102,7 +109,7 @@ module decode (
             decode_opcode[i] = 8'b10010000;
             decode_is_branch[i] = 1'b1;
             // Calculate CBZ target (PC + sign-extended imm19 << 2)
-            logic [18:0] imm19 = if_instr[i][23:5];
+            imm19 = if_instr[i][23:5];
             decode_branch_target[i] = if_pc[i] + {{13{imm19[18]}}, imm19, 2'b00};
           end
           
