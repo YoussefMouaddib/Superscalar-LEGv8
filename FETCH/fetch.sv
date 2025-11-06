@@ -93,8 +93,8 @@ module fetch (
         // Assign PC and instructions correctly
         // imem_pc[0] corresponds to imem_rdata0 (first instruction)
         // imem_pc[1] corresponds to imem_rdata1 (second instruction)
-        if_pc[0] <= imem_pc[1];
-        if_pc[1] <= imem_pc[0];
+        if_pc[0] <= imem_pc[0];
+        if_pc[1] <= imem_pc[1];
         if_instr[0] <= imem_rdata0;
         if_instr[1] <= imem_rdata1;
       end
