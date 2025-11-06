@@ -16,15 +16,15 @@ module fetch_tb;
   logic [ADDR_WIDTH-1:0] redirect_pc;
 
   logic [FETCH_W-1:0]          if_valid;
-  logic [ADDR_WIDTH-1:0]       if_pc  [FETCH_W];
-  logic [INSTR_WIDTH-1:0]      if_instr [FETCH_W];
+  logic [ADDR_WIDTH-1:0]       if_pc  [FETCH_W-1:0];
+  logic [INSTR_WIDTH-1:0]      if_instr [FETCH_W-1:0];
 
   logic [ADDR_WIDTH-1:0] imem_addr0, imem_addr1;
   logic imem_ren;
   logic [INSTR_WIDTH-1:0] imem_rdata0, imem_rdata1;
   
   // imem response interface
-  logic [ADDR_WIDTH-1:0] imem_pc [FETCH_W];
+  logic [ADDR_WIDTH-1:0] imem_pc [FETCH_W-1:0];
   logic imem_valid;
 
   // DUT
@@ -50,7 +50,7 @@ module fetch_tb;
   // ============================================================
   //  Instruction Memory Model (Synchronous 1-cycle latency)
   // ============================================================
-  logic [INSTR_WIDTH-1:0] imem [0:15];
+  logic [INSTR_WIDTH-1:0] imem [15:0];
   
   // Memory response pipeline - captures request and responds next cycle
   always_ff @(posedge clk or posedge reset) begin
