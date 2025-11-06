@@ -27,80 +27,37 @@ module fetch (
   output logic            imem_ren
 );
 
+  logic [XLEN-1:0] pc_reg;
+  logic pending_request;
+
   // ============================================================
   //  STAGE 1: PC Management and Memory Request
   // ============================================================
-  logic [XLEN-1:0] pc_reg;
-  logic [XLEN-1:0] req_pc0, req_pc1;
-  logic req_valid;
-  
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
       pc_reg <= '0;
       imem_ren <= 1'b0;
-      req_valid <= 1'b0;
-      req_pc0 <= '0;
-      req_pc1 <= '0;
+      pending_request <= 1'b0;
     end else begin
-      // Highest priority: branch redirect
       if (redirect_en) begin
         pc_reg <= redirect_pc;
         imem_ren <= 1'b0;
-        req_valid <= 1'b0;
-      end 
-      // Normal fetch operation
-      else if (fetch_en && !stall) begin
-        // Drive memory request
+        pending_request <= 1'b0;
+      end else if (fetch_en && !stall) begin
         imem_addr0 <= pc_reg;
         imem_addr1 <= pc_reg + 32'd4;
         imem_ren <= 1'b1;
-        
-        // Save PCs for request tracking
-        req_pc0 <= pc_reg;
-        req_pc1 <= pc_reg + 32'd4;
-        req_valid <= 1'b1;
-        
-        // Advance PC
+        pending_request <= 1'b1;
         pc_reg <= pc_reg + 32'd8;
       end else begin
-        // No fetch this cycle
         imem_ren <= 1'b0;
-        req_valid <= 1'b0;
+        // Keep pending_request until we get response or redirect
       end
     end
   end
 
   // ============================================================
-  //  STAGE 2: Memory Response Handling 
-  // ============================================================
-  logic [XLEN-1:0] resp_pc0, resp_pc1;
-  logic [XLEN-1:0] resp_instr0, resp_instr1;
-  logic resp_valid;
-
-  always_ff @(posedge clk or posedge reset) begin
-    if (reset) begin
-      resp_valid <= 1'b0;
-      resp_pc0 <= '0;
-      resp_pc1 <= '0;
-      resp_instr0 <= '0;
-      resp_instr1 <= '0;
-    end else begin
-      // Only accept response if we had a valid request
-      resp_valid <= req_valid && imem_valid && !redirect_en;
-      
-      if (req_valid && imem_valid && !redirect_en) begin
-        resp_pc0 <= imem_pc[0];
-        resp_pc1 <= imem_pc[1];
-        resp_instr0 <= imem_rdata0;
-        resp_instr1 <= imem_rdata1;
-      end else begin
-        resp_valid <= 1'b0;
-      end
-    end
-  end
-
-  // ============================================================
-  //  STAGE 3: Output to Decode
+  //  STAGE 2: Direct Output to Decode (NO USELESS REGISTERS)
   // ============================================================
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
@@ -110,14 +67,20 @@ module fetch (
       if_instr[0] <= '0;
       if_instr[1] <= '0;
     end else if (!stall) begin
-      // Direct pipeline register - NO extra logic here
-      if_valid <= {FETCH_WIDTH{resp_valid}};
-      if_pc[0] <= resp_pc0;
-      if_pc[1] <= resp_pc1;
-      if_instr[0] <= resp_instr0;
-      if_instr[1] <= resp_instr1;
+      // DIRECT pipeline: imem response → outputs in SAME CYCLE
+      if_valid <= {FETCH_WIDTH{(pending_request && imem_valid && !redirect_en)}};
+      
+      if (pending_request && imem_valid && !redirect_en) begin
+        if_pc[0] <= imem_pc[0];
+        if_pc[1] <= imem_pc[1];
+        if_instr[0] <= imem_rdata0;
+        if_instr[1] <= imem_rdata1;
+        pending_request <= 1'b0;  // Request completed
+      end else begin
+        if_valid <= '0;
+      end
     end else begin
-      // Stall - clear valid but hold data (or clear both)
+      // Stall - clear outputs
       if_valid <= '0;
     end
   end
