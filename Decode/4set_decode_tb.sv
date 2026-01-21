@@ -128,10 +128,13 @@ module decode_tb;
         forever #(CLK_PERIOD/2) clk = ~clk;
     end
     
-    // Display function for instruction
-    function string instr_to_string(logic [31:0] instr);
-        logic [5:0] opcode = instr[31:26];
-        logic [5:0] func = instr[5:0];
+    // Display function for instruction - FIXED: automatic function
+    function automatic string instr_to_string(logic [31:0] instr);
+        logic [5:0] opcode;
+        logic [5:0] func;
+        
+        opcode = instr[31:26];
+        func = instr[5:0];
         
         case (opcode)
             // R-type
@@ -202,8 +205,8 @@ module decode_tb;
         endcase
     endfunction
     
-    // Display function for decode output
-    function void display_decode_output(int lane);
+    // Display function for decode output - FIXED: automatic function
+    function automatic void display_decode_output(int lane);
         $write("  Lane %0d: ", lane);
         if (dec_valid[lane]) begin
             $write("VALID | ");
@@ -236,8 +239,8 @@ module decode_tb;
     // Main test sequence
     initial begin
         int set_num;
-        int cycle_count = 0;
-        int error_count = 0;
+        static int cycle_count = 0;  // FIXED: declared as static
+        static int error_count = 0;  // FIXED: declared as static
         
         $display("Starting decode module testbench...");
         $display("Testing %0d sets of %0d instructions each", 4, FETCH_W);
@@ -297,9 +300,11 @@ module decode_tb;
                 display_decode_output(lane);
             end
             
-            // Quick sanity checks
+            // Quick sanity checks - FIXED: moved declarations before statements
             $display("\nSanity checks:");
             for (int lane = 0; lane < FETCH_W; lane++) begin
+                logic any_class;  // FIXED: declaration before use
+                
                 if (dec_valid[lane]) begin
                     // Check PC passthrough
                     if (dec_pc[lane] !== pc[lane]) begin
@@ -320,12 +325,12 @@ module decode_tb;
                     end
                     
                     // Check that at least one instruction class is set for non-NOP
-                    logic any_class = dec_is_alu[lane] | dec_is_load[lane] | 
-                                     dec_is_store[lane] | dec_is_branch[lane] | 
-                                     dec_is_cas[lane];
+                    any_class = dec_is_alu[lane] | dec_is_load[lane] | 
+                                dec_is_store[lane] | dec_is_branch[lane] | 
+                                dec_is_cas[lane];
                     if (dec_valid[lane] && !any_class && instr[lane][31:26] != 6'b111111) begin
                         $display("  WARNING Lane %0d: No instruction class set for valid non-NOP instruction", lane);
-                    }
+                    end
                 end else begin
                     $display("  Lane %0d: Output invalid (expected if instr_valid=0 or decode_ready=0)", lane);
                 end
