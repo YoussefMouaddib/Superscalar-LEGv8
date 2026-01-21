@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module decode_tb;
+module 4set_decode_tb;
 
     // Parameters
     localparam FETCH_W = 2;
