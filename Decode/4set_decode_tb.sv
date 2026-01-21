@@ -37,33 +37,46 @@ module decode_tb;
     typedef struct {
         logic [31:0] instr[2];
         logic [31:0] pc[2];
+        string description[2];
     } instruction_set_t;
     
     instruction_set_t instruction_sets[4];
     
-    // Test program
+    // Test program with CORRECT encodings based on new spec
     initial begin
         // Set 0: R-type and I-type
-        instruction_sets[0].instr[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b000000};    // ADD X1, X2, X3
-        instruction_sets[0].instr[1] = {6'b001000, 5'd4, 5'd5, 12'd100, 4'b0000};        // ADDI X4, X5, #100
+        instruction_sets[0].instr[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};    // ADD X1, X2, X3
+        instruction_sets[0].description[0] = "ADD X1, X2, X3";
+        
+        instruction_sets[0].instr[1] = {6'b001000, 5'd4, 5'd5, 16'd100};                  // ADDI X4, X5, #100
+        instruction_sets[0].description[1] = "ADDI X4, X5, #100";
         instruction_sets[0].pc[0] = 32'h1000;
         instruction_sets[0].pc[1] = 32'h1004;
         
         // Set 1: Load and Store
-        instruction_sets[1].instr[0] = {6'b010000, 5'd6, 5'd7, 12'd64, 4'b0000};         // LDR X6, [X7, #64]
-        instruction_sets[1].instr[1] = {6'b010001, 5'd8, 5'd9, 12'hFF0, 4'b0000};        // STR X8, [X9, #-16]
+        instruction_sets[1].instr[0] = {6'b010000, 5'd6, 5'd7, 16'd64};                   // LDR X6, [X7, #64]
+        instruction_sets[1].description[0] = "LDR X6, [X7, #64]";
+        
+        instruction_sets[1].instr[1] = {6'b010001, 5'd8, 5'd9, 16'hFFF0};                 // STR X8, [X9, #-16]
+        instruction_sets[1].description[1] = "STR X8, [X9, #-16]";
         instruction_sets[1].pc[0] = 32'h1008;
         instruction_sets[1].pc[1] = 32'h100C;
         
         // Set 2: Branches
-        instruction_sets[2].instr[0] = {6'b011000, 5'd10, 19'd8, 2'b00};                  // CBZ X10, #32
-        instruction_sets[2].instr[1] = {6'b100000, 26'h3FFFFFC};                         // B #-16
+        instruction_sets[2].instr[0] = {6'b100010, 5'd10, 21'd8};                         // CBZ X10, #32
+        instruction_sets[2].description[0] = "CBZ X10, #32";
+        
+        instruction_sets[2].instr[1] = {6'b100000, 26'h3FFFFFC};                          // B #-16
+        instruction_sets[2].description[1] = "B #-16";
         instruction_sets[2].pc[0] = 32'h1010;
         instruction_sets[2].pc[1] = 32'h1014;
         
         // Set 3: CAS and NOP
-        instruction_sets[3].instr[0] = {6'b101000, 5'd11, 5'd12, 5'd13, 11'd0};          // CAS X11, X12, X13
-        instruction_sets[3].instr[1] = {6'b111000, 26'd0};                               // NOP
+        instruction_sets[3].instr[0] = {6'b010100, 5'd11, 5'd12, 5'd13, 5'd0, 6'b000000}; // CAS X11, X12, X13
+        instruction_sets[3].description[0] = "CAS X11, X12, X13";
+        
+        instruction_sets[3].instr[1] = {6'b111111, 26'd0};                                // NOP
+        instruction_sets[3].description[1] = "NOP";
         instruction_sets[3].pc[0] = 32'h1018;
         instruction_sets[3].pc[1] = 32'h101C;
     end
@@ -104,23 +117,69 @@ module decode_tb;
     // Display function for instruction
     function string instr_to_string(logic [31:0] instr);
         logic [5:0] opcode = instr[31:26];
+        logic [5:0] func = instr[5:0];
+        
         case (opcode)
-            6'b000000: return $sformatf("R-type: rd=%0d, rs1=%0d, rs2=%0d", 
+            // R-type
+            6'b000000: begin
+                case (func)
+                    6'b100000: return $sformatf("ADD: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b100010: return $sformatf("SUB: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b100100: return $sformatf("AND: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b100101: return $sformatf("ORR: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b100110: return $sformatf("EOR: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b101000: return $sformatf("NEG: rd=%0d, rn=%0d", 
+                                               instr[25:21], instr[20:16]);
+                    6'b000000: return $sformatf("LSL_reg: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b000010: return $sformatf("LSR_reg: rd=%0d, rn=%0d, rm=%0d", 
+                                               instr[25:21], instr[20:16], instr[15:11]);
+                    6'b000001: return $sformatf("LSL_imm: rd=%0d, rn=%0d, shamt=%0d", 
+                                               instr[25:21], instr[20:16], instr[10:6]);
+                    6'b000011: return $sformatf("LSR_imm: rd=%0d, rn=%0d, shamt=%0d", 
+                                               instr[25:21], instr[20:16], instr[10:6]);
+                    6'b111000: return $sformatf("RET: rn=%0d", instr[20:16]);
+                    default: return $sformatf("R-type UNKNOWN func=%6b", func);
+                endcase
+            end
+            
+            // I-type
+            6'b001000: return $sformatf("ADDI: rd=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b001001: return $sformatf("SUBI: rd=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b001010: return $sformatf("ANDI: rd=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b001011: return $sformatf("ORI: rd=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b001100: return $sformatf("EORI: rd=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            
+            // Load/Store
+            6'b010000: return $sformatf("LDR: rt=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b010001: return $sformatf("STR: rt=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b010100: return $sformatf("CAS: rd=%0d, rn=%0d, rm=%0d", 
                                        instr[25:21], instr[20:16], instr[15:11]);
-            6'b001000: return $sformatf("ADDI: rd=%0d, rs1=%0d, imm12=%0d", 
-                                       instr[25:21], instr[20:16], instr[15:4]);
-            6'b001001: return $sformatf("SUBI: rd=%0d, rs1=%0d, imm12=%0d", 
-                                       instr[25:21], instr[20:16], instr[15:4]);
-            6'b010000: return $sformatf("LDR: rt=%0d, rn=%0d, imm12=%0d", 
-                                       instr[25:21], instr[20:16], instr[15:4]);
-            6'b010001: return $sformatf("STR: rt=%0d, rn=%0d, imm12=%0d", 
-                                       instr[25:21], instr[20:16], instr[15:4]);
-            6'b011000: return $sformatf("CBZ: rt=%0d, imm19=%0d", 
-                                       instr[25:21], instr[20:2]);
+            
+            // Branches
             6'b100000: return $sformatf("B: imm26=%0d", instr[25:0]);
-            6'b101000: return $sformatf("CAS: rd=%0d, rn=%0d, rm=%0d", 
-                                       instr[25:21], instr[20:16], instr[15:11]);
-            6'b111000: return "NOP/SYS";
+            6'b100001: return $sformatf("BL: imm26=%0d", instr[25:0]);
+            6'b100010: return $sformatf("CBZ: rt=%0d, imm21=%0d", 
+                                       instr[25:21], instr[20:0]);
+            6'b100011: return $sformatf("CBNZ: rt=%0d, imm21=%0d", 
+                                       instr[25:21], instr[20:0]);
+            
+            // System
+            6'b111000: return "SVC";
+            6'b111111: return "NOP";
+            
             default:   return $sformatf("UNKNOWN opcode=%6b", opcode);
         endcase
     endfunction
@@ -135,7 +194,7 @@ module decode_tb;
             $write("rs2[%0d]%s ", dec_rs2[lane], dec_rs2_valid[lane] ? "✓" : "✗");
             $write("rd[%0d]%s | ", dec_rd[lane], dec_rd_valid[lane] ? "✓" : "✗");
             if (dec_imm[lane] != 0) 
-                $write("imm=%h | ", dec_imm[lane]);
+                $write("imm=%h (%0d) | ", dec_imm[lane], dec_imm[lane]);
             $write("PC=%h | ", dec_pc[lane]);
             if (dec_is_alu[lane]) $write("ALU ");
             if (dec_is_load[lane]) $write("LOAD ");
@@ -162,6 +221,7 @@ module decode_tb;
         
         $display("Starting decode module testbench...");
         $display("Testing %0d sets of %0d instructions each", 4, FETCH_W);
+        $display("Based on updated instruction format spec");
         
         // Initialize
         reset = 1;
@@ -192,6 +252,7 @@ module decode_tb;
                         lane, instr_valid[lane], pc[lane]);
                 $display("           Instruction: %32b", instr[lane]);
                 $display("           %s", instr_to_string(instr[lane]));
+                $display("           Description: %s", instruction_sets[set_num].description[lane]);
             end
             
             // Load next instruction set
@@ -231,7 +292,7 @@ module decode_tb;
                     logic any_class = dec_is_alu[lane] | dec_is_load[lane] | 
                                      dec_is_store[lane] | dec_is_branch[lane] | 
                                      dec_is_cas[lane];
-                    if (dec_valid[lane] && !any_class && instr[lane][31:26] != 6'b111000)
+                    if (dec_valid[lane] && !any_class && instr[lane][31:26] != 6'b111111)
                         $display("  WARNING Lane %0d: No instruction class set for valid instruction", lane);
                 end
             end
@@ -260,8 +321,8 @@ module decode_tb;
         @(posedge clk);
         decode_ready = 0;
         instr_valid = 2'b11;
-        instr[0] = {6'b000000, 5'd14, 5'd15, 5'd16, 5'd0, 6'b000000};
-        instr[1] = {6'b001000, 5'd17, 5'd18, 12'd200, 4'b0000};
+        instr[0] = {6'b000000, 5'd14, 5'd15, 5'd16, 5'd0, 6'b100000};  // ADD X14, X15, X16
+        instr[1] = {6'b001000, 5'd17, 5'd18, 16'd200};                  // ADDI X17, X18, #200
         pc[0] = 32'h1020;
         pc[1] = 32'h1024;
         
@@ -304,8 +365,9 @@ module decode_tb;
             if (instr_valid[i] && decode_ready) begin
                 case (instr[i][31:26])
                     6'b000000, 6'b001000, 6'b001001, 6'b001010, 6'b001011,
-                    6'b001100, 6'b010000, 6'b010001, 6'b011000, 6'b011001,
-                    6'b100000, 6'b100001, 6'b101000, 6'b111000: begin
+                    6'b001100, 6'b010000, 6'b010001, 6'b010010, 6'b010011,
+                    6'b010100, 6'b100000, 6'b100001, 6'b100010, 6'b100011,
+                    6'b111000, 6'b111111: begin
                         // Valid opcodes - do nothing
                     end
                     default: begin
