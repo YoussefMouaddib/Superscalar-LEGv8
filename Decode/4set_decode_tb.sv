@@ -33,6 +33,10 @@ module decode_tb;
     logic [FETCH_W-1:0]      dec_is_branch;
     logic [FETCH_W-1:0]      dec_is_cas;
     
+    // Additional outputs from decode module
+    logic [FETCH_W-1:0][5:0] dec_alu_func;
+    logic [FETCH_W-1:0][4:0] dec_shamt;
+    
     // Instruction memory (4 sets of 2 instructions = 8 instructions)
     typedef struct {
         logic [31:0] instr[2];
@@ -42,40 +46,48 @@ module decode_tb;
     
     instruction_set_t instruction_sets[4];
     
-    // Test program with CORRECT encodings based on new spec
+    // Test program with CORRECT encodings that match decode module expectations
     initial begin
-        // Set 0: R-type and I-type
-        instruction_sets[0].instr[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};    // ADD X1, X2, X3
+        // Set 0: R-type (ADD) and I-type (ADDI)
+        // ADD X1, X2, X3: opcode=000000, Rd=1, Rn=2, Rm=3, SHAMT=0, FUNC=100000
+        instruction_sets[0].instr[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};
         instruction_sets[0].description[0] = "ADD X1, X2, X3";
         
-        instruction_sets[0].instr[1] = {6'b001000, 5'd4, 5'd5, 16'd100};                  // ADDI X4, X5, #100
+        // ADDI X4, X5, #100: opcode=001000, Rd=4, Rn=5, imm16=100
+        instruction_sets[0].instr[1] = {6'b001000, 5'd4, 5'd5, 16'd100};
         instruction_sets[0].description[1] = "ADDI X4, X5, #100";
         instruction_sets[0].pc[0] = 32'h1000;
         instruction_sets[0].pc[1] = 32'h1004;
         
-        // Set 1: Load and Store
-        instruction_sets[1].instr[0] = {6'b010000, 5'd6, 5'd7, 16'd64};                   // LDR X6, [X7, #64]
+        // Set 1: Load (LDR) and Store (STR) with both positive and negative offsets
+        // LDR X6, [X7, #64]: opcode=010000, Rt=6, Rn=7, imm16=64
+        instruction_sets[1].instr[0] = {6'b010000, 5'd6, 5'd7, 16'd64};
         instruction_sets[1].description[0] = "LDR X6, [X7, #64]";
         
-        instruction_sets[1].instr[1] = {6'b010001, 5'd8, 5'd9, 16'hFFF0};                 // STR X8, [X9, #-16]
+        // STR X8, [X9, #-16]: opcode=010001, Rt=8, Rn=9, imm16=-16 (0xFFF0 in 16-bit 2's complement)
+        instruction_sets[1].instr[1] = {6'b010001, 5'd8, 5'd9, 16'hFFF0};
         instruction_sets[1].description[1] = "STR X8, [X9, #-16]";
         instruction_sets[1].pc[0] = 32'h1008;
         instruction_sets[1].pc[1] = 32'h100C;
         
-        // Set 2: Branches
-        instruction_sets[2].instr[0] = {6'b100010, 5'd10, 21'd8};                         // CBZ X10, #32
+        // Set 2: Conditional branch (CBZ) and Unconditional branch (B)
+        // CBZ X10, #32: opcode=100010, Rt=10, imm21=8 (8 << 2 = 32)
+        instruction_sets[2].instr[0] = {6'b100010, 5'd10, 21'd8};
         instruction_sets[2].description[0] = "CBZ X10, #32";
         
-        instruction_sets[2].instr[1] = {6'b100000, 26'h3FFFFFC};                          // B #-16
+        // B #-16: opcode=100000, imm26=-4 (-4 << 2 = -16)
+        instruction_sets[2].instr[1] = {6'b100000, 26'h3FFFFFC};
         instruction_sets[2].description[1] = "B #-16";
         instruction_sets[2].pc[0] = 32'h1010;
         instruction_sets[2].pc[1] = 32'h1014;
         
-        // Set 3: CAS and NOP
-        instruction_sets[3].instr[0] = {6'b010100, 5'd11, 5'd12, 5'd13, 5'd0, 6'b000000}; // CAS X11, X12, X13
+        // Set 3: CAS (atomic) and NOP
+        // CAS X11, X12, X13: opcode=010100, Rd=11, Rn=12, Rm=13, rest=0
+        instruction_sets[3].instr[0] = {6'b010100, 5'd11, 5'd12, 5'd13, 5'd0, 6'b000000};
         instruction_sets[3].description[0] = "CAS X11, X12, X13";
         
-        instruction_sets[3].instr[1] = {6'b111111, 26'd0};                                // NOP
+        // NOP: opcode=111111, rest=0
+        instruction_sets[3].instr[1] = {6'b111111, 26'd0};
         instruction_sets[3].description[1] = "NOP";
         instruction_sets[3].pc[0] = 32'h1018;
         instruction_sets[3].pc[1] = 32'h101C;
@@ -105,7 +117,9 @@ module decode_tb;
         .dec_is_load(dec_is_load),
         .dec_is_store(dec_is_store),
         .dec_is_branch(dec_is_branch),
-        .dec_is_cas(dec_is_cas)
+        .dec_is_cas(dec_is_cas),
+        .dec_alu_func(dec_alu_func),
+        .dec_shamt(dec_shamt)
     );
     
     // Clock generation
@@ -165,6 +179,10 @@ module decode_tb;
                                        instr[25:21], instr[20:16], instr[15:0]);
             6'b010001: return $sformatf("STR: rt=%0d, rn=%0d, imm16=%0d", 
                                        instr[25:21], instr[20:16], instr[15:0]);
+            6'b010010: return $sformatf("LDUR: rt=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
+            6'b010011: return $sformatf("STUR: rt=%0d, rn=%0d, imm16=%0d", 
+                                       instr[25:21], instr[20:16], instr[15:0]);
             6'b010100: return $sformatf("CAS: rd=%0d, rn=%0d, rm=%0d", 
                                        instr[25:21], instr[20:16], instr[15:11]);
             
@@ -194,13 +212,14 @@ module decode_tb;
             $write("rs2[%0d]%s ", dec_rs2[lane], dec_rs2_valid[lane] ? "✓" : "✗");
             $write("rd[%0d]%s | ", dec_rd[lane], dec_rd_valid[lane] ? "✓" : "✗");
             if (dec_imm[lane] != 0) 
-                $write("imm=%h (%0d) | ", dec_imm[lane], dec_imm[lane]);
+                $write("imm=%h (%0d) | ", dec_imm[lane], $signed(dec_imm[lane]));
             $write("PC=%h | ", dec_pc[lane]);
-            if (dec_is_alu[lane]) $write("ALU ");
+            if (dec_is_alu[lane]) $write("ALU(func=%6b) ", dec_alu_func[lane]);
             if (dec_is_load[lane]) $write("LOAD ");
             if (dec_is_store[lane]) $write("STORE ");
             if (dec_is_branch[lane]) $write("BRANCH ");
             if (dec_is_cas[lane]) $write("CAS ");
+            if (dec_shamt[lane] != 0) $write("shamt=%0d ", dec_shamt[lane]);
         end else begin
             $write("INVALID");
         end
@@ -218,10 +237,11 @@ module decode_tb;
     initial begin
         int set_num;
         int cycle_count = 0;
+        int error_count = 0;
         
         $display("Starting decode module testbench...");
         $display("Testing %0d sets of %0d instructions each", 4, FETCH_W);
-        $display("Based on updated instruction format spec");
+        $display("Fully compatible with updated decode module");
         
         // Initialize
         reset = 1;
@@ -231,12 +251,14 @@ module decode_tb;
         decode_ready = 0;
         
         display_banner("Cycle 0: Reset");
+        $display("Reset asserted");
         @(posedge clk);
         cycle_count++;
         
         // Release reset
         reset = 0;
         decode_ready = 1;
+        $display("Reset released, decode_ready=1");
         
         // Feed 4 sets of instructions
         for (set_num = 0; set_num < 4; set_num++) begin
@@ -265,6 +287,7 @@ module decode_tb;
             end else begin
                 // Last set, stop feeding instructions
                 instr_valid = 2'b00;
+                $display("  No more instruction sets to feed");
             end
             
             // Display outputs (at next posedge, after combinational logic)
@@ -279,21 +302,32 @@ module decode_tb;
             for (int lane = 0; lane < FETCH_W; lane++) begin
                 if (dec_valid[lane]) begin
                     // Check PC passthrough
-                    if (dec_pc[lane] !== pc[lane]) 
+                    if (dec_pc[lane] !== pc[lane]) begin
                         $display("  ERROR Lane %0d: PC mismatch! Input=%h, Output=%h", 
                                 lane, pc[lane], dec_pc[lane]);
+                        error_count++;
+                    end else begin
+                        $display("  Lane %0d: PC passthrough OK", lane);
+                    end
                     
                     // Check opcode passthrough
-                    if (dec_opcode[lane] !== instr[lane][31:26])
+                    if (dec_opcode[lane] !== instr[lane][31:26]) begin
                         $display("  ERROR Lane %0d: Opcode mismatch! Input=%6b, Output=%6b", 
                                 lane, instr[lane][31:26], dec_opcode[lane]);
+                        error_count++;
+                    end else begin
+                        $display("  Lane %0d: Opcode passthrough OK", lane);
+                    end
                     
-                    // Check that at least one instruction class is set
+                    // Check that at least one instruction class is set for non-NOP
                     logic any_class = dec_is_alu[lane] | dec_is_load[lane] | 
                                      dec_is_store[lane] | dec_is_branch[lane] | 
                                      dec_is_cas[lane];
-                    if (dec_valid[lane] && !any_class && instr[lane][31:26] != 6'b111111)
-                        $display("  WARNING Lane %0d: No instruction class set for valid instruction", lane);
+                    if (dec_valid[lane] && !any_class && instr[lane][31:26] != 6'b111111) begin
+                        $display("  WARNING Lane %0d: No instruction class set for valid non-NOP instruction", lane);
+                    }
+                end else begin
+                    $display("  Lane %0d: Output invalid (expected if instr_valid=0 or decode_ready=0)", lane);
                 end
             end
         end
@@ -321,8 +355,10 @@ module decode_tb;
         @(posedge clk);
         decode_ready = 0;
         instr_valid = 2'b11;
-        instr[0] = {6'b000000, 5'd14, 5'd15, 5'd16, 5'd0, 6'b100000};  // ADD X14, X15, X16
-        instr[1] = {6'b001000, 5'd17, 5'd18, 16'd200};                  // ADDI X17, X18, #200
+        // Test different R-type: SUB X14, X15, X16
+        instr[0] = {6'b000000, 5'd14, 5'd15, 5'd16, 5'd0, 6'b100010};
+        // Test different I-type: SUBI X17, X18, #200
+        instr[1] = {6'b001001, 5'd17, 5'd18, 16'd200};
         pc[0] = 32'h1020;
         pc[1] = 32'h1024;
         
@@ -330,10 +366,12 @@ module decode_tb;
         $display("\nOutputs with decode_ready=0:");
         for (int lane = 0; lane < FETCH_W; lane++) begin
             $write("  Lane %0d: ", lane);
-            if (dec_valid[lane]) 
+            if (dec_valid[lane]) begin
                 $display("VALID (ERROR: should be INVALID with decode_ready=0)");
-            else
+                error_count++;
+            end else begin
                 $display("INVALID (CORRECT)");
+            end
         end
         
         @(posedge clk);
@@ -344,18 +382,56 @@ module decode_tb;
             display_decode_output(lane);
         end
         
+        // Test immediate sign extension
+        display_banner("Testing immediate sign extension");
+        @(posedge clk);
+        instr_valid = 2'b11;
+        // Test negative immediate for I-type
+        instr[0] = {6'b001000, 5'd1, 5'd2, 16'hFF80};  // ADDI X1, X2, #-128
+        // Test positive immediate for store
+        instr[1] = {6'b010001, 5'd3, 5'd4, 16'd255};   // STR X3, [X4, #255]
+        pc[0] = 32'h1030;
+        pc[1] = 32'h1034;
+        
+        @(negedge clk);
+        $display("\nTesting sign extension:");
+        $display("  Lane 0: ADDI with imm16=-128 (0xFF80)");
+        $display("         Expected immediate: 0xFFFFFF80 (-128)");
+        $display("         Actual immediate:   0x%h (%0d)", dec_imm[0], $signed(dec_imm[0]));
+        if (dec_imm[0] !== 32'hFFFFFF80) begin
+            $display("  ERROR: Sign extension incorrect!");
+            error_count++;
+        end
+        
+        $display("  Lane 1: STR with imm16=255");
+        $display("         Expected immediate: 0x000000FF (255)");
+        $display("         Actual immediate:   0x%h (%0d)", dec_imm[1], $signed(dec_imm[1]));
+        if (dec_imm[1] !== 32'h000000FF) begin
+            $display("  ERROR: Immediate incorrect!");
+            error_count++;
+        end
+        
         // Final summary
         display_banner("Test Complete");
         $display("Total cycles: %0d", cycle_count);
-        $display("All 4 instruction sets processed successfully!");
-        $display("\nInstruction Set Summary:");
-        $display("1. Set 0: R-type (ADD) + I-type (ADDI)");
-        $display("2. Set 1: Load (LDR) + Store (STR)");
-        $display("3. Set 2: Conditional branch (CBZ) + Unconditional branch (B)");
-        $display("4. Set 3: Atomic (CAS) + System (NOP)");
-        $display("\nBackpressure test: PASS");
+        $display("Total errors: %0d", error_count);
         
-        $finish(0);
+        $display("\nInstruction Set Summary:");
+        $display("1. Set 0: R-type (ADD X1,X2,X3) + I-type (ADDI X4,X5,#100)");
+        $display("2. Set 1: Load (LDR X6,[X7,#64]) + Store (STR X8,[X9,#-16])");
+        $display("3. Set 2: Conditional branch (CBZ X10,#32) + Unconditional branch (B #-16)");
+        $display("4. Set 3: Atomic (CAS X11,X12,X13) + System (NOP)");
+        $display("\nAdditional tests:");
+        $display("- Backpressure test (decode_ready=0)");
+        $display("- Immediate sign extension test");
+        
+        if (error_count == 0) begin
+            $display("\n✅ ALL TESTS PASSED!");
+        end else begin
+            $display("\n❌ TEST FAILED with %0d errors!", error_count);
+        end
+        
+        $finish(error_count);
     end
     
     // Monitor to display any warnings
