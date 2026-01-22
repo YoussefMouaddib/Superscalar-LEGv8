@@ -236,7 +236,7 @@ module decode_tb;
         $display("═══════════════════════════════════════════════════════════");
     endtask
     
-    // Main test sequence
+    // Main test sequence - FIXED TIMING
     initial begin
         int set_num;
         static int cycle_count = 0;  // FIXED: declared as static
@@ -263,13 +263,32 @@ module decode_tb;
         decode_ready = 1;
         $display("Reset released, decode_ready=1");
         
-        // Feed 4 sets of instructions
+        // Display cycle 1 (first cycle after reset, no instructions yet)
+        @(negedge clk);
+        display_banner($sformatf("Cycle %0d: After Reset (No Instructions)", cycle_count));
+        $display("Inputs: None (waiting for first instruction set)");
+        $display("\nOutputs:");
+        for (int lane = 0; lane < FETCH_W; lane++) begin
+            display_decode_output(lane);
+        end
+        
+        // Feed 4 sets of instructions - FIXED TIMING
         for (set_num = 0; set_num < 4; set_num++) begin
             @(posedge clk);
             cycle_count++;
             
-            // Display inputs
-            display_banner($sformatf("Cycle %0d: Set %0d Input", cycle_count, set_num));
+            // LOAD instruction set FIRST
+            instr_valid = 2'b11;
+            for (int lane = 0; lane < FETCH_W; lane++) begin
+                instr[lane] = instruction_sets[set_num].instr[lane];
+                pc[lane] = instruction_sets[set_num].pc[lane];
+            end
+            
+            // Wait for combinational logic then display
+            @(negedge clk);
+            
+            // Display inputs and outputs
+            display_banner($sformatf("Cycle %0d: Set %0d Processing", cycle_count, set_num));
             $display("Inputs:");
             $display("  decode_ready = %b", decode_ready);
             for (int lane = 0; lane < FETCH_W; lane++) begin
@@ -280,21 +299,6 @@ module decode_tb;
                 $display("           Description: %s", instruction_sets[set_num].description[lane]);
             end
             
-            // Load next instruction set
-            if (set_num < 3) begin
-                instr_valid = 2'b11;
-                for (int lane = 0; lane < FETCH_W; lane++) begin
-                    instr[lane] = instruction_sets[set_num].instr[lane];
-                    pc[lane] = instruction_sets[set_num].pc[lane];
-                end
-            end else begin
-                // Last set, stop feeding instructions
-                instr_valid = 2'b00;
-                $display("  No more instruction sets to feed");
-            end
-            
-            // Display outputs (at next posedge, after combinational logic)
-            @(negedge clk);
             $display("\nOutputs:");
             for (int lane = 0; lane < FETCH_W; lane++) begin
                 display_decode_output(lane);
@@ -337,21 +341,17 @@ module decode_tb;
             end
         end
         
-        // Two more cycles to show final outputs
-        repeat(2) begin
-            @(posedge clk);
-            cycle_count++;
-            
-            display_banner($sformatf("Cycle %0d: No more inputs", cycle_count));
-            $display("Inputs:");
-            $display("  decode_ready = %b", decode_ready);
-            $display("  instr_valid = %b", instr_valid);
-            
-            @(negedge clk);
-            $display("\nOutputs:");
-            for (int lane = 0; lane < FETCH_W; lane++) begin
-                display_decode_output(lane);
-            end
+        // One more cycle to show Set 3 outputs
+        @(posedge clk);
+        cycle_count++;
+        instr_valid = 2'b00;  // Stop feeding instructions
+        
+        @(negedge clk);
+        display_banner($sformatf("Cycle %0d: Set 3 Outputs", cycle_count));
+        $display("Inputs: None (instr_valid=00)");
+        $display("\nOutputs:");
+        for (int lane = 0; lane < FETCH_W; lane++) begin
+            display_decode_output(lane);
         end
         
         // Test backpressure
