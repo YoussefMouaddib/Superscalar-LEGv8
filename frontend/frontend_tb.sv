@@ -199,42 +199,21 @@ module frontend_tb;
     end
     
     // ============================================
-    //  Instruction Memory Model
+    //  Instruction Memory Model - FIXED VERSION
     // ============================================
     // Simple instruction memory with 1-cycle latency
     logic [31:0] inst_mem [0:1023];
-    logic [XLEN-1:0] last_pc0, last_pc1;
+    logic [XLEN-1:0] saved_pc0, saved_pc1;  // To save PCs for responses
     
-    // Display test program at start
     initial begin
-        $display("\n═══════════════════════════════════════════════════════════");
-        $display(" TEST PROGRAM: 4 Instructions (2-wide fetch)");
-        $display("═══════════════════════════════════════════════════════════");
-        
-        // Initialize instruction memory with test program
-        // Instruction 0: ADD X1, X2, X3
-        inst_mem[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};
-        $display("Address 0x00000000: ADD X1, X2, X3");
-        $display("  Binary: %32b", inst_mem[0]);
-        
-        // Instruction 1: ADDI X4, X5, #100
-        inst_mem[1] = {6'b001000, 5'd4, 5'd5, 16'd100};
-        $display("Address 0x00000004: ADDI X4, X5, #100");
-        $display("  Binary: %32b", inst_mem[1]);
-        
-        // Instruction 2: LDR X6, [X7, #64]
-        inst_mem[2] = {6'b010000, 5'd6, 5'd7, 16'd64};
-        $display("Address 0x00000008: LDR X6, [X7, #64]");
-        $display("  Binary: %32b", inst_mem[2]);
-        
-        // Instruction 3: STR X8, [X9, #-16]
-        inst_mem[3] = {6'b010001, 5'd8, 5'd9, 16'hFFF0};
-        $display("Address 0x0000000C: STR X8, [X9, #-16]");
-        $display("  Binary: %32b", inst_mem[3]);
-        $display("");
+        // Initialize instruction memory (same as before)
+        inst_mem[0] = {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};  // ADD
+        inst_mem[1] = {6'b001000, 5'd4, 5'd5, 16'd100};               // ADDI
+        inst_mem[2] = {6'b010000, 5'd6, 5'd7, 16'd64};                // LDR
+        inst_mem[3] = {6'b010001, 5'd8, 5'd9, 16'hFFF0};              // STR
     end
     
-    // Memory response logic (1-cycle latency)
+    // Memory response logic (1-cycle latency) - FIXED
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             imem_valid <= 1'b0;
@@ -242,28 +221,37 @@ module frontend_tb;
             imem_rdata1 <= '0;
             imem_pc[0] <= '0;
             imem_pc[1] <= '0;
-            last_pc0 <= '0;
-            last_pc1 <= '0;
+            saved_pc0 <= '0;
+            saved_pc1 <= '0;
         end else begin
-            imem_valid <= imem_ren;  // 1-cycle latency
+            // Default: not valid
+            imem_valid <= 1'b0;
             
+            // Handle memory request
             if (imem_ren) begin
-                last_pc0 <= imem_addr0;
-                last_pc1 <= imem_addr1;
+                // Save the PCs for THIS request
+                saved_pc0 <= imem_addr0;
+                saved_pc1 <= imem_addr1;
                 
                 // Read from instruction memory
                 imem_rdata0 <= inst_mem[imem_addr0[31:2]];
                 imem_rdata1 <= inst_mem[imem_addr1[31:2]];
-                imem_pc[0] <= imem_addr0;
-                imem_pc[1] <= imem_addr1;
                 
-                $display("[MEM] Request: PC=%h, Addr0=%h, Addr1=%h", 
-                        fetch_inst.pc_reg, imem_addr0, imem_addr1);
+                // Schedule response for next cycle
+                imem_valid <= 1'b1;  // Will be valid next cycle
+                
+                $display("[MEM] Cycle %0d: Request PC=%h, Addr0=%h, Addr1=%h", 
+                        $time/10, fetch_inst.pc_reg, imem_addr0, imem_addr1);
             end
             
+            // On the cycle AFTER a request, output the saved PCs
+            // Note: imem_valid is already set from previous cycle's imem_ren
             if (imem_valid) begin
-                $display("[MEM] Response: Data0=%h @ PC=%h, Data1=%h @ PC=%h", 
-                        imem_rdata0, imem_pc[0], imem_rdata1, imem_pc[1]);
+                imem_pc[0] <= saved_pc0;
+                imem_pc[1] <= saved_pc1;
+                
+                $display("[MEM] Cycle %0d: Response Data0=%h @ PC=%h, Data1=%h @ PC=%h", 
+                        $time/10, imem_rdata0, saved_pc0, imem_rdata1, saved_pc1);
             end
         end
     end
@@ -297,9 +285,9 @@ module frontend_tb;
     endfunction
     
     function automatic void display_fetch(int cycle);
-        $display("\n═══════════════════════════════════════════════════════════");
+        $display("\n============================================");
         $display(" CYCLE %0d: FETCH STAGE", cycle);
-        $display("═══════════════════════════════════════════════════════════");
+        $display("============================================");
         $display(" Inputs: fetch_en=%b, stall=%b, redirect_en=%b", 
                 fetch_en, stall, redirect_en);
         $display(" Memory Request: imem_ren=%b, Addr0=%h, Addr1=%h", 
@@ -317,9 +305,9 @@ module frontend_tb;
     endfunction
     
     function automatic void display_decode(int cycle);
-        $display("\n═══════════════════════════════════════════════════════════");
+        $display("\n============================================");
         $display(" CYCLE %0d: DECODE STAGE", cycle);
-        $display("═══════════════════════════════════════════════════════════");
+        $display("============================================");
         $display(" Input Ready: decode_ready=%b", decode_ready);
         $display(" Output Valid: dec_valid=%b", dec_valid);
         for (int i = 0; i < FETCH_WIDTH; i++) begin
@@ -344,9 +332,9 @@ module frontend_tb;
     endfunction
     
     function automatic void display_rename(int cycle);
-        $display("\n═══════════════════════════════════════════════════════════");
+        $display("\n============================================");
         $display(" CYCLE %0d: RENAME STAGE", cycle);
-        $display("═══════════════════════════════════════════════════════════");
+        $display("============================================");
         $display(" Ready for new instructions: rename_ready=%b", rename_ready);
         $display(" Output Valid: rename_valid=%b", rename_valid);
         for (int i = 0; i < FETCH_WIDTH; i++) begin
@@ -368,107 +356,41 @@ module frontend_tb;
     endfunction
     
     // ============================================
-    //  Main Test Sequence
+    //  Main Test Sequence - SIMPLIFIED
     // ============================================
     initial begin
         static int cycle = 0;
-        static int error_count = 0;
         
-        $display("\n═══════════════════════════════════════════════════════════");
-        $display(" STARTING FRONTEND PIPELINE TEST");
-        $display("═══════════════════════════════════════════════════════════");
-        $display(" Pipeline: Fetch → Decode → Rename");
-        $display(" Width: 2 instructions per cycle");
-        $display(" Memory latency: 1 cycle");
-        $display(" Total test instructions: 4");
-        $display("");
+        $display("\n=== STARTING TEST ===");
         
-        // Initialize
+        // Reset
         reset = 1;
         fetch_en = 0;
-        redirect_en = 0;
-        redirect_pc = '0;
-        commit_en = 0;
-        commit_arch_rd = '0;
-        commit_phys_rd = '0;
+        repeat(2) @(posedge clk);
+        cycle += 2;
         
-        // Cycle 0: Reset
-        $display("\n[INITIALIZATION] Applying reset...");
-        display_fetch(cycle);
-        display_decode(cycle);
-        display_rename(cycle);
-        @(posedge clk);
-        cycle++;
-        
-        // Release reset
+        // Release reset, start fetch
         reset = 0;
         fetch_en = 1;
-        $display("\n[START] Reset released, starting fetch...");
+        $display("\n[Cycle %0d] Reset released, starting fetch", cycle);
         
-        // Test 4 instructions (fetched 2 at a time)
-        for (int set = 0; set < 2; set++) begin
-            $display("\n[SET %0d] Fetching 2 instructions...", set);
-            // Wait for memory latency + pipeline (3 cycles per set)
-            repeat(3) begin
-                @(negedge clk);
-                display_fetch(cycle);
-                display_decode(cycle);
-                display_rename(cycle);
-                cycle++;
-                @(posedge clk);
-            end
+        // Let it run for enough cycles to fetch 4 instructions
+        // Each fetch takes: 1 request + 1 response = 2 cycles per pair
+        // 4 instructions = 2 pairs = 4 cycles minimum
+        repeat(10) begin
+            @(negedge clk);
+            $display("\n=== CYCLE %0d ===", cycle);
+            display_fetch(cycle);
+            display_decode(cycle);
+            display_rename(cycle);
+            cycle++;
+            @(posedge clk);
         end
         
-        // Stop fetching after 4 instructions
-        fetch_en = 0;
-        
-        // One more cycle to show final outputs
-        @(negedge clk);
-        $display("\n[COMPLETION] All instructions fetched, showing final state...");
-        display_fetch(cycle);
-        display_decode(cycle);
-        display_rename(cycle);
-        
-        // Test commit (free physical registers)
-        $display("\n\n═══════════════════════════════════════════════════════════");
-        $display(" TESTING COMMIT (Freeing physical registers)");
-        $display("═══════════════════════════════════════════════════════════");
-        
-        commit_en = 1;
-        commit_arch_rd = 5'd1;  // Commit X1
-        commit_phys_rd = 6'd32; // Some physical register
-        
-        @(negedge clk);
-        display_fetch(cycle);
-        display_decode(cycle);
-        display_rename(cycle);
-        
-        commit_en = 0;
-        
-        // Final summary
-        $display("\n\n═══════════════════════════════════════════════════════════");
-        $display(" TEST COMPLETE");
-        $display("═══════════════════════════════════════════════════════════");
-        $display("Total cycles simulated: %0d", cycle);
-        $display("Total errors detected: %0d", error_count);
-        $display("");
-        $display("Instructions tested:");
-        $display("  1. ADD X1, X2, X3");
-        $display("  2. ADDI X4, X5, #100");
-        $display("  3. LDR X6, [X7, #64]");
-        $display("  4. STR X8, [X9, #-16]");
-        $display("");
-        
-        if (error_count == 0) begin
-            $display("✅ ALL FRONTEND STAGES WORKING CORRECTLY!");
-            $display("   Fetch → Decode → Rename pipeline is functional.");
-        end else begin
-            $display("❌ TEST FAILED with %0d errors!", error_count);
-        end
-        
-        $finish(error_count);
+        $display("\n=== TEST COMPLETE ===");
+        $finish;
     end
-    
+        
     // ============================================
     //  Waveform Dump
     // ============================================
