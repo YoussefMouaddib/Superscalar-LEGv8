@@ -344,3 +344,4 @@ module free_list #(
             free_mask <= updated_mask;
         end
     end
+endmodule
