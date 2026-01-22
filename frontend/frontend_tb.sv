@@ -249,11 +249,14 @@ module frontend_tb;
     end
     
     // ============================================
-    //  Display Functions
+    //  Display Functions - FIXED: automatic functions
     // ============================================
-    function string inst_to_string(logic [31:0] instr);
-        logic [5:0] opcode = instr[31:26];
-        logic [5:0] func = instr[5:0];
+    function automatic string inst_to_string(logic [31:0] instr);
+        logic [5:0] opcode;
+        logic [5:0] func;
+        
+        opcode = instr[31:26];  // FIXED: No initialization in declaration
+        func = instr[5:0];      // FIXED: No initialization in declaration
         
         case (opcode)
             6'b000000: begin
@@ -273,7 +276,7 @@ module frontend_tb;
         endcase
     endfunction
     
-    function void display_fetch(int cycle);
+    function automatic void display_fetch(int cycle);
         $display("\n═══════════════════════════════════════════════════════════");
         $display(" CYCLE %0d: FETCH STAGE", cycle);
         $display("═══════════════════════════════════════════════════════════");
@@ -291,7 +294,7 @@ module frontend_tb;
         end
     endfunction
     
-    function void display_decode(int cycle);
+    function automatic void display_decode(int cycle);
         $display("\n═══════════════════════════════════════════════════════════");
         $display(" CYCLE %0d: DECODE STAGE", cycle);
         $display("═══════════════════════════════════════════════════════════");
@@ -314,7 +317,7 @@ module frontend_tb;
         end
     endfunction
     
-    function void display_rename(int cycle);
+    function automatic void display_rename(int cycle);
         $display("\n═══════════════════════════════════════════════════════════");
         $display(" CYCLE %0d: RENAME STAGE", cycle);
         $display("═══════════════════════════════════════════════════════════");
@@ -337,11 +340,11 @@ module frontend_tb;
     endfunction
     
     // ============================================
-    //  Main Test Sequence
+    //  Main Test Sequence - FIXED: static variables
     // ============================================
     initial begin
-        int cycle = 0;
-        int error_count = 0;
+        static int cycle = 0;  // FIXED: declared as static
+        static int error_count = 0;  // FIXED: declared as static
         
         $display("Starting Frontend Pipeline Testbench");
         $display("Testing Fetch → Decode → Rename with 4 instructions (2-wide)");
@@ -389,11 +392,6 @@ module frontend_tb;
         $display("\n\n═══════════════════════════════════════════════════════════");
         $display(" TESTING BACKPRESSURE");
         $display("═══════════════════════════════════════════════════════════");
-        
-        // Simulate rename not ready
-        #1; // Small delay to avoid race
-        // Note: rename_ready is an output, we can't directly set it
-        // Instead, we'll make commit not happen to fill up free list
         
         // Add a few more instructions
         fetch_en = 1;
