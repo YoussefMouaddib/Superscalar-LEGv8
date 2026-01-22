@@ -371,6 +371,7 @@ module frontend_tb;
         redirect_en = 0;
         stall = 0;
         decode_ready = 1;
+        rename_ready = 1;
         $display("\n[Cycle %0d] Reset released, starting fetch", cycle);
         
         // Let it run for enough cycles to fetch 4 instructions
