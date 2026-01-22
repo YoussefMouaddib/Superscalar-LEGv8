@@ -184,12 +184,7 @@ module frontend_tb;
         .commit_phys_rd(commit_phys_rd)
     );
     
-    // Connect decode_ready to rename_ready
-    decode_ready = 1;
-    
-    // Simple stall logic: stall if rename not ready
-    
-    
+        
     // ============================================
     //  Clock Generation
     // ============================================
@@ -375,6 +370,7 @@ module frontend_tb;
         fetch_en = 1;
         redirect_en = 0;
         stall = 0;
+        decode_ready = 1;
         $display("\n[Cycle %0d] Reset released, starting fetch", cycle);
         
         // Let it run for enough cycles to fetch 4 instructions
