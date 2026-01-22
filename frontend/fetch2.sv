@@ -101,9 +101,7 @@ module fetch (
         if_instr[1] <= imem_rdata1;
       end
       // No valid response: clear outputs
-      else begin
-        if_valid <= '0;
-      end
+      
     end
   end
 
