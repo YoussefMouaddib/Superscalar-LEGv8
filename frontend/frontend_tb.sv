@@ -185,10 +185,10 @@ module frontend_tb;
     );
     
     // Connect decode_ready to rename_ready
-    assign decode_ready = rename_ready;
+    decode_ready = 1;
     
     // Simple stall logic: stall if rename not ready
-    assign stall = ~rename_ready;
+    
     
     // ============================================
     //  Clock Generation
