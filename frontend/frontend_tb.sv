@@ -366,12 +366,15 @@ module frontend_tb;
         // Reset
         reset = 1;
         fetch_en = 0;
+        
         repeat(2) @(posedge clk);
         cycle += 2;
         
         // Release reset, start fetch
         reset = 0;
         fetch_en = 1;
+        redirect_en = 0;
+        stall = 0;
         $display("\n[Cycle %0d] Reset released, starting fetch", cycle);
         
         // Let it run for enough cycles to fetch 4 instructions
