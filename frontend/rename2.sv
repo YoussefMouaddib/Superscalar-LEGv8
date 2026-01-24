@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 import core_pkg::*;
+
 module rename_stage #(
     parameter int FETCH_W = 2,
     parameter int ARCH_REGS = 32,
@@ -46,6 +47,11 @@ module rename_stage #(
     output logic [FETCH_W-1:0]      rename_is_branch,
     output logic [FETCH_W-1:0]      rename_is_cas,
     output logic [FETCH_W-1:0][5:0] rename_alu_func,
+    
+    // FIXED: ADD ARCHITECTURAL REGISTER OUTPUTS
+    output logic [FETCH_W-1:0][4:0] rename_arch_rs1,  // Architectural RS1
+    output logic [FETCH_W-1:0][4:0] rename_arch_rs2,  // Architectural RS2  
+    output logic [FETCH_W-1:0][4:0] rename_arch_rd,   // Architectural RD
     
     // From Commit (write-back)
     input  logic                    commit_en,
@@ -154,6 +160,10 @@ module rename_stage #(
             rename_is_branch <= '0;
             rename_is_cas <= '0;
             rename_alu_func <= '0;
+            // FIXED: Reset architectural register outputs
+            rename_arch_rs1 <= '0;
+            rename_arch_rs2 <= '0;
+            rename_arch_rd <= '0;
         end else begin
             for (int i = 0; i < FETCH_W; i++) begin
                 if (rename_ready) begin
@@ -171,6 +181,11 @@ module rename_stage #(
                     // Pass through register valid flags
                     rename_rs1_valid[i] <= dec_rs1_valid[i];
                     rename_rs2_valid[i] <= dec_rs2_valid[i];
+                    
+                    // FIXED: Save architectural registers
+                    rename_arch_rs1[i] <= dec_rs1[i];
+                    rename_arch_rs2[i] <= dec_rs2[i];
+                    rename_arch_rd[i]  <= dec_rd[i];
                     
                     // Handle X0 special case (always physical register 0)
                     if (dec_rd[i] == 5'd0) begin
@@ -235,6 +250,7 @@ module rename_stage #(
     end
 
 endmodule
+
 //===========================================================
 //  Rename Table (Architectural → Physical Mapping)
 //  Updated for array interface
