@@ -83,9 +83,9 @@ module frontend_tb;
     logic [FETCH_WIDTH-1:0] rename_is_branch;
     logic [FETCH_WIDTH-1:0] rename_is_cas;
     logic [FETCH_WIDTH-1:0][5:0] rename_alu_func;
-    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rs1;  
-    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rs2;    
-    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rd;   
+    logic [4:0] rename_arch_rs1[FETCH_WIDTH-1:0];
+    logic [4:0] rename_arch_rs2[FETCH_WIDTH-1:0];  
+    logic [4:0] rename_arch_rd[FETCH_WIDTH-1:0];   
         
     // Commit signals (simulated for now)
     logic commit_en;
