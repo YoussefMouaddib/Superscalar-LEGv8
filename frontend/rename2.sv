@@ -49,9 +49,9 @@ module rename_stage #(
     output logic [FETCH_W-1:0][5:0] rename_alu_func,
     
     // FIXED: ADD ARCHITECTURAL REGISTER OUTPUTS
-    output logic [FETCH_W-1:0][4:0] rename_arch_rs1,  // Architectural RS1
-    output logic [FETCH_W-1:0][4:0] rename_arch_rs2,  // Architectural RS2  
-    output logic [FETCH_W-1:0][4:0] rename_arch_rd,   // Architectural RD
+    output logic [4:0] rename_arch_rs1[FETCH_W-1:0],  // Architectural RS1
+    output logic [4:0] rename_arch_rs2[FETCH_W-1:0],  // Architectural RS2  
+    output logic [4:0] rename_arch_rd[FETCH_W-1:0],   // Architectural RD
     
     // From Commit (write-back)
     input  logic                    commit_en,
@@ -93,7 +93,7 @@ module rename_stage #(
     // ============================================================
     //  Rename Table (Architectural → Physical Mapping)
     // ============================================================
-    logic [4:0] rename_arch_rd[FETCH_W-1:0];
+    
     logic [5:0] rename_new_phys_rd[FETCH_W-1:0];
     logic [FETCH_W-1:0] rename_en;
     
