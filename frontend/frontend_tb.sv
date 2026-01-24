@@ -83,7 +83,10 @@ module frontend_tb;
     logic [FETCH_WIDTH-1:0] rename_is_branch;
     logic [FETCH_WIDTH-1:0] rename_is_cas;
     logic [FETCH_WIDTH-1:0][5:0] rename_alu_func;
-    
+    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rs1;  
+    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rs2;    
+    logic [FETCH_WIDTH-1:0][4:0] rename_arch_rd;   
+        
     // Commit signals (simulated for now)
     logic commit_en;
     logic [4:0] commit_arch_rd;
@@ -179,6 +182,9 @@ module frontend_tb;
         .rename_is_branch(rename_is_branch),
         .rename_is_cas(rename_is_cas),
         .rename_alu_func(rename_alu_func),
+        .rename_arch_rs1(rename_arch_rs1),  
+        .rename_arch_rs2(rename_arch_rs2),  
+        .rename_arch_rd(rename_arch_rd),    
         .commit_en(commit_en),
         .commit_arch_rd(commit_arch_rd),
         .commit_phys_rd(commit_phys_rd)
@@ -340,7 +346,7 @@ module frontend_tb;
                         rename_prs2[i], rename_rs2_valid[i] ? "✓" : "✗",
                         rename_prd[i], rename_rd_valid[i] ? "✓" : "✗");
                 $display("           Architectural: rs1[%0d], rs2[%0d], rd[%0d]",
-                        dec_rs1[i], dec_rs2[i], dec_rd[i]);
+        rename_arch_rs1[i], rename_arch_rs2[i], rename_arch_rd[i]);
                 if (rename_is_alu[i]) $display("           Type: ALU");
                 if (rename_is_load[i]) $display("           Type: LOAD");
                 if (rename_is_store[i]) $display("           Type: STORE");
