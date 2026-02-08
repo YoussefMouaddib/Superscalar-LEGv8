@@ -34,6 +34,9 @@ module dispatch #(
     input  logic [4:0]              rename_arch_rs2[FETCH_W-1:0],
     input  logic [4:0]              rename_arch_rd[FETCH_W-1:0],
     
+    // NEW: Flush signal
+    input  logic                    flush_pipeline,
+    
     output logic                    dispatch_stall,   // Backpressure to rename
     
     // ============================================================
@@ -69,6 +72,12 @@ module dispatch #(
     output logic [FETCH_W-1:0]      rob_alloc_en,
     output logic [4:0]              rob_alloc_arch_rd[FETCH_W-1:0],
     output logic [PHYS_W-1:0]       rob_alloc_phys_rd[FETCH_W-1:0],
+    // ADDED: ROB metadata outputs
+    output logic [FETCH_W-1:0]      rob_alloc_is_store,
+    output logic [FETCH_W-1:0]      rob_alloc_is_load,
+    output logic [FETCH_W-1:0]      rob_alloc_is_branch,
+    output logic [31:0]             rob_alloc_pc[FETCH_W-1:0],
+    
     input  logic                    rob_alloc_ok,
     input  logic [$clog2(ROB_ENTRIES)-1:0] rob_alloc_idx[FETCH_W-1:0],
     
@@ -241,16 +250,24 @@ module dispatch #(
     end
     
     // ============================================================
-    // Dispatch to ROB
+    // Dispatch to ROB - UPDATED with metadata
     // ============================================================
     always_comb begin
         rob_alloc_en = '0;
+        rob_alloc_is_store = '0;
+        rob_alloc_is_load = '0;
+        rob_alloc_is_branch = '0;
+        
         for (int i = 0; i < FETCH_W; i++) begin
             rob_alloc_arch_rd[i] = rename_arch_rd[i];
             rob_alloc_phys_rd[i] = rename_prd[i];
+            rob_alloc_pc[i] = rename_pc[i];
             
-            if (rename_valid[i] && !rs_full) begin
+            if (rename_valid[i] && !rs_full && !flush_pipeline) begin
                 rob_alloc_en[i] = 1'b1;
+                rob_alloc_is_store[i] = rename_is_store[i];
+                rob_alloc_is_load[i] = rename_is_load[i];
+                rob_alloc_is_branch[i] = rename_is_branch[i];
             end
         end
     end
