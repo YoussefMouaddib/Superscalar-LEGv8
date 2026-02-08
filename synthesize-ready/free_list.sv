@@ -1,63 +1,84 @@
+`timescale 1 ns/ 1 ps
+import core_pkg::*;
+
 module free_list #(
     parameter int PHYS_REGS = core_pkg::PREGS,
-    parameter int FREE_PORTS = 2  // Support multiple frees per cycle from commit
+    parameter int ALLOC_PORTS = 2,
+    parameter int FREE_PORTS = 2
 )(
     input  logic         clk,
     input  logic         reset,
 
-    // Allocate a new physical register
-    input  logic         alloc_en,
-    output logic [5:0]   alloc_phys,
-    output logic         alloc_valid,  // high if allocation succeeded
+    // Allocate ports (multi-port allocation)
+    input  logic [ALLOC_PORTS-1:0]     alloc_en,
+    output logic [5:0]                 alloc_phys[ALLOC_PORTS],
+    output logic [ALLOC_PORTS-1:0]     alloc_valid,
 
-    // Release physical registers back to free list (MODIFIED for multiple ports)
-    input  logic [FREE_PORTS-1:0]     free_en,      // Multiple free enables
-    input  logic [5:0]                free_phys[FREE_PORTS-1:0]  // Multiple tags
+    // Free ports (multi-port release)
+    input  logic [FREE_PORTS-1:0]      free_en,
+    input  logic [5:0]                 free_phys[FREE_PORTS]
 );
 
-    // internal bitmask: 1 = free, 0 = allocated
+    // Internal bitmask: 1 = free, 0 = allocated
     logic [PHYS_REGS-1:0] free_mask;
     logic [PHYS_REGS-1:0] updated_mask;
 
     always_ff @(posedge clk or posedge reset) begin
+        automatic int alloc_count;
+        automatic int search_start;
+        
         if (reset) begin
-            // Initialize: Physical regs 0-31 correspond to architectural regs (not free)
-            // Physical regs 32-47 are available for renaming (free)
+            // Physical regs 0-31 map to architectural regs (not in free pool)
+            // Physical regs 32-47 are available for renaming
             for (int i = 0; i < core_pkg::ARCH_REGS; i++) begin
-                free_mask[i] <= 1'b0;  // Arch regs not in free pool initially
+                free_mask[i] <= 1'b0;
             end
             for (int i = core_pkg::ARCH_REGS; i < PHYS_REGS; i++) begin
-                free_mask[i] <= 1'b1;  // Rename regs are free
+                free_mask[i] <= 1'b1;
             end
-            alloc_phys <= '0;
-            alloc_valid <= 1'b0;
+            
+            for (int i = 0; i < ALLOC_PORTS; i++) begin
+                alloc_phys[i] <= '0;
+                alloc_valid[i] <= 1'b0;
+            end
         end else begin
-            // Create temporary updated free_mask
+            // Start with current free mask
             updated_mask = free_mask;
             
-            // Apply all frees FIRST (combinational update)
+            // ============================================================
+            // Step 1: Apply all frees FIRST
+            // ============================================================
             for (int j = 0; j < FREE_PORTS; j++) begin
                 if (free_en[j]) begin
                     updated_mask[free_phys[j]] = 1'b1;
                 end
             end
-                
-            // Then allocation searches updated mask
-            alloc_valid <= 1'b0;
-            alloc_phys <= '0;
             
-            if (alloc_en) begin
-                for (int i = 0; i < PHYS_REGS; i++) begin
-                    if (updated_mask[i]) begin
-                        alloc_phys <= i;
-                        alloc_valid <= 1'b1;
-                        updated_mask[i] = 1'b0;  // Mark allocated
-                        break;
+            // ============================================================
+            // Step 2: Perform allocations sequentially
+            // ============================================================
+            alloc_count = 0;
+            search_start = 0;
+            
+            for (int a = 0; a < ALLOC_PORTS; a++) begin
+                alloc_valid[a] <= 1'b0;
+                alloc_phys[a] <= '0;
+                
+                if (alloc_en[a]) begin
+                    // Search for next free register starting from search_start
+                    for (int i = 0; i < PHYS_REGS; i++) begin
+                        if (updated_mask[i]) begin
+                            alloc_phys[a] <= 6'(i);
+                            alloc_valid[a] <= 1'b1;
+                            updated_mask[i] = 1'b0;  // Mark as allocated
+                            search_start = i + 1;
+                            break;
+                        end
                     end
                 end
             end
             
-            // Update actual free_mask with both operations
+            // Update actual free_mask
             free_mask <= updated_mask;
         end
     end
