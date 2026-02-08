@@ -38,11 +38,20 @@ module inst_rom #(
                 rom[i] <= '0;  // Default to NOP (opcode 111111)
             end
 
-            // Load test program at reset (optional)
-            // rom[0] <= {6'b000000, 5'd1, 5'd2, 5'd3, 5'd0, 6'b100000};  // ADD X1, X2, X3
-            // rom[1] <= {6'b001000, 5'd4, 5'd5, 16'd100};               // ADDI X4, X5, #100
-            // rom[2] <= {6'b010000, 5'd6, 5'd7, 16'd64};                // LDR X6, [X7, #64]
-            // rom[3] <= {6'b010001, 5'd8, 5'd9, 16'hFFF0};              // STR X8, [X9, #65520]
+            // ADDI X1, X0, #10
+            rom[0] <= {6'b001000, 5'd1, 5'd0, 16'd10};
+            // ADDI X2, X0, #5
+            rom[1] <= {6'b001000, 5'd2, 5'd0, 16'd5};
+            // ADD X3, X1, X2
+            rom[2] <= {6'b000000, 5'd3, 5'd1, 5'd2, 5'd0, 6'b100000};
+            // SUB X4, X1, X2
+            rom[3] <= {6'b000000, 5'd4, 5'd1, 5'd2, 5'd0, 6'b100010};
+            // STR X3, [X0, #64]
+            rom[4] <= {6'b010001, 5'd3, 5'd0, 16'd64};
+            // LDR X5, [X0, #64]
+            rom[5] <= {6'b010000, 5'd5, 5'd0, 16'd64};
+            // NOP (repeat)
+            for (int i=6; i<16; i++) rom[i] <= 32'h0;              // STR X8, [X9, #65520]
 
         end else if (prog_en) begin
             // Program ROM at runtime (for testbench loading)
