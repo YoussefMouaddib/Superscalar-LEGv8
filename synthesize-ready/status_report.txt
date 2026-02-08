@@ -1,0 +1,325 @@
+OMPREHENSIVE FINAL REVIEW
+
+✅ MODULE 1: free_list.sv
+Status: ✅ GOOD - Multi-port capable
+Interface:
+systemverilogparameter int ALLOC_PORTS = 2,
+parameter int FREE_PORTS = 2
+
+input  logic [ALLOC_PORTS-1:0] alloc_en,
+output logic [5:0] alloc_phys[ALLOC_PORTS],
+output logic [ALLOC_PORTS-1:0] alloc_valid,
+
+input  logic [FREE_PORTS-1:0] free_en,
+input  logic [5:0] free_phys[FREE_PORTS]
+✅ Verified:
+
+Properly handles multiple allocations and frees per cycle
+Sequential search prevents double-allocation
+Initializes arch regs (0-31) as not-free, rename regs (32-47) as free
+
+No issues found.
+
+✅ MODULE 2: rename_table.sv
+Status: ✅ GOOD - Multi-port capable
+Interface:
+systemverilogparameter int LOOKUP_PORTS = 2,
+parameter int RENAME_PORTS = 2,
+parameter int COMMIT_PORTS = 2
+
+input  logic [4:0] arch_rs1[LOOKUP_PORTS],
+output logic [5:0] phys_rs1[LOOKUP_PORTS],
+// ... similar for rs2
+
+input  logic [RENAME_PORTS-1:0] rename_en,
+input  logic [COMMIT_PORTS-1:0] commit_en,
+✅ Verified:
+
+Combinational multi-port reads
+Sequential multi-port updates (rename and commit)
+Flush restores from committed_table
+
+No issues found.
+
+✅ MODULE 3: rename_stage.sv
+Status: ✅ GOOD - Uses single instances correctly
+Key Changes:
+systemverilog// Single free_list instance (not array)
+free_list #(.ALLOC_PORTS(FETCH_W), .FREE_PORTS(FETCH_W)) free_list_inst (...);
+
+// Single rename_table instance (not array)
+rename_table #(.LOOKUP_PORTS(FETCH_W), ...) rename_table_inst (...);
+✅ Verified:
+
+Single shared free list
+Single shared rename table
+Proper flush handling
+Backpressure when allocation fails
+
+No issues found.
+
+✅ MODULE 4: rob.sv
+Status: ⚠️ NEEDS MINOR FIX - Missing ROB index output to commit
+Issue Found:
+systemverilog// Commit stage needs to know WHICH ROB entries are committing
+// Currently outputs commit_valid[i] but not the actual ROB index
+
+// LSU needs: lsu_commit_rob_idx[i]
+// But ROB doesn't tell commit stage what the head indices are
+FIX NEEDED:
+Add output to ROB:
+systemverilogoutput logic [$clog2(ROB_SIZE)-1:0] commit_rob_idx[core_pkg::ISSUE_WIDTH],
+In commit logic:
+systemverilogfor (j = 0; j < ISSUE_W; j++) begin
+    if (occupancy > 0) begin
+        if (rob_mem[look_idx].valid && rob_mem[look_idx].ready) begin
+            // ... existing commit outputs ...
+            commit_rob_idx[j] <= look_idx;  // ADD THIS
+            // ...
+        end
+    end
+end
+Otherwise:
+
+✅ Branch outcome tracking works
+✅ Instruction metadata stored correctly
+✅ Multi-port commit outputs
+
+
+✅ MODULE 5: commit_stage.sv
+Status: ⚠️ NEEDS UPDATE - After ROB fix
+Dependencies:
+systemverilog// Needs new input from ROB:
+input  logic [$clog2(ROB_ENTRIES)-1:0] rob_commit_rob_idx[COMMIT_W-1:0],
+Then update LSU commit:
+systemverilogif (rob_commit_is_store[i]) begin
+    lsu_commit_en[i] <= 1'b1;
+    lsu_commit_is_store[i] <= 1'b1;
+    lsu_commit_rob_idx[i] <= rob_commit_rob_idx[i];  // Use real ROB index
+end
+Otherwise:
+
+✅ Branch predictor updates now have real data
+✅ ARF write logic correct
+✅ Free list updates correct
+✅ Exception handling reasonable
+
+
+✅ MODULE 6: dispatch.sv
+Status: ⚠️ NEEDS CONNECTION CLARIFICATION
+Issue Found:
+Dispatch needs to provide metadata to ROB allocation:
+systemverilog// Dispatch currently outputs to ROB:
+output logic [FETCH_W-1:0] rob_alloc_en,
+output logic [4:0] rob_alloc_arch_rd[FETCH_W-1:0],
+output logic [PHYS_W-1:0] rob_alloc_phys_rd[FETCH_W-1:0],
+
+// But ROB now needs (from our ROB fix):
+input logic [ISSUE_WIDTH-1:0] alloc_is_store,
+input logic [ISSUE_WIDTH-1:0] alloc_is_load,
+input logic [ISSUE_WIDTH-1:0] alloc_is_branch,
+input logic [31:0] alloc_pc[ISSUE_WIDTH],
+FIX NEEDED:
+Add outputs to dispatch:
+systemverilog// Add to dispatch.sv outputs:
+output logic [FETCH_W-1:0] rob_alloc_is_store,
+output logic [FETCH_W-1:0] rob_alloc_is_load,
+output logic [FETCH_W-1:0] rob_alloc_is_branch,
+output logic [31:0] rob_alloc_pc[FETCH_W-1:0],
+Add logic:
+systemverilogalways_comb begin
+    rob_alloc_en = '0;
+    rob_alloc_is_store = '0;
+    rob_alloc_is_load = '0;
+    rob_alloc_is_branch = '0;
+    
+    for (int i = 0; i < FETCH_W; i++) begin
+        rob_alloc_arch_rd[i] = rename_arch_rd[i];
+        rob_alloc_phys_rd[i] = rename_prd[i];
+        rob_alloc_pc[i] = rename_pc[i];
+        
+        if (rename_valid[i] && !rs_full && !flush_pipeline) begin
+            rob_alloc_en[i] = 1'b1;
+            rob_alloc_is_store[i] = rename_is_store[i];
+            rob_alloc_is_load[i] = rename_is_load[i];
+            rob_alloc_is_branch[i] = rename_is_branch[i];
+        end
+    end
+end
+Otherwise:
+
+✅ Scoreboard logic correct
+✅ PRF read arbitration correct
+✅ RS allocation correct
+✅ LSU single-port with stall correct
+
+
+✅ MODULE 7: lsu.sv
+Status: ⚠️ MINOR INTERFACE UPDATE NEEDED
+Issue:
+Commit interface updated but needs to match commit_stage:
+systemverilog// Current:
+input  logic [1:0] commit_en,
+input  logic [1:0] commit_is_store,
+input  logic [5:0] commit_rob_idx[1:0],
+
+// Should match commit outputs (from our commit_stage fix):
+input  logic [COMMIT_W-1:0] commit_en,
+input  logic [COMMIT_W-1:0] commit_is_store,
+input  logic [$clog2(ROB_ENTRIES)-1:0] commit_rob_idx[COMMIT_W-1:0],
+Where COMMIT_W = 2 (same value, but parameterized).
+Otherwise:
+
+✅ Single-port allocation
+✅ Flush handling correct
+✅ Store-to-load forwarding logic present
+✅ Memory FSM correct
+
+
+✅ MODULE 8: cdb_arbiter.sv
+Status: ✅ GOOD - Proper 4-to-2 arbitration
+✅ Verified:
+
+4 input sources (ALU0, ALU1, Branch, LSU)
+2 output CDB ports
+Round-robin fairness
+Combinational arbitration
+
+No issues found.
+
+✅ MODULE 9: branch_predictor.sv
+Status: ✅ GOOD - Update path complete
+✅ Verified:
+
+BTB with 2-bit saturating counters
+RAS for calls/returns
+Update inputs now connected via ROB → Commit
+Statistics tracking (wrapped in synthesis translate)
+
+No issues found.
+
+✅ MODULE 10: Other modules (fetch, decode, reservation_station, etc.)
+Status: ✅ GOOD - Flush handling added, synthesis-ready
+✅ Verified:
+
+All have flush_pipeline input
+All properly invalidate state on flush
+All have proper always_ff/always_comb separation
+
+No issues found.
+
+🔴 CRITICAL FIXES NEEDED:
+FIX 1: rob.sv - Add ROB Index Output
+systemverilogmodule rob #(
+  parameter int ROB_SIZE = core_pkg::ROB_ENTRIES
+)(
+  // ... existing ports ...
+  
+  // ADD THIS OUTPUT:
+  output logic [$clog2(ROB_SIZE)-1:0] commit_rob_idx[core_pkg::ISSUE_WIDTH],
+  
+  // ... rest of ports ...
+);
+
+// In commit logic, ADD:
+for (j = 0; j < ISSUE_W; j++) begin
+    if (occupancy > 0) begin
+        if (rob_mem[look_idx].valid && rob_mem[look_idx].ready) begin
+            // ... existing outputs ...
+            commit_rob_idx[j] <= look_idx;  // NEW
+            // ...
+        end
+    end
+end
+
+FIX 2: commit_stage.sv - Use Real ROB Index
+systemverilogmodule commit_stage #(
+    // ... parameters ...
+)(
+    // ADD THIS INPUT:
+    input  logic [$clog2(ROB_ENTRIES)-1:0] rob_commit_rob_idx[COMMIT_W-1:0],
+    
+    // ... rest of ports ...
+);
+
+// UPDATE LSU commit section:
+if (rob_commit_is_store[i]) begin
+    lsu_commit_en[i] <= 1'b1;
+    lsu_commit_is_store[i] <= 1'b1;
+    lsu_commit_rob_idx[i] <= rob_commit_rob_idx[i];  // CHANGED from placeholder
+end
+
+FIX 3: dispatch.sv - Add ROB Metadata Outputs
+systemverilogmodule dispatch #(
+    // ... parameters ...
+)(
+    // ... existing ports ...
+    
+    // ADD THESE OUTPUTS for ROB allocation:
+    output logic [FETCH_W-1:0]      rob_alloc_is_store,
+    output logic [FETCH_W-1:0]      rob_alloc_is_load,
+    output logic [FETCH_W-1:0]      rob_alloc_is_branch,
+    output logic [31:0]             rob_alloc_pc[FETCH_W-1:0],
+    
+    // ... rest of ports ...
+);
+
+// ADD THIS LOGIC in ROB allocation section:
+always_comb begin
+    rob_alloc_en = '0;
+    rob_alloc_is_store = '0;
+    rob_alloc_is_load = '0;
+    rob_alloc_is_branch = '0;
+    
+    for (int i = 0; i < FETCH_W; i++) begin
+        rob_alloc_arch_rd[i] = rename_arch_rd[i];
+        rob_alloc_phys_rd[i] = rename_prd[i];
+        rob_alloc_pc[i] = rename_pc[i];
+        
+        if (rename_valid[i] && !rs_full && !flush_pipeline) begin
+            rob_alloc_en[i] = 1'b1;
+            rob_alloc_is_store[i] = rename_is_store[i];
+            rob_alloc_is_load[i] = rename_is_load[i];
+            rob_alloc_is_branch[i] = rename_is_branch[i];
+        end
+    end
+end
+
+FIX 4: lsu.sv - Parameterize Commit Width
+systemverilogmodule lsu #(
+    parameter int LQ_ENTRIES = 8,
+    parameter int SQ_ENTRIES = 8,
+    parameter int XLEN = 32,
+    parameter int COMMIT_W = 2,          // ADD THIS
+    parameter int ROB_ENTRIES = 16       // ADD THIS
+)(
+    // ... existing ports ...
+    
+    // UPDATE THESE:
+    input  logic [COMMIT_W-1:0]  commit_en,
+    input  logic [COMMIT_W-1:0]  commit_is_store,
+    input  logic [$clog2(ROB_ENTRIES)-1:0] commit_rob_idx[COMMIT_W-1:0],
+    
+    // ... rest of ports ...
+);
+
+📋 SUMMARY OF REQUIRED FIXES:
+ModuleFixSeverityLines Changedrob.svAdd commit_rob_idx output🔴 Critical~5 linescommit_stage.svUse real ROB index for LSU🔴 Critical~3 linesdispatch.svAdd ROB metadata outputs🔴 Critical~15 lineslsu.svParameterize commit interface🟡 Minor~3 lines
+
+✅ MODULES THAT ARE READY (No Changes Needed):
+
+✅ free_list.sv
+✅ rename_table.sv
+✅ rename_stage.sv
+✅ cdb_arbiter.sv
+✅ branch_predictor.sv
+✅ fetch.sv
+✅ decode.sv
+✅ reservation_station.sv
+✅ alu.sv
+✅ branch_ex.sv
+✅ regfile_synth.sv (PRF)
+✅ arch_regfile.sv (ARF)
+✅ data_scratchpad.sv
+✅ inst_rom.sv
+✅ core_pkg.sv
