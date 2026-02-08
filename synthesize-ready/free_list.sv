@@ -1,6 +1,6 @@
 module free_list #(
     parameter int PHYS_REGS = core_pkg::PREGS,
-    parameter int FREE_PORTS = 2  // NEW: Support multiple frees per cycle
+    parameter int FREE_PORTS = 2  // Support multiple frees per cycle from commit
 )(
     input  logic         clk,
     input  logic         reset,
@@ -10,7 +10,7 @@ module free_list #(
     output logic [5:0]   alloc_phys,
     output logic         alloc_valid,  // high if allocation succeeded
 
-    // Release physical registers back to free list (MODIFIED)
+    // Release physical registers back to free list (MODIFIED for multiple ports)
     input  logic [FREE_PORTS-1:0]     free_en,      // Multiple free enables
     input  logic [5:0]                free_phys[FREE_PORTS-1:0]  // Multiple tags
 );
@@ -21,13 +21,12 @@ module free_list #(
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
-            // Start with all registers free except architectural ones (0-31)
-            // Physical regs 0-31 map to architectural regs initially
-            // Physical regs 32-47 are free for renaming
-            for (int i = 0; i < 32; i++) begin
-                free_mask[i] <= 1'b0;  // Arch regs not free initially
+            // Initialize: Physical regs 0-31 correspond to architectural regs (not free)
+            // Physical regs 32-47 are available for renaming (free)
+            for (int i = 0; i < core_pkg::ARCH_REGS; i++) begin
+                free_mask[i] <= 1'b0;  // Arch regs not in free pool initially
             end
-            for (int i = 32; i < PHYS_REGS; i++) begin
+            for (int i = core_pkg::ARCH_REGS; i < PHYS_REGS; i++) begin
                 free_mask[i] <= 1'b1;  // Rename regs are free
             end
             alloc_phys <= '0;
