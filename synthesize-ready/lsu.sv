@@ -163,10 +163,12 @@ always_ff @(posedge clk or posedge reset) begin
         end
 
         // Process committed stores from ROB
-        if (commit_en && commit_is_store) begin
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
-                if (sq[i].valid && sq[i].rob_idx == commit_rob_idx) begin
-                    sq[i].committed <= 1'b1;
+        for (int c = 0; c < 2; c++) begin
+            if (commit_en[c] && commit_is_store[c]) begin
+                for (int i = 0; i < SQ_ENTRIES; i++) begin
+                    if (sq[i].valid && sq[i].rob_idx == commit_rob_idx[c]) begin
+                        sq[i].committed <= 1'b1;
+                    end
                 end
             end
         end
