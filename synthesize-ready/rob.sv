@@ -41,6 +41,9 @@ module rob #(
   output core_pkg::preg_tag_t             commit_phys_rd [core_pkg::ISSUE_WIDTH],
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_exception,
   
+  // ADDED: ROB index output for each commit slot
+  output logic [$clog2(ROB_SIZE)-1:0]     commit_rob_idx [core_pkg::ISSUE_WIDTH],
+  
   // Commit metadata
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_store,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_load,
@@ -202,6 +205,7 @@ module rob #(
           commit_branch_target[j] <= '0;
           commit_branch_is_call[j] <= 1'b0;
           commit_branch_is_return[j] <= 1'b0;
+          commit_rob_idx[j] <= '0;  // ADDED: Initialize ROB index output
         end
 
         commit_slots = 0;
@@ -222,6 +226,9 @@ module rob #(
               commit_branch_target[j] <= rob_mem[look_idx].branch_target;
               commit_branch_is_call[j] <= rob_mem[look_idx].branch_is_call;
               commit_branch_is_return[j] <= rob_mem[look_idx].branch_is_return;
+              
+              // ADDED: Output actual ROB index
+              commit_rob_idx[j] <= look_idx[$clog2(ROB_SIZE)-1:0];
               
               rob_mem[look_idx].valid <= 1'b0;
               rob_mem[look_idx].ready <= 1'b0;
