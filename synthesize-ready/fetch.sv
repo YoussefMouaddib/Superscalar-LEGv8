@@ -34,18 +34,40 @@ module fetch (
   // ============================================================
   logic [XLEN-1:0] pc_reg;
   logic [XLEN-1:0] pc_next;
+  //branch prediction
+  logic bp_predict_taken;
+  logic [XLEN-1:0] bp_predict_target;
+  logic bp_predict_valid;
 
-  // Next PC calculation - FLUSH has highest priority
+
+ // Instantiate predictor
+  branch_predictor branch_predictor (
+      .clk(clk),
+      .reset(reset),
+      .predict_req(fetch_en && !stall),
+      .predict_pc(pc_reg),
+      .predict_taken(bp_predict_taken),
+      .predict_target(bp_predict_target),
+      .predict_valid(bp_predict_valid),
+      // Update signals from branch_ex
+      .update_en(branch_result_valid),
+      .update_pc(branch_pc),
+      .update_taken(branch_taken),
+      .update_target(branch_target_pc),
+      // ... other signals
+  );
+  
+  // Modify PC calculation:
   always_comb begin
-    if (flush_pipeline) begin
-      pc_next = flush_pc;  // Exception/flush overrides everything
-    end else if (redirect_en) begin
-      pc_next = redirect_pc;  // Branch misprediction
-    end else if (fetch_en && !stall && imem_ren) begin
-      pc_next = pc_reg + 32'd8;
-    end else begin
-      pc_next = pc_reg;
-    end
+      if (redirect_en) begin
+          pc_next = redirect_pc;  // Misprediction recovery
+      end else if (bp_predict_valid && bp_predict_taken && fetch_en && !stall) begin
+          pc_next = bp_predict_target;  // Follow prediction
+      end else if (fetch_en && !stall) begin
+          pc_next = pc_reg + 32'd8;  // Sequential fetch
+      end else begin
+          pc_next = pc_reg;
+      end
   end
 
   // PC register update
