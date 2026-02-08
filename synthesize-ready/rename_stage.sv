@@ -23,7 +23,7 @@ module rename_stage #(
     input  logic [FETCH_W-1:0]      dec_is_alu,
     input  logic [FETCH_W-1:0]      dec_is_load,
     input  logic [FETCH_W-1:0]      dec_is_store,
-    input logic [FETCH_W-1:0]      dec_is_branch,
+    input  logic [FETCH_W-1:0]      dec_is_branch,
     input  logic [FETCH_W-1:0]      dec_is_cas,
     input  logic [FETCH_W-1:0][5:0] dec_alu_func,
     
@@ -33,9 +33,9 @@ module rename_stage #(
     // To Issue Queue / Dispatch
     output logic [FETCH_W-1:0]      rename_valid,
     output logic [FETCH_W-1:0][5:0] rename_opcode,
-    output logic [FETCH_W-1:0][5:0] rename_prs1,   // Physical RS1
-    output logic [FETCH_W-1:0][5:0] rename_prs2,   // Physical RS2
-    output logic [FETCH_W-1:0][5:0] rename_prd,    // Physical RD
+    output logic [FETCH_W-1:0][5:0] rename_prs1,
+    output logic [FETCH_W-1:0][5:0] rename_prs2,
+    output logic [FETCH_W-1:0][5:0] rename_prd,
     output logic [FETCH_W-1:0][31:0] rename_imm,
     output logic [FETCH_W-1:0][31:0] rename_pc,
     output logic [FETCH_W-1:0]      rename_rs1_valid,
@@ -57,12 +57,13 @@ module rename_stage #(
     input  logic [4:0]              commit_arch_rd[FETCH_W-1:0],
     input  logic [5:0]              commit_phys_rd[FETCH_W-1:0],
     
-    // NEW: Flush signal from commit
+    // Flush signal from commit
     input  logic                    flush_pipeline
 );
     
     // ============================================================
     //  Free List for Physical Register Allocation
+    //  FIXED: Single instance handling multiple allocations
     // ============================================================
     logic [FETCH_W-1:0] alloc_en;
     logic [FETCH_W-1:0][5:0] alloc_phys;
@@ -75,22 +76,26 @@ module rename_stage #(
         end
     end
     
-    // Instantiate free_list for each lane
+    // FIXED: Single free_list instance with multi-port allocation and free
     free_list #(
         .PHYS_REGS(PHYS_REGS),
+        .ALLOC_PORTS(FETCH_W),
         .FREE_PORTS(FETCH_W)
-    ) free_list_inst[FETCH_W-1:0] (
+    ) free_list_inst (
         .clk(clk),
         .reset(reset),
+        // Allocation (multi-port)
         .alloc_en(alloc_en),
         .alloc_phys(alloc_phys),
         .alloc_valid(alloc_valid),
+        // Free (multi-port)
         .free_en(commit_en),
         .free_phys(commit_phys_rd)
     );
     
     // ============================================================
     //  Rename Table (Architectural → Physical Mapping)
+    //  FIXED: Single instance with multi-port lookups
     // ============================================================
     
     logic [5:0] rename_new_phys_rd[FETCH_W-1:0];
@@ -100,20 +105,26 @@ module rename_stage #(
     logic [FETCH_W-1:0][5:0] phys_rs1;
     logic [FETCH_W-1:0][5:0] phys_rs2;
     
-    // Instantiate rename tables for each architectural register port
+    // FIXED: Single rename_table instance with array ports
     rename_table #(
         .ARCH_REGS(ARCH_REGS),
-        .PHYS_REGS(PHYS_REGS)
-    ) rename_table_inst[FETCH_W-1:0] (
+        .PHYS_REGS(PHYS_REGS),
+        .LOOKUP_PORTS(FETCH_W),
+        .RENAME_PORTS(FETCH_W),
+        .COMMIT_PORTS(FETCH_W)
+    ) rename_table_inst (
         .clk(clk),
         .reset(reset),
+        // Lookups (multi-port reads)
         .arch_rs1(dec_rs1),
         .arch_rs2(dec_rs2),
         .phys_rs1(phys_rs1),
         .phys_rs2(phys_rs2),
+        // Renames (multi-port updates)
         .rename_en(rename_en),
         .arch_rd(rename_arch_rd),
         .new_phys_rd(rename_new_phys_rd),
+        // Commits (multi-port committed state updates)
         .commit_en(commit_en),
         .commit_arch_rd(commit_arch_rd),
         .commit_phys_rd(commit_phys_rd),
@@ -192,7 +203,7 @@ module rename_stage #(
                     // Handle X0 special case (always physical register 0)
                     if (dec_rd[i] == 5'd0) begin
                         rename_prd[i] <= 6'd0;
-                        rename_rd_valid[i] <= 1'b0;  // X0 writes are no-ops
+                        rename_rd_valid[i] <= 1'b0;
                     end else if (dec_rd_valid[i] && alloc_valid[i]) begin
                         rename_prd[i] <= alloc_phys[i];
                         rename_rd_valid[i] <= 1'b1;
@@ -203,7 +214,6 @@ module rename_stage #(
                     
                     // Map source registers to physical registers
                     if (dec_rs1_valid[i]) begin
-                        // X0 always maps to physical register 0
                         rename_prs1[i] <= (dec_rs1[i] == 5'd0) ? 6'd0 : phys_rs1[i];
                     end else begin
                         rename_prs1[i] <= 6'd0;
@@ -214,8 +224,6 @@ module rename_stage #(
                     end else begin
                         rename_prs2[i] <= 6'd0;
                     end
-                end else begin
-                    // If rename not ready, hold current values (stall)
                 end
             end
         end
@@ -234,72 +242,7 @@ module rename_stage #(
                 end
             end
         end
-        // Don't accept new renames during flush
         rename_ready = can_allocate_all && !flush_pipeline;
-    end
-
-endmodule
-
-//===========================================================
-//  Rename Table (Architectural → Physical Mapping)
-//===========================================================
-module rename_table #(
-    parameter int ARCH_REGS = 32,
-    parameter int PHYS_REGS = 48
-)(
-    input  logic              clk,
-    input  logic              reset,
-
-    // Lookup (read mapping) - per lane
-    input  logic [4:0]        arch_rs1,
-    input  logic [4:0]        arch_rs2,
-    output logic [5:0]        phys_rs1,
-    output logic [5:0]        phys_rs2,
-
-    // Rename (new destination mapping) - per lane
-    input  logic              rename_en,
-    input  logic [4:0]        arch_rd,
-    input  logic [5:0]        new_phys_rd,
-
-    // Commit (restore architectural state)
-    input  logic              commit_en,
-    input  logic [4:0]        commit_arch_rd,
-    input  logic [5:0]        commit_phys_rd,
-    
-    // NEW: Flush pipeline
-    input  logic              flush_pipeline
-);
-
-    logic [5:0] map_table [ARCH_REGS-1:0];  // speculative mapping
-    logic [5:0] committed_table [ARCH_REGS-1:0]; // committed mapping (for recovery)
-
-    // Read current mapping - X0 always maps to physical register 0
-    assign phys_rs1 = (arch_rs1 == 5'd0) ? 6'd0 : map_table[arch_rs1];
-    assign phys_rs2 = (arch_rs2 == 5'd0) ? 6'd0 : map_table[arch_rs2];
-
-    // Update mapping on rename or commit
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            for (int i = 0; i < ARCH_REGS; i++) begin
-                map_table[i]       <= 6'(i);  // Initial mapping: arch -> same phys
-                committed_table[i] <= 6'(i);
-            end
-        end else if (flush_pipeline) begin
-            // On flush: restore speculative map from committed state
-            for (int i = 0; i < ARCH_REGS; i++) begin
-                map_table[i] <= committed_table[i];
-            end
-        end else begin
-            // Rename: update speculative mapping
-            if (rename_en && arch_rd != 5'd0) begin  // Don't rename X0
-                map_table[arch_rd] <= new_phys_rd;
-            end
-            
-            // Commit: update committed mapping (for misprediction recovery)
-            if (commit_en && commit_arch_rd != 5'd0) begin
-                committed_table[commit_arch_rd] <= commit_phys_rd;
-            end
-        end
     end
 
 endmodule
