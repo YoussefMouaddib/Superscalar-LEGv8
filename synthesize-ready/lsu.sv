@@ -4,7 +4,9 @@ import core_pkg::*;
 module lsu #(
     parameter int LQ_ENTRIES = 8,
     parameter int SQ_ENTRIES = 8,
-    parameter int XLEN = 32
+    parameter int XLEN = 32,
+    parameter int COMMIT_W = 2,          // ADDED: Parameterize commit width
+    parameter int ROB_ENTRIES = 16       // ADDED: Parameterize ROB entries
 )(
     input  logic        clk,
     input  logic        reset,
@@ -34,10 +36,11 @@ module lsu #(
     output logic [XLEN-1:0] cdb_value,
     output logic        cdb_exception,
     
-    // ROB interface (for commit and exceptions)
-    input  logic        commit_en,
-    input  logic        commit_is_store,
-    input  logic [5:0]  commit_rob_idx,
+    // ROB interface (for commit and exceptions) - PARAMETERIZED
+    input  logic [COMMIT_W-1:0]  commit_en,
+    input  logic [COMMIT_W-1:0]  commit_is_store,
+    input  logic [$clog2(ROB_ENTRIES)-1:0] commit_rob_idx[COMMIT_W-1:0],
+    
     output logic        lsu_exception,
     output logic [4:0]  lsu_exception_cause,
     
@@ -162,8 +165,8 @@ always_ff @(posedge clk or posedge reset) begin
             end
         end
 
-        // Process committed stores from ROB
-        for (int c = 0; c < 2; c++) begin
+        // Process committed stores from ROB - UPDATED with parameterized loop
+        for (int c = 0; c < COMMIT_W; c++) begin
             if (commit_en[c] && commit_is_store[c]) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     if (sq[i].valid && sq[i].rob_idx == commit_rob_idx[c]) begin
@@ -389,21 +392,23 @@ always_ff @(posedge clk or posedge reset) begin
             default: mem_state <= MEM_IDLE;
         endcase
         
-        // Process committed stores (write to memory)
-        if (commit_en && commit_is_store) begin
-            for (i = 0; i < SQ_ENTRIES; i++) begin
-                if (sq[i].valid && sq[i].rob_idx == commit_rob_idx && 
-                    !sq[i].is_cas && mem_state == MEM_IDLE) begin
-                    // Write store to memory (non-CAS stores only)
-                    mem_state <= MEM_WRITE;
-                    mem_req <= 1'b1;
-                    mem_we <= 1'b1;
-                    mem_addr <= sq[i].addr;
-                    mem_wdata <= sq[i].data;
-                    // Remove from SQ after write
-                    sq[i].valid <= 1'b0;
-                    sq_head <= sq_head + 1;
-                    break;
+        // Process committed stores (write to memory) - UPDATED with parameterized check
+        for (i = 0; i < COMMIT_W; i++) begin
+            if (commit_en[i] && commit_is_store[i]) begin
+                for (int j = 0; j < SQ_ENTRIES; j++) begin
+                    if (sq[j].valid && sq[j].rob_idx == commit_rob_idx[i] && 
+                        !sq[j].is_cas && mem_state == MEM_IDLE) begin
+                        // Write store to memory (non-CAS stores only)
+                        mem_state <= MEM_WRITE;
+                        mem_req <= 1'b1;
+                        mem_we <= 1'b1;
+                        mem_addr <= sq[j].addr;
+                        mem_wdata <= sq[j].data;
+                        // Remove from SQ after write
+                        sq[j].valid <= 1'b0;
+                        sq_head <= sq_head + 1;
+                        break;
+                    end
                 end
             end
         end
