@@ -1,6 +1,11 @@
 `timescale 1ns/1ps
 import core_pkg::*;
 
+//Notes: 
+//Branch predictor updates: The signals bp_update_taken, bp_update_target, bp_update_is_call, and bp_update_is_return are currently placeholders. These need to come from the ROB (which needs to store them from branch execution). We can add these in a follow-up fix if needed.
+//LSU ROB index: Currently using commit slot index as a placeholder. Ideally, ROB should output the actual ROB index for each commit slot.
+//Exception vector: Using a fixed address 0x0000_0100 instead of CSR-based vector. This is fine for a simple academic design.
+
 module commit_stage #(
     parameter int COMMIT_W = core_pkg::ISSUE_WIDTH,
     parameter int XLEN = core_pkg::XLEN,
