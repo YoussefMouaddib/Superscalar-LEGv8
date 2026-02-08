@@ -23,11 +23,16 @@ module commit_stage #(
     input  logic [4:0]                  rob_commit_arch_rd[COMMIT_W-1:0],
     input  logic [PHYS_W-1:0]           rob_commit_phys_rd[COMMIT_W-1:0],
     input  logic [COMMIT_W-1:0]         rob_commit_exception,
-    // NEW: Metadata from ROB
+    // inst metadata
     input  logic [COMMIT_W-1:0]         rob_commit_is_store,
     input  logic [COMMIT_W-1:0]         rob_commit_is_load,
     input  logic [COMMIT_W-1:0]         rob_commit_is_branch,
     input  logic [31:0]                 rob_commit_pc[COMMIT_W-1:0],
+    // branch inputs
+    input  logic [COMMIT_W-1:0]         rob_commit_branch_taken,
+    input  logic [31:0]                 rob_commit_branch_target[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0]         rob_commit_branch_is_call,
+    input  logic [COMMIT_W-1:0]         rob_commit_branch_is_return,
     
     // ============================================================
     // To Architectural Register File (ARF)
@@ -243,16 +248,14 @@ module commit_stage #(
                 if (branch_commit_idx != -1) begin
                     bp_update_en <= 1'b1;
                     bp_update_pc <= rob_commit_pc[branch_commit_idx];
-                    // Note: We need branch outcome and target from somewhere
-                    // For now, this is a placeholder - needs integration with branch_ex
-                    bp_update_taken <= 1'b0;      // Placeholder
-                    bp_update_target <= '0;       // Placeholder
-                    bp_update_is_branch <= 1'b1;
-                    bp_update_is_call <= 1'b0;    // Placeholder
-                    bp_update_is_return <= 1'b0;  // Placeholder
+                    // NOW: Use actual branch outcome from ROB
+                    bp_update_taken <= rob_commit_branch_taken[branch_commit_idx];
+                    bp_update_target <= rob_commit_branch_target[branch_commit_idx];
+                    bp_update_is_branch <= rob_commit_is_branch[branch_commit_idx];
+                    bp_update_is_call <= rob_commit_branch_is_call[branch_commit_idx];
+                    bp_update_is_return <= rob_commit_branch_is_return[branch_commit_idx];
                 end
                 
-                // Update instruction commit counter
                 perf_insns_committed <= perf_insns_committed + commit_count;
             end
         end
