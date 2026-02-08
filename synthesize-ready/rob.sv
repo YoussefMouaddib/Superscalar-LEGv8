@@ -12,7 +12,7 @@ module rob #(
   input  logic [4:0]                        alloc_arch_rd [core_pkg::ISSUE_WIDTH],
   input  core_pkg::preg_tag_t               alloc_phys_rd [core_pkg::ISSUE_WIDTH],
   
-  // NEW: Instruction metadata for commit stage
+  // Instruction metadata
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_store,
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_load,
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_branch,
@@ -21,23 +21,37 @@ module rob #(
   output logic                              alloc_ok,
   output logic [$clog2(ROB_SIZE)-1:0]       alloc_idx  [core_pkg::ISSUE_WIDTH],
 
-  // ---------- Wakeup / Mark ready (from execution result / CDB)
+  // ---------- Wakeup / Mark ready
   input  logic                    mark_ready_en,
   input  logic [$clog2(ROB_SIZE)-1:0] mark_ready_idx,
   input  logic                    mark_ready_val,
   input  logic                    mark_exception,
+  
+  // NEW: Branch outcome update (from branch execution)
+  input  logic                    branch_outcome_en,
+  input  logic [$clog2(ROB_SIZE)-1:0] branch_outcome_idx,
+  input  logic                    branch_outcome_taken,
+  input  logic [31:0]             branch_outcome_target,
+  input  logic                    branch_outcome_is_call,
+  input  logic                    branch_outcome_is_return,
 
-  // ---------- Commit outputs (to architectural state & freelist)
+  // ---------- Commit outputs
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_valid,
   output logic [4:0]                      commit_arch_rd [core_pkg::ISSUE_WIDTH],
   output core_pkg::preg_tag_t             commit_phys_rd [core_pkg::ISSUE_WIDTH],
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_exception,
   
-  // NEW: Commit metadata outputs
+  // Commit metadata
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_store,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_load,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_branch,
   output logic [31:0]                      commit_pc [core_pkg::ISSUE_WIDTH],
+  
+  // NEW: Branch outcome for predictor update
+  output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_taken,
+  output logic [31:0]                      commit_branch_target [core_pkg::ISSUE_WIDTH],
+  output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_is_call,
+  output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_is_return,
 
   // ---------- Status / control
   output logic                    rob_full,
@@ -46,33 +60,32 @@ module rob #(
   input  logic [$clog2(ROB_SIZE)-1:0] flush_ptr
 );
 
-  // local sizes
   localparam int IDX_BITS = $clog2(ROB_SIZE);
   localparam int ISSUE_W = core_pkg::ISSUE_WIDTH;
 
-  // ROB entry definition - ENHANCED with instruction metadata
+  // ROB entry definition - ENHANCED with branch outcome
   typedef struct packed {
     logic                   valid;
     logic                   ready;
     logic [4:0]             arch_rd;
     core_pkg::preg_tag_t    phys_rd;
     logic                   exception;
-    // NEW FIELDS:
     logic                   is_store;
     logic                   is_load;
     logic                   is_branch;
     logic [31:0]            pc;
+    // NEW: Branch outcome fields
+    logic                   branch_taken;
+    logic [31:0]            branch_target;
+    logic                   branch_is_call;
+    logic                   branch_is_return;
   } rob_entry_t;
 
-  // storage array
   rob_entry_t rob_mem [0:ROB_SIZE-1];
-
-  // head = commit pointer, tail = next allocate pointer
   logic [IDX_BITS-1:0] head;
   logic [IDX_BITS-1:0] tail;
   integer              occupancy;
 
-  // Initialize / reset
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
       head <= '0;
@@ -89,6 +102,10 @@ module rob #(
         rob_mem[i].is_load   <= 1'b0;
         rob_mem[i].is_branch <= 1'b0;
         rob_mem[i].pc        <= '0;
+        rob_mem[i].branch_taken <= 1'b0;
+        rob_mem[i].branch_target <= '0;
+        rob_mem[i].branch_is_call <= 1'b0;
+        rob_mem[i].branch_is_return <= 1'b0;
       end
     end else begin
       automatic int alloc_count;
@@ -99,7 +116,6 @@ module rob #(
       automatic int look_idx;
       automatic int k, j;
       
-      // ---------- Flush handling (synchronous)
       if (flush_en) begin
         head <= flush_ptr;
         tail <= flush_ptr;
@@ -110,15 +126,25 @@ module rob #(
           rob_mem[i].exception <= 1'b0;
         end
       end else begin
-        // ---------- Process mark_ready (wakeup from execution)
+        // ---------- Process mark_ready
         if (mark_ready_en) begin
           if (rob_mem[mark_ready_idx].valid) begin
             if (mark_ready_val) rob_mem[mark_ready_idx].ready <= 1'b1;
             if (mark_exception)  rob_mem[mark_ready_idx].exception <= 1'b1;
           end
         end
+        
+        // ---------- NEW: Process branch outcome
+        if (branch_outcome_en) begin
+          if (rob_mem[branch_outcome_idx].valid) begin
+            rob_mem[branch_outcome_idx].branch_taken <= branch_outcome_taken;
+            rob_mem[branch_outcome_idx].branch_target <= branch_outcome_target;
+            rob_mem[branch_outcome_idx].branch_is_call <= branch_outcome_is_call;
+            rob_mem[branch_outcome_idx].branch_is_return <= branch_outcome_is_return;
+          end
+        end
 
-        // ---------- Allocation (up to ISSUE_WIDTH entries)
+        // ---------- Allocation
         alloc_count = 0;
         alloc_ok <= 1'b0;
         for (k = 0; k < ISSUE_W; k++) alloc_idx[k] <= '0;
@@ -137,11 +163,15 @@ module rob #(
                 rob_mem[cur_tail].arch_rd   <= alloc_arch_rd[k];
                 rob_mem[cur_tail].phys_rd   <= alloc_phys_rd[k];
                 rob_mem[cur_tail].exception <= 1'b0;
-                // NEW: Store instruction metadata
                 rob_mem[cur_tail].is_store  <= alloc_is_store[k];
                 rob_mem[cur_tail].is_load   <= alloc_is_load[k];
                 rob_mem[cur_tail].is_branch <= alloc_is_branch[k];
                 rob_mem[cur_tail].pc        <= alloc_pc[k];
+                // Initialize branch fields (will be updated by branch_ex)
+                rob_mem[cur_tail].branch_taken <= 1'b0;
+                rob_mem[cur_tail].branch_target <= '0;
+                rob_mem[cur_tail].branch_is_call <= 1'b0;
+                rob_mem[cur_tail].branch_is_return <= 1'b0;
                 
                 alloc_idx[k] <= cur_tail;
                 cur_tail = (cur_tail + 1) % ROB_SIZE;
@@ -158,7 +188,7 @@ module rob #(
           end
         end
 
-        // ---------- Commit (up to ISSUE_WIDTH entries)
+        // ---------- Commit
         for (j = 0; j < ISSUE_W; j++) begin
           commit_valid[j] <= 1'b0;
           commit_arch_rd[j] <= '0;
@@ -168,6 +198,10 @@ module rob #(
           commit_is_load[j] <= 1'b0;
           commit_is_branch[j] <= 1'b0;
           commit_pc[j] <= '0;
+          commit_branch_taken[j] <= 1'b0;
+          commit_branch_target[j] <= '0;
+          commit_branch_is_call[j] <= 1'b0;
+          commit_branch_is_return[j] <= 1'b0;
         end
 
         commit_slots = 0;
@@ -175,18 +209,20 @@ module rob #(
         for (j = 0; j < ISSUE_W; j++) begin
           if (occupancy > 0) begin
             if (rob_mem[look_idx].valid && rob_mem[look_idx].ready) begin
-              // Produce commit j
               commit_valid[j] <= 1'b1;
               commit_arch_rd[j] <= rob_mem[look_idx].arch_rd;
               commit_phys_rd[j] <= rob_mem[look_idx].phys_rd;
               commit_exception[j] <= rob_mem[look_idx].exception;
-              // NEW: Pass instruction metadata to commit stage
               commit_is_store[j] <= rob_mem[look_idx].is_store;
               commit_is_load[j] <= rob_mem[look_idx].is_load;
               commit_is_branch[j] <= rob_mem[look_idx].is_branch;
               commit_pc[j] <= rob_mem[look_idx].pc;
+              // NEW: Pass branch outcome to commit
+              commit_branch_taken[j] <= rob_mem[look_idx].branch_taken;
+              commit_branch_target[j] <= rob_mem[look_idx].branch_target;
+              commit_branch_is_call[j] <= rob_mem[look_idx].branch_is_call;
+              commit_branch_is_return[j] <= rob_mem[look_idx].branch_is_return;
               
-              // Mark entry invalid (committed)
               rob_mem[look_idx].valid <= 1'b0;
               rob_mem[look_idx].ready <= 1'b0;
               rob_mem[look_idx].exception <= 1'b0;
@@ -205,11 +241,10 @@ module rob #(
           occupancy <= occupancy - commit_slots;
         end
 
-      end // not flush_en
-    end // not reset
-  end // always_ff
+      end
+    end
+  end
 
-  // status flags
   always_comb begin
     rob_full = (occupancy >= ROB_SIZE);
     rob_almost_full = (ROB_SIZE - occupancy) < core_pkg::ISSUE_WIDTH;
