@@ -1,11 +1,6 @@
 `timescale 1ns/1ps
 import core_pkg::*;
 
-//Notes: 
-//Branch predictor updates: The signals bp_update_taken, bp_update_target, bp_update_is_call, and bp_update_is_return are currently placeholders. These need to come from the ROB (which needs to store them from branch execution). We can add these in a follow-up fix if needed.
-//LSU ROB index: Currently using commit slot index as a placeholder. Ideally, ROB should output the actual ROB index for each commit slot.
-//Exception vector: Using a fixed address 0x0000_0100 instead of CSR-based vector. This is fine for a simple academic design.
-
 module commit_stage #(
     parameter int COMMIT_W = core_pkg::ISSUE_WIDTH,
     parameter int XLEN = core_pkg::XLEN,
@@ -28,6 +23,8 @@ module commit_stage #(
     input  logic [COMMIT_W-1:0]         rob_commit_is_load,
     input  logic [COMMIT_W-1:0]         rob_commit_is_branch,
     input  logic [31:0]                 rob_commit_pc[COMMIT_W-1:0],
+    // ADDED: Real ROB indices from ROB
+    input  logic [$clog2(ROB_ENTRIES)-1:0] rob_commit_rob_idx[COMMIT_W-1:0],
     // branch inputs
     input  logic [COMMIT_W-1:0]         rob_commit_branch_taken,
     input  logic [31:0]                 rob_commit_branch_target[COMMIT_W-1:0],
@@ -72,7 +69,7 @@ module commit_stage #(
     output logic [XLEN-1:0]             flush_pc,
     
     // ============================================================
-    // To LSU - Commit stores (FIXED)
+    // To LSU - Commit stores (FIXED with real ROB index)
     // ============================================================
     output logic [COMMIT_W-1:0]         lsu_commit_en,
     output logic [COMMIT_W-1:0]         lsu_commit_is_store,
@@ -221,14 +218,13 @@ module commit_stage #(
                         rename_commit_phys_rd[i] <= rob_commit_phys_rd[i];
                         
                         // ============================================================
-                        // LSU Commit Signal (for stores)
+                        // LSU Commit Signal (for stores) - FIXED
                         // ============================================================
                         if (rob_commit_is_store[i]) begin
                             lsu_commit_en[i] <= 1'b1;
                             lsu_commit_is_store[i] <= 1'b1;
-                            // ROB index calculation (head + i)
-                            // Note: This is simplified - ideally ROB should provide the actual index
-                            lsu_commit_rob_idx[i] <= i;  // Placeholder
+                            // FIXED: Use real ROB index from ROB module
+                            lsu_commit_rob_idx[i] <= rob_commit_rob_idx[i];
                         end
                         
                         // ============================================================
