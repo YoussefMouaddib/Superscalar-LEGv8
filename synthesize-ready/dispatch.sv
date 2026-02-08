@@ -272,32 +272,51 @@ module dispatch #(
         lsu_store_data_val = '0;
         lsu_store_data_ready = 1'b0;
         
-        // Dispatch first valid load/store instruction
+        // POLICY: Dispatch first valid load/store instruction only
+        // If both lanes have memory ops, lane 0 has priority
+        // Lane 1's memory op will stall until next cycle
         for (int i = 0; i < FETCH_W; i++) begin
-            if (rename_valid[i] && (rename_is_load[i] || rename_is_store[i] || rename_is_cas[i]) && rob_alloc_ok) begin
+            if (rename_valid[i] && 
+                (rename_is_load[i] || rename_is_store[i] || rename_is_cas[i]) && 
+                rob_alloc_ok && !flush_pipeline) begin
+                
                 lsu_alloc_en = 1'b1;
                 lsu_is_load = rename_is_load[i] || rename_is_cas[i];
                 lsu_opcode = {rename_opcode[i], 2'b00};
-                lsu_base_addr = src1_value[i];  // Base address from rs1
+                lsu_base_addr = src1_value[i];
                 lsu_offset = rename_imm[i];
                 lsu_arch_rs1 = rename_arch_rs1[i];
                 lsu_arch_rs2 = rename_arch_rs2[i];
                 lsu_arch_rd = rename_arch_rd[i];
                 lsu_phys_rd = rename_prd[i];
                 lsu_rob_idx = rob_alloc_idx[i];
-                lsu_store_data_val = src2_value[i];  // Store data from rs2
+                lsu_store_data_val = src2_value[i];
                 lsu_store_data_ready = src2_ready[i];
-                break;  // Only dispatch one memory op per cycle
+                break;  // Only dispatch ONE memory op per cycle
             end
         end
     end
     
     // ============================================================
-    // Backpressure/Stall Logic
+    // Backpressure/Stall Logic - UPDATED
     // ============================================================
+    logic memory_op_stall;
+    
     always_comb begin
-        // Stall if RS is full or ROB cannot allocate
-        dispatch_stall = rs_full || !rob_alloc_ok;
+        // Check if we have multiple memory ops competing
+        automatic int mem_op_count = 0;
+        for (int i = 0; i < FETCH_W; i++) begin
+            if (rename_valid[i] && (rename_is_load[i] || rename_is_store[i] || rename_is_cas[i])) begin
+                mem_op_count++;
+            end
+        end
+        
+        // Stall if we have >1 memory op (can't dispatch both)
+        // This will cause rename to hold the second memory op until next cycle
+        memory_op_stall = (mem_op_count > 1);
+        
+        // Combine all stall conditions
+        dispatch_stall = rs_full || !rob_alloc_ok || flush_pipeline || memory_op_stall;
     end
 
 endmodule
