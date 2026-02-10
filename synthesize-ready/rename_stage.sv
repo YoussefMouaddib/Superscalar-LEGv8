@@ -53,6 +53,7 @@ module rename_stage #(
     output logic [FETCH_W-1:0][4:0] rename_arch_rd,
     
     
+    
     // From Commit (write-back)
     input  logic [FETCH_W-1:0]      commit_en,
     input  logic [4:0]              commit_arch_rd[FETCH_W-1:0],
@@ -105,6 +106,7 @@ module rename_stage #(
     // Map each lane's RS1/RS2 to physical registers
     logic [FETCH_W-1:0][5:0] phys_rs1;
     logic [FETCH_W-1:0][5:0] phys_rs2;
+    logic [FETCH_W-1:0][4:0] rename_arch_rd_wire,
     
     // FIXED: Single rename_table instance with array ports
     rename_table #(
@@ -123,7 +125,7 @@ module rename_stage #(
         .phys_rs2(phys_rs2),
         // Renames (multi-port updates)
         .rename_en(rename_en),
-        .arch_rd(rename_arch_rd),
+        .arch_rd(rename_arch_rd_wire),
         .new_phys_rd(rename_new_phys_rd),
         // Commits (multi-port committed state updates)
         .commit_en(commit_en),
@@ -139,13 +141,13 @@ module rename_stage #(
         // Default values
         rename_en = '0;
         for (int i = 0; i < FETCH_W; i++) begin
-            rename_arch_rd[i] = 5'd0;
+            rename_arch_rd_wire[i] = 5'd0;
             rename_new_phys_rd[i] = 6'd0;
             
             // Enable rename if instruction has a destination register (not X0) and not flushing
             if (dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0) && !flush_pipeline) begin
                 rename_en[i] = alloc_valid[i];  // Only rename if allocation succeeded
-                rename_arch_rd[i] = dec_rd[i];
+                rename_arch_rd_wire[i] = dec_rd[i];
                 rename_new_phys_rd[i] = alloc_phys[i];
             end
         end
