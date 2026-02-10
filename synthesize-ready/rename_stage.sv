@@ -48,9 +48,10 @@ module rename_stage #(
     output logic [FETCH_W-1:0]      rename_is_cas,
     output logic [FETCH_W-1:0][5:0] rename_alu_func,
     
-    output logic [4:0] rename_arch_rs1[FETCH_W-1:0],
-    output logic [4:0] rename_arch_rs2[FETCH_W-1:0],
-    output logic [4:0] rename_arch_rd[FETCH_W-1:0],
+    output logic [FETCH_W-1:0][4:0] rename_arch_rs1,
+    output logic [FETCH_W-1:0][4:0] rename_arch_rs2,
+    output logic [FETCH_W-1:0][4:0] rename_arch_rd,
+    
     
     // From Commit (write-back)
     input  logic [FETCH_W-1:0]      commit_en,
