@@ -106,7 +106,7 @@ module rename_stage #(
     // Map each lane's RS1/RS2 to physical registers
     logic [FETCH_W-1:0][5:0] phys_rs1;
     logic [FETCH_W-1:0][5:0] phys_rs2;
-    logic [FETCH_W-1:0][4:0] rename_arch_rd_wire,
+    logic [FETCH_W-1:0][4:0] rename_arch_rd_wire;
     
     // FIXED: Single rename_table instance with array ports
     rename_table #(
