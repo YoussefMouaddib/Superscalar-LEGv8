@@ -9,17 +9,17 @@ module rob #(
 
   // ---------- Allocation (from rename/dispatch)
   input  logic [core_pkg::ISSUE_WIDTH-1:0] alloc_en,
-  input  logic [4:0]                        alloc_arch_rd [core_pkg::ISSUE_WIDTH],
-  input  core_pkg::preg_tag_t               alloc_phys_rd [core_pkg::ISSUE_WIDTH],
+  input  logic [1:0][4:0]                        alloc_arch_rd,
+  input  core_pkg::preg_tag_t [1:0]               alloc_phys_rd,
   
   // Instruction metadata
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_store,
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_load,
   input  logic [core_pkg::ISSUE_WIDTH-1:0]  alloc_is_branch,
-  input  logic [31:0]                        alloc_pc [core_pkg::ISSUE_WIDTH],
+  input  logic [1:0][31:0]                        alloc_pc ,
   
   output logic                              alloc_ok,
-  output logic [$clog2(ROB_SIZE)-1:0]       alloc_idx  [core_pkg::ISSUE_WIDTH],
+  output logic [1:0][$clog2(ROB_SIZE)-1:0]       alloc_idx  ,
 
   // ---------- Wakeup / Mark ready
   input  logic                    mark_ready_en,
@@ -37,22 +37,22 @@ module rob #(
 
   // ---------- Commit outputs
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_valid,
-  output logic [4:0]                      commit_arch_rd [core_pkg::ISSUE_WIDTH],
-  output core_pkg::preg_tag_t             commit_phys_rd [core_pkg::ISSUE_WIDTH],
+  output logic [1:0][4:0]                      commit_arch_rd ,
+  output core_pkg::preg_tag_t [1:0]            commit_phys_rd ,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_exception,
   
   // ADDED: ROB index output for each commit slot
-  output logic [$clog2(ROB_SIZE)-1:0]     commit_rob_idx [core_pkg::ISSUE_WIDTH],
+  output logic [1:0][$clog2(ROB_SIZE)-1:0]     commit_rob_idx ,
   
   // Commit metadata
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_store,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_load,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_is_branch,
-  output logic [31:0]                      commit_pc [core_pkg::ISSUE_WIDTH],
+  output logic [1:0][31:0]                      commit_pc ,
   
   // NEW: Branch outcome for predictor update
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_taken,
-  output logic [31:0]                      commit_branch_target [core_pkg::ISSUE_WIDTH],
+  output logic [1:0][31:0]                      commit_branch_target ,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_is_call,
   output logic [core_pkg::ISSUE_WIDTH-1:0] commit_branch_is_return,
 
