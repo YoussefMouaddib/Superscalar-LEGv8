@@ -18,8 +18,8 @@ module reservation_station #(
     input  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_dst_tag,
     input  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_src1_tag,
     input  logic [ISSUE_W-1:0][PHYS_W-1:0] alloc_src2_tag,
-    input  logic [ISSUE_W-1:0][63:0] alloc_src1_val,
-    input  logic [ISSUE_W-1:0][63:0] alloc_src2_val,
+    input  logic [ISSUE_W-1:0][31:0] alloc_src1_val,
+    input  logic [ISSUE_W-1:0][31:0] alloc_src2_val,
     input  logic [ISSUE_W-1:0]       alloc_src1_ready,
     input  logic [ISSUE_W-1:0]       alloc_src2_ready,
     input  logic [ISSUE_W-1:0][7:0]  alloc_op,
@@ -28,14 +28,14 @@ module reservation_station #(
     // CDB broadcast
     input  logic [CDB_W-1:0]         cdb_valid,
     input  logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag,
-    input  logic [CDB_W-1:0][63:0]   cdb_value,
+    input  logic [CDB_W-1:0][31:0]   cdb_value,
 
     // Issue outputs
     output logic [ISSUE_W-1:0]       issue_valid,
     output logic [ISSUE_W-1:0][7:0]  issue_op,
     output logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag,
-    output logic [ISSUE_W-1:0][63:0] issue_src1_val,
-    output logic [ISSUE_W-1:0][63:0] issue_src2_val,
+    output logic [ISSUE_W-1:0][31:0] issue_src1_val,
+    output logic [ISSUE_W-1:0][31:0] issue_src2_val,
     output logic [ISSUE_W-1:0][5:0]  issue_rob_tag
 );
 
@@ -44,8 +44,8 @@ module reservation_station #(
         logic [PHYS_W-1:0] dst_tag;
         logic [PHYS_W-1:0] src1_tag;
         logic [PHYS_W-1:0] src2_tag;
-        logic [63:0] src1_val;
-        logic [63:0] src2_val;
+        logic [31:0] src1_val;
+        logic [31:0] src2_val;
         logic src1_ready;
         logic src2_ready;
         logic [7:0] opcode;
