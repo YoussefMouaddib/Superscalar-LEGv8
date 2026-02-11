@@ -12,7 +12,7 @@ module ooo_core_top (
     logic [31:0] imem_addr0, imem_addr1;
     logic imem_ren;
     logic [31:0] imem_rdata0, imem_rdata1;
-    logic [31:0] imem_pc [1:0];
+    logic [1:0][31:0] imem_pc;
     logic imem_valid;
     
     logic [1:0] if_valid;
@@ -54,12 +54,12 @@ module ooo_core_top (
     logic [1:0][31:0] rename_imm, rename_pc;
     logic [1:0] rename_rs1_valid, rename_rs2_valid, rename_rd_valid;
     logic [1:0] rename_is_alu, rename_is_load, rename_is_store, rename_is_branch, rename_is_cas;
-    logic [4:0] rename_arch_rs1[1:0], rename_arch_rs2[1:0], rename_arch_rd[1:0];
+    logic [1:0][4:0] rename_arch_rs1, rename_arch_rs2, rename_arch_rd;
     logic rename_ready;
     
     logic [1:0] commit_en;
-    logic [4:0] commit_arch_rd[1:0];
-    logic [5:0] commit_phys_rd[1:0];
+    logic [1:0][4:0] commit_arch_rd;
+    logic [1:0][5:0] commit_phys_rd;
     
     // ============================================================
     // Dispatch/Issue
@@ -76,12 +76,12 @@ module ooo_core_top (
     logic rs_full;
     
     logic [1:0] rob_alloc_en;
-    logic [4:0] rob_alloc_arch_rd[1:0];
-    logic [5:0] rob_alloc_phys_rd[1:0];
+    logic [1:0][4:0] rob_alloc_arch_rd;
+    logic [1:0][5:0] rob_alloc_phys_rd;
     logic [1:0] rob_alloc_is_store, rob_alloc_is_load, rob_alloc_is_branch;
-    logic [31:0] rob_alloc_pc[1:0];
+    logic [1:0][31:0] rob_alloc_pc;
     logic rob_alloc_ok;
-    logic [3:0] rob_alloc_idx[1:0];
+    logic [1:0][3:0] rob_alloc_idx;
     
     logic lsu_alloc_en, lsu_is_load;
     logic [7:0] lsu_opcode;
@@ -107,13 +107,13 @@ module ooo_core_top (
     // ROB/Commit
     // ============================================================
     logic [1:0] rob_commit_valid, rob_commit_exception;
-    logic [4:0] rob_commit_arch_rd[1:0];
-    logic [5:0] rob_commit_phys_rd[1:0];
-    logic [3:0] rob_commit_rob_idx[1:0];
+    logic [1:0][4:0] rob_commit_arch_rd;
+    logic [1:0][5:0] rob_commit_phys_rd;
+    logic [1:0][3:0] rob_commit_rob_idx;
     logic [1:0] rob_commit_is_store, rob_commit_is_load, rob_commit_is_branch;
-    logic [31:0] rob_commit_pc[1:0];
+    logic [1:0][31:0] rob_commit_pc;
     logic [1:0] rob_commit_branch_taken;
-    logic [31:0] rob_commit_branch_target[1:0];
+    logic [1:0][31:0] rob_commit_branch_target;
     logic [1:0] rob_commit_branch_is_call, rob_commit_branch_is_return;
     
     // ============================================================
@@ -129,21 +129,21 @@ module ooo_core_top (
     logic [1:0][5:0] prf_wtag;
     logic [1:0][31:0] prf_wdata;
     
-    logic [5:0] prf_commit_rtag[1:0];
-    logic [31:0] prf_commit_rdata[1:0];
+    logic [1:0][5:0] prf_commit_rtag;
+    logic [1:0][31:0] prf_commit_rdata;
     
     // ============================================================
     // Free List
     // ============================================================
     logic [1:0] freelist_free_en;
-    logic [5:0] freelist_free_phys[1:0];
+    logic [1:0][5:0] freelist_free_phys;
     
     // ============================================================
     // ARF
     // ============================================================
     logic [1:0] arf_wen;
-    logic [4:0] arf_waddr[1:0];
-    logic [31:0] arf_wdata[1:0];
+    logic [1:0][4:0] arf_waddr;
+    logic [1:0][31:0] arf_wdata;
     
     // ============================================================
     // LSU
@@ -152,7 +152,7 @@ module ooo_core_top (
     logic [5:0] lsu_cdb_tag;
     logic [31:0] lsu_cdb_value;
     logic [1:0] lsu_commit_en, lsu_commit_is_store;
-    logic [3:0] lsu_commit_rob_idx[1:0];
+    logic [1:0][3:0] lsu_commit_rob_idx;
     
     // ============================================================
     // INSTRUCTION ROM with Demo Program
