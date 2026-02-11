@@ -15,7 +15,7 @@ module inst_rom #(
     output logic             imem_valid,
     output logic [XLEN-1:0]  imem_rdata0,
     output logic [XLEN-1:0]  imem_rdata1,
-    output logic [XLEN-1:0]  imem_pc [1:0],
+    output logic [1:0][XLEN-1:0]  imem_pc ,
 
     // Optional: ROM programming interface (for loading programs)
     input  logic             prog_en,
