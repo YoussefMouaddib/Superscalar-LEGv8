@@ -72,8 +72,7 @@ module inst_rom #(
             addr0_reg <= '0;
             addr1_reg <= '0;
         end else begin
-            // Default: no valid response
-            imem_valid <= 1'b0;
+            
 
             // Handle read request
             if (imem_ren) begin
