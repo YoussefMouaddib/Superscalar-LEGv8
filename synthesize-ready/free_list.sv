@@ -11,12 +11,12 @@ module free_list #(
 
     // Allocate ports (multi-port allocation)
     input  logic [ALLOC_PORTS-1:0]     alloc_en,
-    output logic [5:0]                 alloc_phys[ALLOC_PORTS],
+    output logic [ALLOC_PORTS][5:0]                 alloc_phys,
     output logic [ALLOC_PORTS-1:0]     alloc_valid,
 
     // Free ports (multi-port release)
     input  logic [FREE_PORTS-1:0]      free_en,
-    input  logic [5:0]                 free_phys[FREE_PORTS]
+    input  logic [FREE_PORTS][5:0]                 free_phys
 );
 
     // Internal bitmask: 1 = free, 0 = allocated
