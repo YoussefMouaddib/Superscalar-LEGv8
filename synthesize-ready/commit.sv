@@ -15,19 +15,19 @@ module commit_stage #(
     // From ROB (now with metadata)
     // ============================================================
     input  logic [COMMIT_W-1:0]         rob_commit_valid,
-    input  logic [4:0]                  rob_commit_arch_rd[COMMIT_W-1:0],
-    input  logic [PHYS_W-1:0]           rob_commit_phys_rd[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0][4:0]                  rob_commit_arch_rd,
+    input  logic [COMMIT_W-1:0][PHYS_W-1:0]           rob_commit_phys_rd,
     input  logic [COMMIT_W-1:0]         rob_commit_exception,
     // inst metadata
     input  logic [COMMIT_W-1:0]         rob_commit_is_store,
     input  logic [COMMIT_W-1:0]         rob_commit_is_load,
     input  logic [COMMIT_W-1:0]         rob_commit_is_branch,
-    input  logic [31:0]                 rob_commit_pc[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0][31:0]                 rob_commit_pc,
     // ADDED: Real ROB indices from ROB
-    input  logic [$clog2(ROB_ENTRIES)-1:0] rob_commit_rob_idx[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0][$clog2(ROB_ENTRIES)-1:0] rob_commit_rob_idx,
     // branch inputs
     input  logic [COMMIT_W-1:0]         rob_commit_branch_taken,
-    input  logic [31:0]                 rob_commit_branch_target[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0][31:0]                 rob_commit_branch_target,
     input  logic [COMMIT_W-1:0]         rob_commit_branch_is_call,
     input  logic [COMMIT_W-1:0]         rob_commit_branch_is_return,
     
@@ -35,27 +35,27 @@ module commit_stage #(
     // To Architectural Register File (ARF)
     // ============================================================
     output logic [COMMIT_W-1:0]         arf_wen,
-    output logic [4:0]                  arf_waddr[COMMIT_W-1:0],
-    output logic [XLEN-1:0]             arf_wdata[COMMIT_W-1:0],
+    output logic [COMMIT_W-1:0][4:0]                  arf_waddr,
+    output logic [COMMIT_W-1:0][XLEN-1:0]             arf_wdata,
     
     // ============================================================
     // From Physical Register File (PRF) - Read committed values
     // ============================================================
-    output logic [PHYS_W-1:0]           prf_commit_rtag[COMMIT_W-1:0],
-    input  logic [XLEN-1:0]             prf_commit_rdata[COMMIT_W-1:0],
+    output logic [COMMIT_W-1:0][PHYS_W-1:0]           prf_commit_rtag,
+    input  logic [COMMIT_W-1:0][XLEN-1:0]             prf_commit_rdata,
     
     // ============================================================
     // To Free List - Release old physical registers
     // ============================================================
     output logic [COMMIT_W-1:0]         freelist_free_en,
-    output logic [PHYS_W-1:0]           freelist_free_phys[COMMIT_W-1:0],
+    output logic [COMMIT_W-1:0][PHYS_W-1:0]           freelist_free_phys,
     
     // ============================================================
     // To Rename Stage - Update committed RAT
     // ============================================================
     output logic [COMMIT_W-1:0]         rename_commit_en,
-    output logic [4:0]                  rename_commit_arch_rd[COMMIT_W-1:0],
-    output logic [PHYS_W-1:0]           rename_commit_phys_rd[COMMIT_W-1:0],
+    output logic [COMMIT_W-1:0][4:0]                  rename_commit_arch_rd,
+    output logic [COMMIT_W-1:0][PHYS_W-1:0]           rename_commit_phys_rd,
     
     // ============================================================
     // Exception/Flush Control
@@ -73,7 +73,7 @@ module commit_stage #(
     // ============================================================
     output logic [COMMIT_W-1:0]         lsu_commit_en,
     output logic [COMMIT_W-1:0]         lsu_commit_is_store,
-    output logic [$clog2(ROB_ENTRIES)-1:0] lsu_commit_rob_idx[COMMIT_W-1:0],
+    output logic [COMMIT_W-1:0][$clog2(ROB_ENTRIES)-1:0] lsu_commit_rob_idx,
     
     // ============================================================
     // To Branch Predictor - Update on branch commit (NEW)
