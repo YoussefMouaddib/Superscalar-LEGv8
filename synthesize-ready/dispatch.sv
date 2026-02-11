@@ -30,9 +30,9 @@ module dispatch #(
     input  logic [FETCH_W-1:0]      rename_is_branch,
     input  logic [FETCH_W-1:0]      rename_is_cas,
     input  logic [FETCH_W-1:0][5:0] rename_alu_func,
-    input  logic [4:0]              rename_arch_rs1[FETCH_W-1:0],
-    input  logic [4:0]              rename_arch_rs2[FETCH_W-1:0],
-    input  logic [4:0]              rename_arch_rd[FETCH_W-1:0],
+    input  logic [FETCH_W-1:0][4:0]              rename_arch_rs1,
+    input  logic [FETCH_W-1:0][4:0]              rename_arch_rs2,
+    input  logic [FETCH_W-1:0][4:0]              rename_arch_rd,
     
     // NEW: Flush signal
     input  logic                    flush_pipeline,
@@ -70,16 +70,16 @@ module dispatch #(
     // To/From ROB
     // ============================================================
     output logic [FETCH_W-1:0]      rob_alloc_en,
-    output logic [4:0]              rob_alloc_arch_rd[FETCH_W-1:0],
-    output logic [PHYS_W-1:0]       rob_alloc_phys_rd[FETCH_W-1:0],
+    output logic [FETCH_W-1:0][4:0]              rob_alloc_arch_rd,
+    output logic [FETCH_W-1:0][PHYS_W-1:0]       rob_alloc_phys_rd,
     // ADDED: ROB metadata outputs
     output logic [FETCH_W-1:0]      rob_alloc_is_store,
     output logic [FETCH_W-1:0]      rob_alloc_is_load,
     output logic [FETCH_W-1:0]      rob_alloc_is_branch,
-    output logic [31:0]             rob_alloc_pc[FETCH_W-1:0],
+    output logic [FETCH_W-1:0][31:0]             rob_alloc_pc,
     
     input  logic                    rob_alloc_ok,
-    input  logic [$clog2(ROB_ENTRIES)-1:0] rob_alloc_idx[FETCH_W-1:0],
+    input  logic [FETCH_W-1:0][$clog2(ROB_ENTRIES)-1:0] rob_alloc_idx,
     
     // ============================================================
     // To LSU (for loads/stores)
