@@ -39,7 +39,7 @@ module lsu #(
     // ROB interface (for commit and exceptions) - PARAMETERIZED
     input  logic [COMMIT_W-1:0]  commit_en,
     input  logic [COMMIT_W-1:0]  commit_is_store,
-    input  logic [$clog2(ROB_ENTRIES)-1:0] commit_rob_idx[COMMIT_W-1:0],
+    input  logic [COMMIT_W-1:0][$clog2(ROB_ENTRIES)-1:0] commit_rob_idx,
     
     output logic        lsu_exception,
     output logic [4:0]  lsu_exception_cause,
