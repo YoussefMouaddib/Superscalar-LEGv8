@@ -41,7 +41,11 @@ module tb_ooo_core;
             $display("[FETCH] PC=%h ren=%b valid=%b instr0=%h instr1=%h", 
                 dut.imem_addr0, dut.imem_ren, dut.if_valid, 
                 dut.if_instr[0], dut.if_instr[1]);
-            
+            if (!reset && cycle < 10) begin
+                $display("C%0d: ren=%b addr=%h valid=%b data=%h stall=%b if_valid=%b", 
+                    cycle, dut.imem_ren, dut.imem_addr0, dut.imem_valid, 
+                    dut.imem_rdata0, dut.fetch_stall, dut.if_valid);
+            end
             // DECODE
             if (dut.dec_valid != 0) begin
                 for (int i = 0; i < 2; i++) begin
