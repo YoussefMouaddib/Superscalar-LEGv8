@@ -70,7 +70,7 @@ module ooo_core_top (
     
     logic [1:0] rs_alloc_en;
     logic [1:0][5:0] rs_alloc_dst_tag, rs_alloc_src1_tag, rs_alloc_src2_tag, rs_alloc_rob_tag;
-    logic [1:0][63:0] rs_alloc_src1_val, rs_alloc_src2_val;
+    logic [1:0][31:0] rs_alloc_src1_val, rs_alloc_src2_val;
     logic [1:0] rs_alloc_src1_ready, rs_alloc_src2_ready;
     logic [1:0][7:0] rs_alloc_op;
     logic rs_full;
@@ -96,7 +96,7 @@ module ooo_core_top (
     logic [1:0] issue_valid;
     logic [1:0][7:0] issue_op;
     logic [1:0][5:0] issue_dst_tag, issue_rob_tag;
-    logic [1:0][63:0] issue_src1_val, issue_src2_val;
+    logic [1:0][31:0] issue_src1_val, issue_src2_val;
     
     // CDB
     logic [1:0] cdb_valid;
