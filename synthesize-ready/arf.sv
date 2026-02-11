@@ -11,8 +11,8 @@ module arch_regfile #(
     
     // Write ports (from commit stage)
     input  logic [WRITE_PORTS-1:0]      wen,
-    input  logic [4:0]                  waddr[WRITE_PORTS-1:0],
-    input  logic [XLEN-1:0]             wdata[WRITE_PORTS-1:0],
+    input  logic [WRITE_PORTS-1:0][4:0]                  waddr,
+    input  logic [WRITE_PORTS-1:0][XLEN-1:0]             wdata,
     
     // Read ports (for exception recovery, debugging)
     input  logic [4:0]                  raddr0,
