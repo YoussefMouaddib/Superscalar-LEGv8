@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module tb_ooo_core;
+module tb_ooo_core_second;
 
     logic clk;
     logic reset;
