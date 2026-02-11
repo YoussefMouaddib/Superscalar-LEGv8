@@ -289,7 +289,8 @@ module ooo_core_top (
     
     // Control logic
     assign fetch_en = 1'b1;
-    assign fetch_stall = dispatch_stall;
+    //assign fetch_stall = dispatch_stall;
+    assign fetch_stall = 1'b0;  // Force no stall for now
     assign decode_ready = rename_ready;
     
     // Stub connections (connect remaining modules similarly)
