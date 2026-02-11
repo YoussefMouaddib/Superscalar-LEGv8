@@ -101,7 +101,7 @@ module ooo_core_top (
     // CDB
     logic [1:0] cdb_valid;
     logic [1:0][5:0] cdb_tag, cdb_rob_tag;
-    logic [1:0][63:0] cdb_value;
+    logic [1:0][31:0] cdb_value;
     
     // ============================================================
     // ROB/Commit
