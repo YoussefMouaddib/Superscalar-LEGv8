@@ -56,8 +56,8 @@ module rename_stage #(
     
     // From Commit (write-back)
     input  logic [FETCH_W-1:0]      commit_en,
-    input  logic [4:0]              commit_arch_rd[FETCH_W-1:0],
-    input  logic [5:0]              commit_phys_rd[FETCH_W-1:0],
+    input  logic [1:0][4:0]              commit_arch_rd,
+    input  logic [1:0][5:0]              commit_phys_rd,
     
     // Flush signal from commit
     input  logic                    flush_pipeline
@@ -100,7 +100,7 @@ module rename_stage #(
     //  FIXED: Single instance with multi-port lookups
     // ============================================================
     
-    logic [5:0] rename_new_phys_rd[FETCH_W-1:0];
+    logic [1:0][5:0] rename_new_phys_rd;
     logic [FETCH_W-1:0] rename_en;
     
     // Map each lane's RS1/RS2 to physical registers
