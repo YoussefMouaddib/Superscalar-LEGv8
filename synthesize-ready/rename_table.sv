@@ -9,20 +9,20 @@ module rename_table #(
     input  logic              reset,
 
     // Lookup ports (multi-port read)
-    input  logic [4:0]        arch_rs1[LOOKUP_PORTS],
-    input  logic [4:0]        arch_rs2[LOOKUP_PORTS],
-    output logic [5:0]        phys_rs1[LOOKUP_PORTS],
-    output logic [5:0]        phys_rs2[LOOKUP_PORTS],
+    input  logic [1:0][4:0]        arch_rs1,
+    input  logic [1:0][4:0]        arch_rs2,
+    output logic [1:0][5:0]        phys_rs1,
+    output logic [1:0][5:0]        phys_rs2,
 
     // Rename ports (multi-port speculative update)
     input  logic [RENAME_PORTS-1:0]  rename_en,
-    input  logic [4:0]        arch_rd[RENAME_PORTS],
-    input  logic [5:0]        new_phys_rd[RENAME_PORTS],
+    input  logic [1:0][4:0]        arch_rd,
+    input  logic [1:0][5:0]        new_phys_rd,
 
     // Commit ports (multi-port committed state update)
     input  logic [COMMIT_PORTS-1:0]  commit_en,
-    input  logic [4:0]        commit_arch_rd[COMMIT_PORTS],
-    input  logic [5:0]        commit_phys_rd[COMMIT_PORTS],
+    input  logic [1:0][4:0]        commit_arch_rd,
+    input  logic [1:0][5:0]        commit_phys_rd,
     
     // Flush pipeline
     input  logic              flush_pipeline
