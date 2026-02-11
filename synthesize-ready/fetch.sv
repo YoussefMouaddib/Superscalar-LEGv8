@@ -29,7 +29,7 @@ module fetch #(
     // imem input (from inst_rom)
     input  logic [XLEN-1:0] imem_rdata0,
     input  logic [XLEN-1:0] imem_rdata1,
-    input  logic [XLEN-1:0] imem_pc [1:0],
+    input  logic [1:0][XLEN-1:0] imem_pc ,
     input  logic            imem_valid,
     
     // decode output
