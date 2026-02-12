@@ -291,7 +291,7 @@ module ooo_core_top (
     assign fetch_en = 1'b1;
     //assign fetch_stall = dispatch_stall;
     assign fetch_stall = 1'b0;  // Force no stall for now
-    assign decode_ready = rename_ready;
+    assign decode_ready = 1'b1;
     
     // Stub connections (connect remaining modules similarly)
     assign redirect_en = 1'b0;
