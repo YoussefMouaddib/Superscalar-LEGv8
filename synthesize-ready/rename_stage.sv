@@ -239,7 +239,7 @@ module rename_stage #(
     always_comb begin
         can_allocate_all = 1'b1;
         for (int i = 0; i < FETCH_W; i++) begin
-            if (dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0)) begin
+            if ( dec_rd_valid[i] && (dec_rd[i] != 5'd0)) begin
                 if (!alloc_valid[i]) begin
                     can_allocate_all = 1'b0;
                 end
