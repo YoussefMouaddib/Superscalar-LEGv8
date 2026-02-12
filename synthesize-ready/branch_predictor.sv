@@ -267,33 +267,33 @@ module branch_predictor #(
                 end
             end
             
-            if (update_en) begin
+            //if (update_en) begin
                 // Check for misprediction
-                automatic logic was_predicted_taken;
-                automatic logic btb_had_entry;
+               // automatic logic was_predicted_taken;
+               // automatic logic btb_had_entry;
                 
-                btb_had_entry = btb[update_index].valid && 
-                               (btb[update_index].tag == update_tag);
+               // btb_had_entry = btb[update_index].valid && 
+               //                (btb[update_index].tag == update_tag);
                 
-                if (btb_had_entry) begin
-                    if (btb[update_index].br_type == COND_BRANCH) begin
-                        was_predicted_taken = (btb[update_index].counter == WEAKLY_TAKEN) || 
-                                             (btb[update_index].counter == STRONGLY_TAKEN);
-                    end else begin
-                        was_predicted_taken = 1'b1;
-                    end
+               // if (btb_had_entry) begin
+               //     if (btb[update_index].br_type == COND_BRANCH) begin
+                 //       was_predicted_taken = (btb[update_index].counter == WEAKLY_TAKEN) || 
+                  //                           (btb[update_index].counter == STRONGLY_TAKEN);
+                   // end else begin
+                   //     was_predicted_taken = 1'b1;
+                   // end
                     
                     // Misprediction if prediction doesn't match actual
-                    if (was_predicted_taken != update_taken) begin
-                        stat_mispredictions <= stat_mispredictions + 1'b1;
+                   // if (was_predicted_taken != update_taken) begin
+                     /*   stat_mispredictions <= stat_mispredictions + 1'b1;
                     end
                 end else begin
                     // BTB miss - if branch was taken, count as misprediction
                     if (update_taken) begin
                         stat_mispredictions <= stat_mispredictions + 1'b1;
                     end
-                end
-            end
+                end 
+            end*/
         end
     end
     
