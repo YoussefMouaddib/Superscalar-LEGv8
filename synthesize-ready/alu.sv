@@ -49,6 +49,8 @@ module alu #(
     
     assign opcode = issue_op[11:6];    // opcode
     assign func_code = issue_op[5:0]; // func
+    assign src1_val = issue_src1_val;
+    assign src2_val = issue_src2_val;
     
     // ============================================================
     //  ALU Combinational Logic
