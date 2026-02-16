@@ -138,8 +138,7 @@ module alu #(
     // ============================================================
     always_comb begin
         // Default: use values from RS
-        src1_val = issue_src1_val;
-        src2_val = issue_src2_val;
+        
         
         // Check CDB forwarding for src1
         if (cdb_valid && (cdb_tag == issue_dst_tag)) begin
