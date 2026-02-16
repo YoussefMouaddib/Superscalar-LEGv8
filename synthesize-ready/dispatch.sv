@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+5`timescale 1ns/1ps
 import core_pkg::*;
 
 module dispatch #(
@@ -234,7 +234,7 @@ module dispatch #(
         
         for (int i = 0; i < FETCH_W; i++) begin
             // Only dispatch ALU and branch instructions to RS
-            if (rename_valid[i] && (rename_is_alu[i] || rename_is_branch[i]) && !rs_full && rob_alloc_ok) begin
+            if (rename_valid[i] && (rename_is_alu[i] || rename_is_branch[i]) && !rs_full) begin
                 rs_alloc_en[i] = 1'b1;
                 rs_alloc_dst_tag[i] = rename_prd[i];
                 rs_alloc_src1_tag[i] = rename_prs1[i];
