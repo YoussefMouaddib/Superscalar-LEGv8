@@ -10,7 +10,7 @@ module branch_ex #(
     
     // Issue interface
     input  logic                issue_valid,
-    input  logic [7:0]          issue_op,
+    input  logic [11:0]          issue_op,
     input  logic [PHYS_W-1:0]   issue_dst_tag,
     input  logic [XLEN-1:0]     issue_src1_val,
     input  logic [XLEN-1:0]     issue_src2_val,
@@ -51,7 +51,7 @@ module branch_ex #(
     logic is_call;
     logic is_return;
     
-    assign opcode = issue_op[7:2];
+    assign opcode = issue_op[11:6];
     
     // ============================================================
     //  Branch Decision Logic (Combinational)
