@@ -22,7 +22,7 @@ module reservation_station #(
     input  logic [ISSUE_W-1:0][31:0] alloc_src2_val,
     input  logic [ISSUE_W-1:0]       alloc_src1_ready,
     input  logic [ISSUE_W-1:0]       alloc_src2_ready,
-    input  logic [ISSUE_W-1:0][7:0]  alloc_op,
+    input  logic [ISSUE_W-1:0][11:0]  alloc_op,
     input  logic [ISSUE_W-1:0][5:0]  alloc_rob_tag,
 
     // CDB broadcast
@@ -48,7 +48,7 @@ module reservation_station #(
         logic [31:0] src2_val;
         logic src1_ready;
         logic src2_ready;
-        logic [7:0] opcode;
+        logic [11:0] opcode;
         logic [5:0] rob_tag;
         logic [4:0] age;
     } rs_entry_t;
