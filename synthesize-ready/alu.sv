@@ -10,7 +10,7 @@ module alu #(
     
     // Issue interface (from Reservation Station)
     input  logic                issue_valid,
-    input  logic [7:0]          issue_op,           // Opcode + function code
+    input  logic [11:0]          issue_op,           // Opcode + function code
     input  logic [PHYS_W-1:0]   issue_dst_tag,      // Destination physical register
     input  logic [XLEN-1:0]     issue_src1_val,     // Source 1 value (or forwarded)
     input  logic [XLEN-1:0]     issue_src2_val,     // Source 2 value (or forwarded)
@@ -47,8 +47,8 @@ module alu #(
     logic [5:0] opcode;
     logic [5:0] func_code;
     
-    assign opcode = issue_op[7:2];    // bits 7:2 = opcode
-    assign func_code = issue_op[5:0]; // bits 5:0 = function code for R-type
+    assign opcode = issue_op[11:6];    // opcode
+    assign func_code = issue_op[5:0]; // func
     
     // ============================================================
     //  ALU Combinational Logic
