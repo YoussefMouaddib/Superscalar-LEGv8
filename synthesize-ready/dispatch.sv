@@ -62,7 +62,7 @@ module dispatch #(
     output logic [FETCH_W-1:0][31:0] rs_alloc_src2_val,
     output logic [FETCH_W-1:0]      rs_alloc_src1_ready,
     output logic [FETCH_W-1:0]      rs_alloc_src2_ready,
-    output logic [FETCH_W-1:0][7:0] rs_alloc_op,
+    output logic [FETCH_W-1:0][12:0] rs_alloc_op,
     output logic [FETCH_W-1:0][5:0] rs_alloc_rob_tag,
     input  logic                    rs_full,          // From RS
     
@@ -86,7 +86,7 @@ module dispatch #(
     // ============================================================
     output logic                    lsu_alloc_en,
     output logic                    lsu_is_load,
-    output logic [7:0]              lsu_opcode,
+    output logic [12:0]              lsu_opcode,
     output logic [XLEN-1:0]         lsu_base_addr,
     output logic [XLEN-1:0]         lsu_offset,
     output logic [4:0]              lsu_arch_rs1,
@@ -239,11 +239,11 @@ module dispatch #(
                 rs_alloc_dst_tag[i] = rename_prd[i];
                 rs_alloc_src1_tag[i] = rename_prs1[i];
                 rs_alloc_src2_tag[i] = rename_prs2[i];
-                rs_alloc_src1_val[i] = {{32{1'b0}}, src1_value[i]};  // Zero-extend to 64-bit
-                rs_alloc_src2_val[i] = {{32{1'b0}}, src2_value[i]};
+                rs_alloc_src1_val[i] = src1_value[i];  
+                rs_alloc_src2_val[i] = src2_value[i];
                 rs_alloc_src1_ready[i] = src1_ready[i];
                 rs_alloc_src2_ready[i] = src2_ready[i];
-                rs_alloc_op[i] = {rename_opcode[i], 2'b00};  // Combine opcode
+                rs_alloc_op[i] = {rename_opcode[i], };
                 rs_alloc_rob_tag[i] = rob_alloc_idx[i];
             end
         end
