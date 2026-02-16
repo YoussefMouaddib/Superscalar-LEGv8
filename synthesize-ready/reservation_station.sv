@@ -32,7 +32,7 @@ module reservation_station #(
 
     // Issue outputs
     output logic [ISSUE_W-1:0]       issue_valid,
-    output logic [ISSUE_W-1:0][7:0]  issue_op,
+    output logic [ISSUE_W-1:0][11:0]  issue_op,
     output logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag,
     output logic [ISSUE_W-1:0][31:0] issue_src1_val,
     output logic [ISSUE_W-1:0][31:0] issue_src2_val,
