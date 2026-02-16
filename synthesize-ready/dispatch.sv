@@ -62,7 +62,7 @@ module dispatch #(
     output logic [FETCH_W-1:0][31:0] rs_alloc_src2_val,
     output logic [FETCH_W-1:0]      rs_alloc_src1_ready,
     output logic [FETCH_W-1:0]      rs_alloc_src2_ready,
-    output logic [FETCH_W-1:0][12:0] rs_alloc_op,
+    output logic [FETCH_W-1:0][11:0] rs_alloc_op,
     output logic [FETCH_W-1:0][5:0] rs_alloc_rob_tag,
     input  logic                    rs_full,          // From RS
     
@@ -86,7 +86,7 @@ module dispatch #(
     // ============================================================
     output logic                    lsu_alloc_en,
     output logic                    lsu_is_load,
-    output logic [12:0]              lsu_opcode,
+    output logic [11:0]              lsu_opcode,
     output logic [XLEN-1:0]         lsu_base_addr,
     output logic [XLEN-1:0]         lsu_offset,
     output logic [4:0]              lsu_arch_rs1,
