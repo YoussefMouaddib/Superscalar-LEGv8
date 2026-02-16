@@ -86,7 +86,7 @@ module dispatch #(
     // ============================================================
     output logic                    lsu_alloc_en,
     output logic                    lsu_is_load,
-    output logic [11:0]              lsu_opcode,
+    output logic [7:0]              lsu_opcode,
     output logic [XLEN-1:0]         lsu_base_addr,
     output logic [XLEN-1:0]         lsu_offset,
     output logic [4:0]              lsu_arch_rs1,
@@ -243,7 +243,7 @@ module dispatch #(
                 rs_alloc_src2_val[i] = src2_value[i];
                 rs_alloc_src1_ready[i] = src1_ready[i];
                 rs_alloc_src2_ready[i] = src2_ready[i];
-                rs_alloc_op[i] = {rename_opcode[i], };
+                rs_alloc_op[i] = {rename_opcode[i], rename_alu_func[i]};
                 rs_alloc_rob_tag[i] = rob_alloc_idx[i];
             end
         end
