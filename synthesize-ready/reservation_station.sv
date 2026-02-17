@@ -30,7 +30,7 @@ module reservation_station #(
     input  logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag,
     input  logic [CDB_W-1:0][31:0]   cdb_value,
 
-    // Issue outputs
+    // Issue outputs (NOW REGISTERED)
     output logic [ISSUE_W-1:0]       issue_valid,
     output logic [ISSUE_W-1:0][11:0]  issue_op,
     output logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag,
@@ -54,61 +54,71 @@ module reservation_station #(
     } rs_entry_t;
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
-    logic [4:0] age_counter [0:RS_ENTRIES-1];
-    logic [ISSUE_W-1:0] issue_valid_reg;
 
-    // === Combinational Logic for Issue Selection ===
+    // Combinational issue selection signals
+    logic [ISSUE_W-1:0]       issue_valid_comb;
+    logic [ISSUE_W-1:0][11:0] issue_op_comb;
+    logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag_comb;
+    logic [ISSUE_W-1:0][31:0] issue_src1_val_comb;
+    logic [ISSUE_W-1:0][31:0] issue_src2_val_comb;
+    logic [ISSUE_W-1:0][5:0]  issue_rob_tag_comb;
+    
+    // For clearing: capture what was actually issued
+    logic [ISSUE_W-1:0][5:0]  issued_rob_tag_reg;
+
+    // === Combinational Issue Selection ===
     always_comb begin
         automatic rs_entry_t oldest [ISSUE_W];
         automatic int oldest_idx [ISSUE_W];
         automatic logic [RS_ENTRIES-1:0] considered_entries;
         automatic int i, p;
         
-        // Initialize outputs
+        // Initialize
         for (p = 0; p < ISSUE_W; p++) begin
-            issue_valid[p] = 1'b0;
-            issue_op[p] = '0;
-            issue_dst_tag[p] = '0;
-            issue_src1_val[p] = '0;
-            issue_src2_val[p] = '0;
-            issue_rob_tag[p] = '0;
+            issue_valid_comb[p] = 1'b0;
+            issue_op_comb[p] = '0;
+            issue_dst_tag_comb[p] = '0;
+            issue_src1_val_comb[p] = '0;
+            issue_src2_val_comb[p] = '0;
+            issue_rob_tag_comb[p] = '0;
             oldest_idx[p] = -1;
             oldest[p].age = 0;
+            oldest[p].valid = 0;
         end
 
         considered_entries = '0;
 
-        // === Issue Selection (Oldest Ready) ===
+        // Select oldest ready entries
         for (p = 0; p < ISSUE_W; p++) begin
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready && 
                     !considered_entries[i]) begin
-                    if (!issue_valid[p] || (rs_mem[i].age > oldest[p].age)) begin
+                    if (!issue_valid_comb[p] || (rs_mem[i].age > oldest[p].age)) begin
                         oldest[p] = rs_mem[i];
                         oldest_idx[p] = i;
-                        issue_valid[p] = 1'b1;
+                        issue_valid_comb[p] = 1'b1;
                     end
                 end
             end
             
-            if (issue_valid[p] && oldest_idx[p] != -1) begin
+            if (issue_valid_comb[p] && oldest_idx[p] != -1) begin
                 considered_entries[oldest_idx[p]] = 1'b1;
             end
         end
 
-        // Assign issue outputs
+        // Assign outputs from selected entries
         for (p = 0; p < ISSUE_W; p++) begin
-            if (issue_valid[p]) begin
-                issue_op[p] = oldest[p].opcode;
-                issue_dst_tag[p] = oldest[p].dst_tag;
-                issue_src1_val[p] = oldest[p].src1_val;
-                issue_src2_val[p] = oldest[p].src2_val;
-                issue_rob_tag[p] = oldest[p].rob_tag;
+            if (issue_valid_comb[p]) begin
+                issue_op_comb[p] = oldest[p].opcode;
+                issue_dst_tag_comb[p] = oldest[p].dst_tag;
+                issue_src1_val_comb[p] = oldest[p].src1_val;
+                issue_src2_val_comb[p] = oldest[p].src2_val;
+                issue_rob_tag_comb[p] = oldest[p].rob_tag;
             end
         end
     end
 
-    // === Sequential Logic (Allocation, Wakeup, Clear, Age) ===
+    // === Sequential Logic ===
     always_ff @(posedge clk or posedge reset) begin
         automatic logic [RS_ENTRIES-1:0] free_slots;
         automatic logic [RS_ENTRIES-1:0] clear_mask;
@@ -116,30 +126,57 @@ module reservation_station #(
         automatic int i, a, b, p;
         
         if (reset) begin
+            // Reset all RS entries
             for (i = 0; i < RS_ENTRIES; i++) begin
                 rs_mem[i].valid <= 1'b0;
                 rs_mem[i].src1_ready <= 1'b0;
                 rs_mem[i].src2_ready <= 1'b0;
-                age_counter[i] <= '0;
+                rs_mem[i].age <= '0;
             end
-            issue_valid_reg <= '0;
+            
+            // Reset issue outputs
+            issue_valid <= '0;
+            issue_op <= '0;
+            issue_dst_tag <= '0;
+            issue_src1_val <= '0;
+            issue_src2_val <= '0;
+            issue_rob_tag <= '0;
+            issued_rob_tag_reg <= '0;
+            
         end else if (flush_pipeline) begin
-            // On flush, invalidate all RS entries
+            // Flush all speculative entries
             for (i = 0; i < RS_ENTRIES; i++) begin
                 rs_mem[i].valid <= 1'b0;
-                age_counter[i] <= '0;
+                rs_mem[i].age <= '0;
             end
-            issue_valid_reg <= '0;
-        end else begin
-            // Register issue flags for clearing in next cycle
-            issue_valid_reg <= issue_valid;
+            issue_valid <= '0;
             
-            // === Clear Issued Entries ===
+        end else begin
+            // ============================================================
+            // STEP 1: Register issue outputs (from combinational selection)
+            // ============================================================
+            issue_valid <= issue_valid_comb;
+            issue_op <= issue_op_comb;
+            issue_dst_tag <= issue_dst_tag_comb;
+            issue_src1_val <= issue_src1_val_comb;
+            issue_src2_val <= issue_src2_val_comb;
+            issue_rob_tag <= issue_rob_tag_comb;
+            
+            // Capture rob tags for clearing next cycle
+            for (p = 0; p < ISSUE_W; p++) begin
+                if (issue_valid_comb[p]) begin
+                    issued_rob_tag_reg[p] <= issue_rob_tag_comb[p];
+                end
+            end
+            
+            // ============================================================
+            // STEP 2: Clear entries that were issued LAST cycle
+            // ============================================================
             clear_mask = '0;
             for (p = 0; p < ISSUE_W; p++) begin
-                if (issue_valid_reg[p]) begin
+                if (issue_valid[p]) begin  // Was something issued last cycle?
                     for (i = 0; i < RS_ENTRIES; i++) begin
-                        if (rs_mem[i].valid && rs_mem[i].rob_tag == issue_rob_tag[p]) begin
+                        if (rs_mem[i].valid && rs_mem[i].rob_tag == issued_rob_tag_reg[p]) begin
                             clear_mask[i] = 1'b1;
                         end
                     end
@@ -149,16 +186,20 @@ module reservation_station #(
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (clear_mask[i]) begin
                     rs_mem[i].valid <= 1'b0;
-                    age_counter[i] <= '0;
+                    rs_mem[i].age <= '0;
                 end
             end
 
-            // === Find Free Slots ===
+            // ============================================================
+            // STEP 3: Find free slots (include being-cleared slots)
+            // ============================================================
             for (i = 0; i < RS_ENTRIES; i++) begin
-                free_slots[i] = !rs_mem[i].valid;
+                free_slots[i] = !rs_mem[i].valid || clear_mask[i];
             end
 
-            // === Allocation ===
+            // ============================================================
+            // STEP 4: Allocate new entries
+            // ============================================================
             current_slot = 0;
             for (a = 0; a < ISSUE_W; a++) begin
                 if (alloc_en[a]) begin
@@ -177,15 +218,17 @@ module reservation_station #(
                         rs_mem[current_slot].src2_ready <= alloc_src2_ready[a];
                         rs_mem[current_slot].opcode <= alloc_op[a];
                         rs_mem[current_slot].rob_tag <= alloc_rob_tag[a];
-                        age_counter[current_slot] <= 5'd0;
+                        rs_mem[current_slot].age <= 5'd0;
                         current_slot++;
                     end
                 end
             end
 
-            // === Wakeup from CDB ===
+            // ============================================================
+            // STEP 5: Wakeup from CDB
+            // ============================================================
             for (i = 0; i < RS_ENTRIES; i++) begin
-                if (rs_mem[i].valid) begin
+                if (rs_mem[i].valid && !clear_mask[i]) begin
                     // Check CDB for src1
                     if (!rs_mem[i].src1_ready) begin
                         for (b = 0; b < CDB_W; b++) begin
@@ -206,14 +249,9 @@ module reservation_station #(
                         end
                     end
                     
-                    // Update age
-                    age_counter[i] <= age_counter[i] + 1'b1;
+                    // Increment age
+                    rs_mem[i].age <= rs_mem[i].age + 1'b1;
                 end
-            end
-            
-            // Update age in rs_mem structure
-            for (i = 0; i < RS_ENTRIES; i++) begin
-                rs_mem[i].age <= age_counter[i];
             end
         end
     end
