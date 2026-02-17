@@ -20,7 +20,7 @@ module tb_ooo_core;
         reset = 1;
         #20;
         reset = 0;
-        #5000;
+        #100;
         $finish;
     end
     
@@ -151,7 +151,7 @@ module tb_ooo_core;
     // RS Table Display (every 10 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 10 == 0)) begin
+        if (!reset && (cycle % 2 == 0)) begin
             $display("\n===== RS TABLE (Cycle %0d) =====", cycle);
             $display("Entry | V | Dst | Src1(R) | Src2(R) | Op   | ROB | Age");
             $display("------|---|-----|---------|---------|------|-----|----");
@@ -177,7 +177,7 @@ module tb_ooo_core;
     // ROB Table Display (every 10 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 10 == 0)) begin
+        if (!reset && (cycle % 2 == 0)) begin
             $display("\n===== ROB TABLE (Cycle %0d) =====", cycle);
             $display("Idx | V | R | ARD | PRD | PC       | LD | ST | BR | Exception");
             $display("----|---|---|-----|-----|----------|----|----|----|-----------");
@@ -205,7 +205,7 @@ module tb_ooo_core;
     // ARF Display (every 50 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 50 == 0)) begin
+        if (!reset && (cycle % 2 == 0)) begin
             $display("\n===== ARCH REGISTER FILE (Cycle %0d) =====", cycle);
             for (int i = 0; i < 32; i += 4) begin
                 $display("X%-2d=%h  X%-2d=%h  X%-2d=%h  X%-2d=%h",
