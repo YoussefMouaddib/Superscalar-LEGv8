@@ -1,79 +1,96 @@
-module rename_table #(
-    parameter int ARCH_REGS = 32,
-    parameter int PHYS_REGS = 48,
-    parameter int LOOKUP_PORTS = 2,
-    parameter int RENAME_PORTS = 2,
-    parameter int COMMIT_PORTS = 2
+`timescale 1 ns/ 1 ps
+import core_pkg::*;
+
+module free_list #(
+    parameter int PHYS_REGS = core_pkg::PREGS,
+    parameter int ALLOC_PORTS = 2,
+    parameter int FREE_PORTS = 2
 )(
-    input  logic              clk,
-    input  logic              reset,
-
-    // Lookup ports (multi-port read)
-    input  logic [1:0][4:0]        arch_rs1,
-    input  logic [1:0][4:0]        arch_rs2,
-    output logic [1:0][5:0]        phys_rs1,
-    output logic [1:0][5:0]        phys_rs2,
-
-    // Rename ports (multi-port speculative update)
-    input  logic [RENAME_PORTS-1:0]  rename_en,
-    input  logic [1:0][4:0]        arch_rd,
-    input  logic [1:0][5:0]        new_phys_rd,
-
-    // Commit ports (multi-port committed state update)
-    input  logic [COMMIT_PORTS-1:0]  commit_en,
-    input  logic [1:0][4:0]        commit_arch_rd,
-    input  logic [1:0][5:0]        commit_phys_rd,
+    input  logic         clk,
+    input  logic         reset,
     
-    // Flush pipeline
-    input  logic              flush_pipeline
+    // Allocate ports (multi-port allocation)
+    input  logic [ALLOC_PORTS-1:0]     alloc_en,
+    output logic [ALLOC_PORTS-1:0][5:0] alloc_phys,
+    output logic [ALLOC_PORTS-1:0]     alloc_valid,
+    
+    // Free ports (multi-port release)
+    input  logic [FREE_PORTS-1:0]      free_en,
+    input  logic [FREE_PORTS-1:0][5:0] free_phys
 );
 
-    logic [5:0] map_table [ARCH_REGS-1:0];          // speculative mapping
-    logic [5:0] committed_table [ARCH_REGS-1:0];    // committed mapping
+    // Internal bitmask: 1 = free, 0 = allocated
+    logic [PHYS_REGS-1:0] free_mask;
 
     // ============================================================
-    // Multi-port Combinational Reads
+    // COMBINATIONAL Allocation Logic
     // ============================================================
     always_comb begin
-        for (int i = 0; i < LOOKUP_PORTS; i++) begin
-            // X0 always maps to physical register 0
-            phys_rs1[i] = (arch_rs1[i] == 5'd0) ? 6'd0 : map_table[arch_rs1[i]];
-            phys_rs2[i] = (arch_rs2[i] == 5'd0) ? 6'd0 : map_table[arch_rs2[i]];
+        automatic logic [PHYS_REGS-1:0] temp_mask;
+        automatic int search_idx;
+        
+        // Start with current free_mask state
+        temp_mask = free_mask;
+        
+        // Apply any frees happening this cycle (combinational forwarding)
+        for (int j = 0; j < FREE_PORTS; j++) begin
+            if (free_en[j]) begin
+                temp_mask[free_phys[j]] = 1'b1;
+            end
+        end
+        
+        // Perform allocations sequentially from temp_mask
+        for (int a = 0; a < ALLOC_PORTS; a++) begin
+            alloc_valid[a] = 1'b0;
+            alloc_phys[a] = '0;
+            
+            if (alloc_en[a]) begin
+                // Search for next free register
+                for (int i = 0; i < PHYS_REGS; i++) begin
+                    if (temp_mask[i]) begin
+                        alloc_phys[a] = 6'(i);
+                        alloc_valid[a] = 1'b1;
+                        temp_mask[i] = 1'b0;  // Mark as allocated in temp
+                        break;
+                    end
+                end
+            end
         end
     end
 
     // ============================================================
-    // Sequential Updates (Rename + Commit)
+    // SEQUENTIAL Update of free_mask
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
+        automatic logic [PHYS_REGS-1:0] updated_mask;
+        
         if (reset) begin
-            for (int i = 0; i < ARCH_REGS; i++) begin
-                map_table[i]       <= 6'(i);  // Initial mapping: arch -> same phys
-                committed_table[i] <= 6'(i);
+            // Physical regs 0-31 map to architectural regs (not in free pool)
+            // Physical regs 32-47 are available for renaming
+            for (int i = 0; i < core_pkg::ARCH_REGS; i++) begin
+                free_mask[i] <= 1'b0;
             end
-        end else if (flush_pipeline) begin
-            // On flush: restore speculative map from committed state
-            for (int i = 0; i < ARCH_REGS; i++) begin
-                map_table[i] <= committed_table[i];
+            for (int i = core_pkg::ARCH_REGS; i < PHYS_REGS; i++) begin
+                free_mask[i] <= 1'b1;
             end
         end else begin
-            // ============================================================
-            // Speculative Renames (multi-port, applied sequentially)
-            // ============================================================
-            for (int j = 0; j < RENAME_PORTS; j++) begin
-                if (rename_en[j] && arch_rd[j] != 5'd0) begin
-                    map_table[arch_rd[j]] <= new_phys_rd[j];
+            updated_mask = free_mask;
+            
+            // Apply frees
+            for (int j = 0; j < FREE_PORTS; j++) begin
+                if (free_en[j]) begin
+                    updated_mask[free_phys[j]] = 1'b1;
                 end
             end
             
-            // ============================================================
-            // Committed State Updates (multi-port, applied sequentially)
-            // ============================================================
-            for (int j = 0; j < COMMIT_PORTS; j++) begin
-                if (commit_en[j] && commit_arch_rd[j] != 5'd0) begin
-                    committed_table[commit_arch_rd[j]] <= commit_phys_rd[j];
+            // Apply allocations (mark as not free)
+            for (int a = 0; a < ALLOC_PORTS; a++) begin
+                if (alloc_en[a] && alloc_valid[a]) begin
+                    updated_mask[alloc_phys[a]] = 1'b0;
                 end
             end
+            
+            free_mask <= updated_mask;
         end
     end
 
