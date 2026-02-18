@@ -44,7 +44,7 @@ module regfile_synth #(
   // synchronous writes
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
-      // initialize regs to zero
+      // initialize regs to four
       for (int i = 0; i < PREGS; i++) begin
         regs[i] <= 4;
       end
