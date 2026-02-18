@@ -53,7 +53,7 @@ module inst_rom #(
             // LDR X8, [X12, #67]
             rom[5] <= {6'b010000, 5'd8, 5'd12, 16'd67};
             // NOP (repeat)
-            for (int i=6; i<16; i++) rom[i] <= 32'b11 111111111111111111111111111111;            
+            for (int i=6; i<16; i++) rom[i] <= 32'b11111111111111111111111111111111;            
 
         end else if (prog_en) begin
             // Program ROM at runtime (for testbench loading)
