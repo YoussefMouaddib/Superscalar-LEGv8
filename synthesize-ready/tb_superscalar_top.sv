@@ -224,6 +224,22 @@ module tb_ooo_core;
             end
         end
     end
+
+    // ============================================================
+    // PRF Display 
+    // ============================================================
+    always_ff @(posedge clk) begin
+        if (!reset) begin
+            $display("\n===== ARCH REGISTER FILE (Cycle %0d) =====", cycle);
+            for (int i = 0; i < 32; i += 4) begin
+                $display("X%-2d=%h  X%-2d=%h  X%-2d=%h  X%-2d=%h",
+                    i, dut.prf_inst.regs[i],
+                    i+1, dut.prf_inst.regs[i+1],
+                    i+2, dut.prf_inst.regs[i+2],
+                    i+3, dut.prf_inst.regs[i+3]);
+            end
+        end
+    end
     
     // Dump waveforms
     initial begin
