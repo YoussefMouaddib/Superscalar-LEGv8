@@ -201,6 +201,14 @@ module tb_ooo_core;
         end
     end
     
+    always_ff @(posedge clk) begin
+        if (dut.mem_req) begin
+            $display("[MEM] req=%b we=%b addr=%h wdata=%h ready=%b rdata=%h",
+                dut.mem_req, dut.mem_we, dut.mem_addr, dut.mem_wdata,
+                dut.mem_ready, dut.mem_rdata);
+        end
+    end
+    
     // ============================================================
     // ARF Display (every 50 cycles)
     // ============================================================
