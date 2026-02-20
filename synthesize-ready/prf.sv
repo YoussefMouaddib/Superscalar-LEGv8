@@ -35,7 +35,14 @@ module regfile_synth #(
   output logic [XLEN-1:0]              rdata2,
   
   input  core_pkg::preg_tag_t          rtag3,
-  output logic [XLEN-1:0]              rdata3
+  output logic [XLEN-1:0]              rdata3,
+
+  // commit
+  input  core_pkg::preg_tag_t          rtag4,
+  output logic [XLEN-1:0]              rdata4,
+    
+  input  core_pkg::preg_tag_t          rtag5,
+  output logic [XLEN-1:0]              rdata5
 );
 
   // storage: simple flop array [0:PREGS-1]
@@ -80,5 +87,7 @@ module regfile_synth #(
   assign rdata1 = read_reg(rtag1);
   assign rdata2 = read_reg(rtag2);
   assign rdata3 = read_reg(rtag3);
+  assign rdata4 = read_reg(rtag4);
+  assign rdata5 = read_reg(rtag5);
 
 endmodule
