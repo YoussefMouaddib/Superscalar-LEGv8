@@ -115,6 +115,8 @@ module ooo_core_top (
     logic [1:0] rob_commit_branch_taken;
     logic [1:0][31:0] rob_commit_branch_target;
     logic [1:0] rob_commit_branch_is_call, rob_commit_branch_is_return;
+    logic mark_ready_en0, mark_ready_en1;
+    logic [3:0] mark_ready_idx0, mark_ready_idx1;
     
     // ============================================================
     // Memory
@@ -482,8 +484,7 @@ module ooo_core_top (
     // ============================================================
     // ROB
     // ============================================================
-    logic mark_ready_en;
-    logic [3:0] mark_ready_idx;
+    
     
     rob rob_inst (
         .clk(clk),
@@ -497,10 +498,19 @@ module ooo_core_top (
         .alloc_pc(rob_alloc_pc),
         .alloc_ok(rob_alloc_ok),
         .alloc_idx(rob_alloc_idx),
-        .mark_ready_en(mark_ready_en),
-        .mark_ready_idx(mark_ready_idx),
+        
+        // Mark ready PORT 0
+        .mark_ready_en(mark_ready_en0),
+        .mark_ready_idx(mark_ready_idx0),
         .mark_ready_val(1'b1),
         .mark_exception(1'b0),
+    
+        // Mark ready PORT 1 
+        .mark_ready_en1(mark_ready_en1),
+        .mark_ready_idx1(mark_ready_idx1),
+        .mark_ready_val1(1'b1),
+        .mark_exception1(1'b0),
+        
         .branch_outcome_en(1'b0),
         .branch_outcome_idx('0),
         .branch_outcome_taken(1'b0),
@@ -527,8 +537,13 @@ module ooo_core_top (
     );
     
     // Mark ROB ready from CDB
-    assign mark_ready_en = cdb_valid[0] | cdb_valid[1];
-    assign mark_ready_idx = cdb_valid[0] ? cdb_rob_tag[0][3:0] : cdb_rob_tag[1][3:0];
+    
+    
+    assign mark_ready_en0 = cdb_valid[0];
+    assign mark_ready_idx0 = cdb_rob_tag[0][3:0];
+    
+    assign mark_ready_en1 = cdb_valid[1];
+    assign mark_ready_idx1 = cdb_rob_tag[1][3:0];
     
     // ============================================================
     // COMMIT STAGE
