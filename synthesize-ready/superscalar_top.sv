@@ -602,6 +602,8 @@ module ooo_core_top (
     assign prf_wtag = cdb_tag;
     assign prf_wdata = cdb_value;
      regfile_synth prf_inst (
+        .clk(clk),
+        .reset(reset),
         // Writes from CDB
         .wen0(prf_wen[0]),
         .wtag0(prf_wtag[0]),
