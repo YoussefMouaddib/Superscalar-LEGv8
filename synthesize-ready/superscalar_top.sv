@@ -601,16 +601,16 @@ module ooo_core_top (
     assign prf_wen = cdb_valid;
     assign prf_wtag = cdb_tag;
     assign prf_wdata = cdb_value;
-    
-    regfile_synth prf_inst (
-        .clk(clk),
-        .reset(reset),
+     regfile_synth prf_inst (
+        // Writes from CDB
         .wen0(prf_wen[0]),
         .wtag0(prf_wtag[0]),
         .wdata0(prf_wdata[0]),
         .wen1(prf_wen[1]),
         .wtag1(prf_wtag[1]),
         .wdata1(prf_wdata[1]),
+        
+        // Reads for dispatch
         .rtag0(prf_rtag0),
         .rdata0(prf_rdata0),
         .rtag1(prf_rtag1),
@@ -618,27 +618,13 @@ module ooo_core_top (
         .rtag2(prf_rtag2),
         .rdata2(prf_rdata2),
         .rtag3(prf_rtag3),
-        .rdata3(prf_rdata3)
-    );
-    
-    // Commit reads from PRF
-    regfile_synth prf_commit_read (
-        .clk(clk),
-        .reset(reset),
-        .wen0(1'b0),
-        .wtag0('0),
-        .wdata0('0),
-        .wen1(1'b0),
-        .wtag1('0),
-        .wdata1('0),
-        .rtag0(prf_commit_rtag[0]),
-        .rdata0(prf_commit_rdata[0]),
-        .rtag1(prf_commit_rtag[1]),
-        .rdata1(prf_commit_rdata[1]),
-        .rtag2('0),
-        .rdata2(),
-        .rtag3('0),
-        .rdata3()
+        .rdata3(prf_rdata3),
+        
+        // Reads for commit (NEW)
+        .rtag4(prf_commit_rtag[0]),
+        .rdata4(prf_commit_rdata[0]),
+        .rtag5(prf_commit_rtag[1]),
+        .rdata5(prf_commit_rdata[1])
     );
     
     // ============================================================
