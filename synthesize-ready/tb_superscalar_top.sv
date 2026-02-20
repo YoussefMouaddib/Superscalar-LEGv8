@@ -213,7 +213,7 @@ module tb_ooo_core;
     // ARF Display (every 50 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 2 == 0)) begin
+        if (!reset) begin
             $display("\n===== ARCH REGISTER FILE (Cycle %0d) =====", cycle);
             for (int i = 0; i < 32; i += 4) begin
                 $display("X%-2d=%h  X%-2d=%h  X%-2d=%h  X%-2d=%h",
