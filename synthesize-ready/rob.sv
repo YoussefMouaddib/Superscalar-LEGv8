@@ -26,6 +26,11 @@ module rob #(
   input  logic [$clog2(ROB_SIZE)-1:0] mark_ready_idx,
   input  logic                    mark_ready_val,
   input  logic                    mark_exception,
+
+  input  logic                    mark_ready_en1,
+  input  logic [$clog2(ROB_SIZE)-1:0] mark_ready_idx1,
+  input  logic                    mark_ready_val1,
+  input  logic                    mark_exception1,
   
   // NEW: Branch outcome update (from branch execution)
   input  logic                    branch_outcome_en,
@@ -134,6 +139,13 @@ module rob #(
           if (rob_mem[mark_ready_idx].valid) begin
             if (mark_ready_val) rob_mem[mark_ready_idx].ready <= 1'b1;
             if (mark_exception)  rob_mem[mark_ready_idx].exception <= 1'b1;
+          end
+        end
+        // ---------- Process mark_ready PORT 1 - ADD THIS
+        if (mark_ready_en1) begin
+          if (rob_mem[mark_ready_idx1].valid) begin
+            if (mark_ready_val1) rob_mem[mark_ready_idx1].ready <= 1'b1;
+            if (mark_exception1)  rob_mem[mark_ready_idx1].exception <= 1'b1;
           end
         end
         
