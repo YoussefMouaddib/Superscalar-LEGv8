@@ -169,6 +169,9 @@ module decode #(
                         
                     end
                 endcase
+                if (instr[i] == 32'hFFFFFFFF || instr[i] == 32'h00000000) begin
+                 dec_valid[i] = 1'b0;
+                end
             end
         end
     end
