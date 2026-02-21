@@ -160,12 +160,13 @@ module decode #(
                         dec_imm[i]       = {{6{instr[i][25]}}, instr[i][25:0]};
                     end
                     
-                    6'b111111: begin
-                        // NOP
-                    end
+                    
 
                     default: begin
                         // Undefined opcodes
+                        
+                            dec_valid[i] = 1'b0;
+                        
                     end
                 endcase
             end
