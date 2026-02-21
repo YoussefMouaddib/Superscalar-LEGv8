@@ -206,7 +206,7 @@ module tb_ooo_core;
         end
     end
 
-    
+    /*
     // ============================================================
     // RS Table Display (every 10 cycles)
     // ============================================================
@@ -305,6 +305,6 @@ module tb_ooo_core;
     initial begin
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
-    end
+    end */
 
 endmodule
