@@ -94,6 +94,35 @@ module rob #(
   logic [IDX_BITS-1:0] tail;
   integer              occupancy;
 
+  // Combinational computation of allocation indices
+  always_comb begin
+      automatic int free_slots;
+      automatic int reqs;
+      automatic int cur_tail_comb;
+      automatic int k;
+      
+      alloc_ok = 1'b0;
+      for (k = 0; k < ISSUE_W; k++) alloc_idx[k] = '0;
+      
+      if (alloc_en != 0) begin
+          free_slots = ROB_SIZE - occupancy;
+          reqs = 0;
+          for (k = 0; k < ISSUE_W; k++) if (alloc_en[k]) reqs++;
+          
+          if (reqs <= free_slots) begin
+              alloc_ok = 1'b1;
+              cur_tail_comb = tail;  // Use current tail value
+              
+              for (k = 0; k < ISSUE_W; k++) begin
+                  if (alloc_en[k]) begin
+                      alloc_idx[k] = cur_tail_comb;  // Combinational assignment
+                      cur_tail_comb = (cur_tail_comb + 1) % ROB_SIZE;
+                  end
+              end
+          end
+      end
+  end
+
   always_ff @(posedge clk or posedge reset) begin
     if (reset) begin
       head <= '0;
@@ -188,7 +217,7 @@ module rob #(
                 rob_mem[cur_tail].branch_is_call <= 1'b0;
                 rob_mem[cur_tail].branch_is_return <= 1'b0;
                 
-                alloc_idx[k] <= cur_tail;
+                
                 cur_tail = (cur_tail + 1) % ROB_SIZE;
                 alloc_count++;
               end else begin
@@ -267,6 +296,7 @@ module rob #(
   always_comb begin
     rob_full = (occupancy >= ROB_SIZE);
     rob_almost_full = (ROB_SIZE - occupancy) < core_pkg::ISSUE_WIDTH;
+    
   end
 
 endmodule
