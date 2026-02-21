@@ -146,6 +146,66 @@ module tb_ooo_core;
             end
         end
     end
+    // ROB Internal State Monitor
+    always_ff @(posedge clk) begin
+        if (!reset) begin
+            automatic int local_head, local_tail, local_occ;
+            automatic int alloc_cnt, commit_cnt;
+            
+            // Capture automatic variables (sample at clock edge)
+            local_head = dut.rob_inst.head;
+            local_tail = dut.rob_inst.tail;
+            local_occ = dut.rob_inst.occupancy;
+            
+            // Allocation tracking
+            if (dut.rob_alloc_en != 0) begin
+                alloc_cnt = 0;
+                for (int i = 0; i < 2; i++) begin
+                    if (dut.rob_alloc_en[i]) alloc_cnt++;
+                end
+                $display("[ROB_ALLOC] slots=%0d ok=%b head=%0d tail=%0d→%0d occ=%0d→%0d",
+                    alloc_cnt, dut.rob_alloc_ok,
+                    local_head, local_tail, dut.rob_inst.tail,
+                    local_occ, dut.rob_inst.occupancy);
+            end
+            
+            // Mark ready tracking
+            if (dut.mark_ready_en0 || dut.mark_ready_en1) begin
+                $display("[ROB_MARK_READY] port0=%b(idx=%0d) port1=%b(idx=%0d)",
+                    dut.mark_ready_en0, dut.mark_ready_idx0,
+                    dut.mark_ready_en1, dut.mark_ready_idx1);
+            end
+            
+            // Commit tracking
+            if (dut.rob_commit_valid != 0) begin
+                commit_cnt = 0;
+                for (int i = 0; i < 2; i++) begin
+                    if (dut.rob_commit_valid[i]) begin
+                        $display("[ROB_COMMIT_DETAIL%0d] rob_idx=%0d ard=x%0d prd=p%0d ready=%b pc=%h",
+                            i, dut.rob_commit_rob_idx[i],
+                            dut.rob_commit_arch_rd[i], dut.rob_commit_phys_rd[i],
+                            dut.rob_inst.rob_mem[dut.rob_commit_rob_idx[i]].ready,
+                            dut.rob_commit_pc[i]);
+                        commit_cnt++;
+                    end
+                end
+                $display("[ROB_COMMIT_STATE] slots=%0d head=%0d→%0d occ=%0d→%0d",
+                    commit_cnt, local_head, dut.rob_inst.head,
+                    local_occ, dut.rob_inst.occupancy);
+            end
+            
+            // Show head entry state every 5 cycles
+            if (cycle % 5 == 0 && local_occ > 0) begin
+                $display("[ROB_HEAD_STATUS] idx=%0d valid=%b ready=%b ard=x%0d pc=%h",
+                    local_head,
+                    dut.rob_inst.rob_mem[local_head].valid,
+                    dut.rob_inst.rob_mem[local_head].ready,
+                    dut.rob_inst.rob_mem[local_head].arch_rd,
+                    dut.rob_inst.rob_mem[local_head].pc);
+            end
+        end
+    end
+
     
     // ============================================================
     // RS Table Display (every 10 cycles)
