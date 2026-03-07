@@ -18,7 +18,7 @@ module tb_ooo_core;
     // Reset and run
     initial begin
         reset = 1;
-        #95;
+        #90;
         reset = 0;
         #300;
         $finish;
