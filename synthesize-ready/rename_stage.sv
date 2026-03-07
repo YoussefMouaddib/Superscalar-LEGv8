@@ -235,7 +235,7 @@ module rename_stage #(
     // ============================================================
     //  Backpressure Logic
     // ============================================================
-    /*logic can_allocate_all;
+    logic can_allocate_all;
     always_comb begin
         can_allocate_all = 1'b1;
         for (int i = 0; i < FETCH_W; i++) begin
@@ -247,6 +247,6 @@ module rename_stage #(
             end
         end
         rename_ready = can_allocate_all && !flush_pipeline;
-    end*/
-    rename_ready = 1'b1;
+    end
+    // rename_ready = 1'b1;
 endmodule
