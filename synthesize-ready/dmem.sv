@@ -74,7 +74,7 @@ module data_scratchpad #(
             for (int i = 0; i < (MEM_SIZE/4); i++) begin
                 mem[i] <= '0;
             end
-            mem[4] <= '67;
+            mem[4] <= 32'd67;
         end else begin
             // Default: not ready
             mem_ready <= 1'b0;
