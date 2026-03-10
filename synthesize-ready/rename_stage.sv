@@ -140,6 +140,7 @@ module rename_stage #(
     always_comb begin
         // Default values
         rename_en = '0;
+        rename_ready = 1'b1;
         for (int i = 0; i < FETCH_W; i++) begin
             rename_arch_rd_wire[i] = 5'd0;
             rename_new_phys_rd[i] = 6'd0;
@@ -235,14 +236,8 @@ module rename_stage #(
     // ============================================================
     //  Backpressure Logic
     // ============================================================
-    logic can_allocate_all;
-    always_comb begin
-        can_allocate_all = 1'b1;
-        for (int i = 0; i < FETCH_W; i++) begin
-            // ONLY check lanes with valid decoded instructions
-            if (dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0) && !flush_pipeline) begin
+    
             
-        rename_ready = 1'b1;
-        end
-    end
+        
+        
 endmodule
