@@ -74,7 +74,7 @@ module rename_stage #(
     // Create allocation requests
     always_comb begin
         for (int i = 0; i < FETCH_W; i++) begin
-            alloc_en[i] = dec_valid[i]  && !flush_pipeline;
+            alloc_en[i] = dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0) && !flush_pipeline;
         end
     end
     
@@ -146,7 +146,7 @@ module rename_stage #(
             
             // Enable rename if instruction has a destination register (not X0) and not flushing
             if (dec_valid[i]  && !flush_pipeline) begin
-                rename_en[i] = alloc_valid[i];  // Only rename if allocation succeeded
+                rename_en[i] = 1'b1;  // Only rename if allocation succeeded
                 rename_arch_rd_wire[i] = dec_rd[i];
                 rename_new_phys_rd[i] = alloc_phys[i];
             end
@@ -240,13 +240,9 @@ module rename_stage #(
         can_allocate_all = 1'b1;
         for (int i = 0; i < FETCH_W; i++) begin
             // ONLY check lanes with valid decoded instructions
-            if (dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0)) begin
-                if (!alloc_valid[i]) begin
-                    can_allocate_all = 1'b0;
-                end
-            end
+            if (dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0) && !flush_pipeline) begin
+            
+        rename_ready = 1'b1;
         end
-        rename_ready = can_allocate_all && !flush_pipeline;
     end
-    // rename_ready = 1'b1;
 endmodule
