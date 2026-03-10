@@ -162,6 +162,10 @@ always_ff @(posedge clk or posedge reset) begin
                     sq[sq_tail].cas_compare <= store_data_val; // For CAS compare
                 end
                 sq_tail <= sq_tail + 1;
+                cdb_valid_next <= 1'b1;
+                cdb_tag_next <= phys_rd;  // Will be p0 for stores (X0)
+                cdb_value_next <= '0;
+                cdb_exception_next <= agen_misaligned;
             end
         end
 
