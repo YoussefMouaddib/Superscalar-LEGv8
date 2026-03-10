@@ -99,7 +99,7 @@ module decode #(
 
                         dec_rd_valid[i]  = 1'b1;
                         dec_rs1_valid[i] = 1'b1;
-                        dec_rs2_valid[i] = 1'b1;
+                        
                         dec_is_alu[i]    = 1'b1;
                     end
 
