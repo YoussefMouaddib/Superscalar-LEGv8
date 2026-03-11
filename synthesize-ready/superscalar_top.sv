@@ -658,13 +658,7 @@ module ooo_core_top (
     // ============================================================
     // LSU
     // ============================================================
-    lsu #(
-        .LQ_ENTRIES(8),
-        .SQ_ENTRIES(8),
-        .XLEN(32),
-        .COMMIT_W(COMMIT_W),
-        .ROB_ENTRIES(ROB_ENTRIES)
-    ) lsu_inst (
+    lsu lsu_inst (
         .clk(clk),
         .reset(reset),
         .flush_pipeline(flush_pipeline),
