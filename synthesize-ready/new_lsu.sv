@@ -94,6 +94,7 @@ module lsu #(
 
     logic [2:0] lq_head, lq_tail;
     logic [2:0] sq_head, sq_tail;
+    logic [XLEN-1:0] calc_addr;
 
     // ============================================================
     // Allocation Logic
@@ -300,6 +301,7 @@ module lsu #(
     always_comb begin
         lsu_exception = 1'b0;
         lsu_exception_cause = '0;
+        
         
         for (int i = 0; i < LQ_ENTRIES; i++) begin
             if (lq[i].valid && lq[i].exception) begin
