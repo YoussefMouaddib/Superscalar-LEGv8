@@ -37,14 +37,33 @@ module rename_table #(
     // ============================================================
     // Multi-port Combinational Reads
     // ============================================================
-    always_comb begin
+   /* always_comb begin
         for (int i = 0; i < LOOKUP_PORTS; i++) begin
             // X0 always maps to physical register 0
             phys_rs1[i] = (arch_rs1[i] == 5'd0) ? 6'd0 : map_table[arch_rs1[i]];
             phys_rs2[i] = (arch_rs2[i] == 5'd0) ? 6'd0 : map_table[arch_rs2[i]];
         end
     end
-    
+    */
+    always_comb begin
+        for (int i = 0; i < LOOKUP_PORTS; i++) begin
+            // Default: read from map table
+            phys_rs1[i] = (arch_rs1[i] == 5'd0) ? 6'd0 : map_table[arch_rs1[i]];
+            phys_rs2[i] = (arch_rs2[i] == 5'd0) ? 6'd0 : map_table[arch_rs2[i]];
+            
+            // FORWARDING: Check if earlier rename ports are writing this register THIS cycle
+            for (int j = 0; j < RENAME_PORTS; j++) begin
+                if (j < i && rename_en[j] && arch_rd[j] != 5'd0) begin  // Earlier lane
+                    if (arch_rs1[i] == arch_rd[j]) begin
+                        phys_rs1[i] = new_phys_rd[j];  // Forward from earlier rename
+                    end
+                    if (arch_rs2[i] == arch_rd[j]) begin
+                        phys_rs2[i] = new_phys_rd[j];  // Forward from earlier rename
+                    end
+                end
+            end
+        end
+    end
     // ============================================================
     // Sequential Updates (Rename + Commit)
     // ============================================================
