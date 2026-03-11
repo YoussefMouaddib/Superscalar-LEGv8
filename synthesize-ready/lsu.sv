@@ -85,6 +85,11 @@ logic [2:0] lq_head, lq_tail;
 logic [2:0] sq_head, sq_tail;
 logic [XLEN-1:0] agen_addr;
 logic agen_misaligned;
+// CDB outputs
+logic cdb_valid_next;
+logic [5:0] cdb_tag_next;
+logic [XLEN-1:0] cdb_value_next;
+logic cdb_exception_next;
 
 // Address Generation
 always_comb begin
@@ -223,11 +228,7 @@ logic [2:0] mem_lq_index;
 logic [XLEN-1:0] cas_read_value;
 logic [3:0] mmio_counter;
 
-// CDB outputs
-logic cdb_valid_next;
-logic [5:0] cdb_tag_next;
-logic [XLEN-1:0] cdb_value_next;
-logic cdb_exception_next;
+
 
 always_ff @(posedge clk or posedge reset) begin
     // Declare all loop variables at the beginning
