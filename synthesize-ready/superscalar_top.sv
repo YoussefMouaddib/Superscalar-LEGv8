@@ -155,6 +155,13 @@ module ooo_core_top (
     logic [31:0] lsu_cdb_value;
     logic [1:0] lsu_commit_en, lsu_commit_is_store;
     logic [1:0][3:0] lsu_commit_rob_idx;
+    // LSU allocation signals
+    logic [5:0]  lsu_base_tag;
+    logic        lsu_base_ready;
+    logic [31:0] lsu_base_value;
+    logic [5:0]  lsu_store_data_tag;
+    logic        lsu_store_data_ready;
+    logic [31:0] lsu_store_data_value;
     
     // ============================================================
     // INSTRUCTION ROM with Demo Program
@@ -647,31 +654,59 @@ module ooo_core_top (
     // ============================================================
     // LSU
     // ============================================================
-    lsu lsu_inst (
+    lsu #(
+        .LQ_ENTRIES(8),
+        .SQ_ENTRIES(8),
+        .XLEN(32),
+        .COMMIT_W(COMMIT_W),
+        .ROB_ENTRIES(ROB_ENTRIES)
+    ) lsu_inst (
         .clk(clk),
         .reset(reset),
         .flush_pipeline(flush_pipeline),
+        
+        // Allocation interface
         .alloc_en(lsu_alloc_en),
         .is_load(lsu_is_load),
         .opcode(lsu_opcode),
-        .base_addr(lsu_base_addr),
+        
+        // Base address operand (rs1)
+        .base_tag(lsu_base_tag),
+        .base_ready(lsu_base_ready),
+        .base_value(lsu_base_value),
+        
+        // Store data operand (rs2)
+        .store_data_tag(lsu_store_data_tag),
+        .store_data_ready(lsu_store_data_ready),
+        .store_data_value(lsu_store_data_value),
+        
         .offset(lsu_offset),
         .arch_rs1(lsu_arch_rs1),
         .arch_rs2(lsu_arch_rs2),
         .arch_rd(lsu_arch_rd),
         .phys_rd(lsu_phys_rd),
         .rob_idx(lsu_rob_idx),
-        .store_data_val(lsu_store_data_val),
-        .store_data_ready(lsu_store_data_ready),
-        .cdb_valid(lsu_cdb_valid),
-        .cdb_tag(lsu_cdb_tag),
-        .cdb_value(lsu_cdb_value),
+        
+        // CDB interface (for wakeup)
+        .cdb_valid(cdb_valid),
+        .cdb_tag(cdb_rob_tag),       // Note: using rob_tag from CDB
+        .cdb_value(cdb_value),
+        
+        // CDB output
+        .cdb_valid_out(lsu_cdb_valid),
+        .cdb_tag_out(lsu_cdb_tag),
+        .cdb_value_out(lsu_cdb_value),
         .cdb_exception(lsu_cdb_exception),
-        .commit_en(lsu_commit_en),
-        .commit_is_store(lsu_commit_is_store),
-        .commit_rob_idx(lsu_commit_rob_idx),
-        .lsu_exception(),
-        .lsu_exception_cause(),
+        
+        // ROB interface
+        .commit_en(rob_commit_valid),
+        .commit_is_store(rob_commit_is_store),
+        .commit_rob_idx(rob_commit_rob_idx),
+        
+        .lsu_exception(lsu_exception),
+        .lsu_exception_cause(lsu_exception_cause),
+        
+        // Memory interface
         .mem_req(mem_req),
         .mem_we(mem_we),
         .mem_addr(mem_addr),
@@ -680,7 +715,6 @@ module ooo_core_top (
         .mem_rdata(mem_rdata),
         .mem_error(mem_error)
     );
-    
     // ============================================================
     // DATA SCRATCHPAD
     // ============================================================
