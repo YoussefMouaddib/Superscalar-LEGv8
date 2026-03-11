@@ -56,5 +56,44 @@ This project represents a **complete from-scratch implementation** of a 2-wide s
 ## 🔬 **Microarchitecture Deep Dive**
 
 ### **Pipeline Overview**
+Fetch [F0,F1] → Decode [D0,D1] → Rename [R0,R1] → Dispatch [Di0,Di1] → Issue [I0,I1] → Execute → Commit [C0,C1]
+↑ ↑ ↑ ↑ ↑ ↑ ↓
+└───── Branch Predict ────────┴────── ROB Update ──────────────┴─── CDB ────┴─ LSU ────┘
+
+### **The Rename Stage: Breaking False Dependencies**
+```systemverilog
+// Real rename logic from implementation
+always_comb begin
+    for (int i = 0; i < 2; i++) begin
+        if (alloc_en[i]) begin
+            // Map architectural to physical registers
+            phys_src1[i] = rat[arch_rs1[i]];
+            phys_src2[i] = rat[arch_rs2[i]];
+            
+            // Allocate new physical destination
+            phys_dest[i] = free_list[free_head + i];
+            
+            // Update RAT for future instructions
+            rat_next[arch_rd[i]] = phys_dest[i];
+        end
+    end
+end
+This is where out-of-order execution begins - breaking WAW/WAR hazards through register renaming. The Register Alias Table (RAT) maps architectural registers to physical registers, while the free list provides new physical destinations for each write.
+
+## 📊 **Pipeline Visualization**
+###**Instruction Flow Timeline**
+Cycle:  0   1   2   3   4   5   6   7   8   9   10
+       ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+ADD x1:│ F │ D │ R │ Di│ I │ Ex│ C │   │   │   │
+       └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+       ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+ADD x3:│   │ F │ D │ R │ Di│ I │ Ex│ C │   │   │
+       └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+       ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+STR x0:│   │   │ F │ D │ R │ Di│ I │ Ex│ Ex│ C │ ← 2-cycle store
+       └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+       ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+LDR x8:│   │   │   │ F │ D │ R │ Di│ I │ L0│ L1│ C ← 2-cycle load
+       └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
 
 
