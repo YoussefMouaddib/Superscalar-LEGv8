@@ -176,6 +176,16 @@ module dispatch #(
             end else begin
                 // Check scoreboard
                 src1_ready[i] = preg_ready[rename_prs1[i]];
+                
+                // SAME-CYCLE DEPENDENCY: Check if earlier lane is writing this register
+                for (int j = 0; j < FETCH_W; j++) begin
+                    if (j < i && rename_valid[j] && rename_rd_valid[j]) begin
+                        if (rename_prs1[i] == rename_prd[j]) begin
+                            src1_ready[i] = 1'b0;  // Dependency on earlier lane!
+                        end
+                    end
+                end
+                
                 // Read value from PRF if ready
                 if (i == 0)
                     src1_value[i] = prf_rdata0;
@@ -200,6 +210,16 @@ module dispatch #(
                 src2_value[i] = '0;
             end else begin
                 src2_ready[i] = preg_ready[rename_prs2[i]];
+                
+                // SAME-CYCLE DEPENDENCY: Check if earlier lane is writing this register
+                for (int j = 0; j < FETCH_W; j++) begin
+                    if (j < i && rename_valid[j] && rename_rd_valid[j]) begin
+                        if (rename_prs2[i] == rename_prd[j]) begin
+                            src2_ready[i] = 1'b0;  // Dependency on earlier lane!
+                        end
+                    end
+                end
+                
                 if (i == 0)
                     src2_value[i] = prf_rdata1;
                 else
@@ -215,7 +235,6 @@ module dispatch #(
             end
         end
     end
-    
     // ============================================================
     // Dispatch to Reservation Station
     // ============================================================
