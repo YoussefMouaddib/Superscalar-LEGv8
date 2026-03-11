@@ -298,37 +298,40 @@ module dispatch #(
         lsu_alloc_en = 1'b0;
         lsu_is_load = 1'b0;
         lsu_opcode = '0;
-        lsu_base_addr = '0;
+        lsu_base_addr_val = '0;
+        lsu_base_addr_tag = '0;
+        lsu_base_addr_ready = 1'b0;
         lsu_offset = '0;
+        lsu_store_data_val = '0;
+        lsu_store_data_tag = '0;
+        lsu_store_data_ready = 1'b0;
         lsu_arch_rs1 = '0;
         lsu_arch_rs2 = '0;
         lsu_arch_rd = '0;
         lsu_phys_rd = '0;
         lsu_rob_idx = '0;
-        lsu_store_data_val = '0;
-        lsu_store_data_ready = 1'b0;
         
-        // POLICY: Dispatch first valid load/store instruction only
-        // If both lanes have memory ops, lane 0 has priority
-        // Lane 1's memory op will stall until next cycle
         for (int i = 0; i < FETCH_W; i++) begin
             if (rename_valid[i] && 
-                (rename_is_load[i] || rename_is_store[i] || rename_is_cas[i]) && 
+                (rename_is_load[i] || rename_is_store[i]) && 
                 rob_alloc_ok && !flush_pipeline) begin
                 
                 lsu_alloc_en = 1'b1;
-                lsu_is_load = rename_is_load[i] || rename_is_cas[i];
+                lsu_is_load = rename_is_load[i];
                 lsu_opcode = {rename_opcode[i], 2'b00};
-                lsu_base_addr = src1_value[i];
+                lsu_base_addr_val = src1_value[i];
+                lsu_base_addr_tag = rename_prs1[i];
+                lsu_base_addr_ready = src1_ready[i];
                 lsu_offset = rename_imm[i];
+                lsu_store_data_val = src2_value[i];
+                lsu_store_data_tag = rename_prs2[i];
+                lsu_store_data_ready = src2_ready[i];
                 lsu_arch_rs1 = rename_arch_rs1[i];
                 lsu_arch_rs2 = rename_arch_rs2[i];
                 lsu_arch_rd = rename_arch_rd[i];
                 lsu_phys_rd = rename_prd[i];
                 lsu_rob_idx = rob_alloc_idx[i];
-                lsu_store_data_val = src2_value[i];
-                lsu_store_data_ready = src2_ready[i];
-                break;  // Only dispatch ONE memory op per cycle
+                break;
             end
         end
     end
