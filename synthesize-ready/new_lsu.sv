@@ -17,11 +17,13 @@ module lsu #(
     input  logic        alloc_en,
     input  logic        is_load,
     input  logic [7:0]  opcode,
-    input  logic [XLEN-1:0] base_addr_val,    // Value if ready
+    
     input  logic [5:0]  base_addr_tag,        // Physical tag
     input  logic        base_addr_ready,      // Ready flag
+    input  logic [XLEN-1:0] base_addr_value,
+    
     input  logic [XLEN-1:0] offset,
-    input  logic [XLEN-1:0] store_data_val,   // Value if ready
+    input  logic [XLEN-1:0] store_data_value,   // Value if ready
     input  logic [5:0]  store_data_tag,       // Physical tag
     input  logic        store_data_ready,     // Ready flag
     input  logic [4:0]  arch_rs1,
@@ -129,18 +131,18 @@ module lsu #(
                 if (is_load) begin
                     // LOADS: Compute address immediately (speculative)
                     lq[lq_tail].valid <= 1'b1;
-                    lq[lq_tail].addr <= base_addr_val + offset;
+                    lq[lq_tail].addr <= base_addr_value + offset;
                     lq[lq_tail].dest_tag <= phys_rd;
                     lq[lq_tail].rob_idx <= rob_idx;
                     lq[lq_tail].completed <= 1'b0;
-                    lq[lq_tail].exception <= (base_addr_val + offset)[1:0] != 2'b00;
+                    lq[lq_tail].exception <= (base_addr_value + offset)[1:0] != 2'b00;
                     lq_tail <= lq_tail + 1;
                 end else begin
                     // STORES: Track operand tags, compute address when ready
                     sq[sq_tail].valid <= 1'b1;
                     sq[sq_tail].base_tag <= base_addr_tag;
                     sq[sq_tail].base_ready <= base_addr_ready;
-                    sq[sq_tail].base_val <= base_addr_val;
+                    sq[sq_tail].base_val <= base_addr_value;
                     sq[sq_tail].data_tag <= store_data_tag;
                     sq[sq_tail].data_ready <= store_data_ready;
                     sq[sq_tail].data_val <= store_data_val;
