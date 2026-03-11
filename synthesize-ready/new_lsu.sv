@@ -135,7 +135,7 @@ module lsu #(
                     lq[lq_tail].dest_tag <= phys_rd;
                     lq[lq_tail].rob_idx <= rob_idx;
                     lq[lq_tail].completed <= 1'b0;
-                    lq[lq_tail].exception <= (base_addr_value + offset)[1:0] != 2'b00;
+                    lq[lq_tail].exception <= ((base_addr_value + offset)[1:0] != 2'b00);
                     lq_tail <= lq_tail + 1;
                 end else begin
                     // STORES: Track operand tags, compute address when ready
@@ -145,7 +145,7 @@ module lsu #(
                     sq[sq_tail].base_val <= base_addr_value;
                     sq[sq_tail].data_tag <= store_data_tag;
                     sq[sq_tail].data_ready <= store_data_ready;
-                    sq[sq_tail].data_val <= store_data_val;
+                    sq[sq_tail].data_val <= store_data_value;
                     sq[sq_tail].offset <= offset;
                     sq[sq_tail].addr <= '0;
                     sq[sq_tail].addr_computed <= 1'b0;
@@ -196,7 +196,7 @@ module lsu #(
                     if (sq[i].base_ready && !sq[i].addr_computed) begin
                         sq[i].addr <= sq[i].base_val + sq[i].offset;
                         sq[i].addr_computed <= 1'b1;
-                        sq[i].exception <= (sq[i].base_val + sq[i].offset)[1:0] != 2'b00;
+                        sq[i].exception <= ((sq[i].base_val + sq[i].offset)[1:0] != 2'b00);
                     end
                 end
             end
