@@ -85,7 +85,7 @@ module ooo_core_top (
     
     logic lsu_alloc_en, lsu_is_load;
     logic [7:0] lsu_opcode;
-    logic [31:0] lsu_base_addr, lsu_offset, lsu_store_data_val;
+    logic [31:0] lsu_offset, lsu_store_data_value;
     logic [4:0] lsu_arch_rs1, lsu_arch_rs2, lsu_arch_rd;
     logic [5:0] lsu_phys_rd, lsu_rob_idx;
     logic lsu_store_data_ready;
@@ -160,8 +160,7 @@ module ooo_core_top (
     logic        lsu_base_ready;
     logic [31:0] lsu_base_value;
     logic [5:0]  lsu_store_data_tag;
-    logic        lsu_store_data_ready;
-    logic [31:0] lsu_store_data_value;
+    
     
     // ============================================================
     // INSTRUCTION ROM with Demo Program
@@ -364,15 +363,20 @@ module ooo_core_top (
         .lsu_alloc_en(lsu_alloc_en),
         .lsu_is_load(lsu_is_load),
         .lsu_opcode(lsu_opcode),
-        .lsu_base_addr(lsu_base_addr),
+        
         .lsu_offset(lsu_offset),
         .lsu_arch_rs1(lsu_arch_rs1),
         .lsu_arch_rs2(lsu_arch_rs2),
         .lsu_arch_rd(lsu_arch_rd),
         .lsu_phys_rd(lsu_phys_rd),
         .lsu_rob_idx(lsu_rob_idx),
-        .lsu_store_data_val(lsu_store_data_val),
+        .lsu_base_tag(lsu_base_tag),
+        .lsu_base_tag(lsu_base_tag),
+        .lsu_base_value(lsu_base_value),
+        .lsu_store_data_tag(lsu_store_data_tag),
         .lsu_store_data_ready(lsu_store_data_ready),
+        .lsu_store_data_value(lsu_store_data_value),
+        
         .cdb_valid(cdb_valid),
         .cdb_tag(cdb_tag),
         .cdb_value(cdb_value)
