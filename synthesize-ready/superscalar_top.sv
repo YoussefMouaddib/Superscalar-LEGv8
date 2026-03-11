@@ -669,9 +669,9 @@ module ooo_core_top (
         .opcode(lsu_opcode),
         
         // Base address operand (rs1)
-        .base_tag(lsu_base_tag),
-        .base_ready(lsu_base_ready),
-        .base_value(lsu_base_value),
+        .base_addr_tag(lsu_base_tag),
+        .base_addr_ready(lsu_base_ready),
+        .base_addr_value(lsu_base_value),
         
         // Store data operand (rs2)
         .store_data_tag(lsu_store_data_tag),
