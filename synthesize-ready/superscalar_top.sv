@@ -691,10 +691,10 @@ module ooo_core_top (
         .cdb_value(cdb_value),
         
         // CDB output
-        .cdb_valid_out(lsu_cdb_valid),
-        .cdb_tag_out(lsu_cdb_tag),
-        .cdb_value_out(lsu_cdb_value),
-        .cdb_exception(lsu_cdb_exception),
+        .cdb_req(lsu_cdb_valid),
+        .cdb_req_tag(lsu_cdb_tag),
+        .cdb_req_value(lsu_cdb_value),
+        .cdb_req_exception(lsu_cdb_exception),
         
         // ROB interface
         .commit_en(rob_commit_valid),
