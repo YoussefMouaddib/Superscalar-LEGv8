@@ -371,7 +371,7 @@ module ooo_core_top (
         .lsu_phys_rd(lsu_phys_rd),
         .lsu_rob_idx(lsu_rob_idx),
         .lsu_base_tag(lsu_base_tag),
-        .lsu_base_tag(lsu_base_tag),
+        
         .lsu_base_value(lsu_base_value),
         .lsu_store_data_tag(lsu_store_data_tag),
         .lsu_store_data_ready(lsu_store_data_ready),
