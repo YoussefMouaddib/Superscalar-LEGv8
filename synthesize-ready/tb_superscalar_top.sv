@@ -130,11 +130,11 @@ module tb_ooo_core;
             end
             
             // LSU
-            if (dut.lsu_alloc_en) begin
+            /*if (dut.lsu_alloc_en) begin
                 $display("[LSU_ALLOC] ld:%b addr=%h+%0d prd=p%0d rob=%0d",
                     dut.lsu_is_load, dut.lsu_base_addr, dut.lsu_offset,
                     dut.lsu_phys_rd, dut.lsu_rob_idx);
-            end
+            end*/
             if (dut.mem_req) begin
                 $display("[MEM] we:%b addr=%h wdata=%h", 
                     dut.mem_we, dut.mem_addr, dut.mem_wdata);
