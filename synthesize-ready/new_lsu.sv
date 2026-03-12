@@ -22,10 +22,11 @@ module lsu #(
     input  logic        base_addr_ready,
     input  logic [XLEN-1:0] base_addr_value,
     
-    input  logic [XLEN-1:0] offset,
+    
     input  logic [XLEN-1:0] store_data_value,
     input  logic [5:0]  store_data_tag,
     input  logic        store_data_ready,
+    input  logic [XLEN-1:0] offset,
     input  logic [4:0]  arch_rs1,
     input  logic [4:0]  arch_rs2,
     input  logic [4:0]  arch_rd,
