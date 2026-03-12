@@ -18,14 +18,14 @@ module lsu #(
     input  logic        is_load,
     input  logic [7:0]  opcode,
     
-    input  logic [5:0]  base_addr_tag,        // Physical tag
-    input  logic        base_addr_ready,      // Ready flag
+    input  logic [5:0]  base_addr_tag,
+    input  logic        base_addr_ready,
     input  logic [XLEN-1:0] base_addr_value,
     
     input  logic [XLEN-1:0] offset,
-    input  logic [XLEN-1:0] store_data_value,   // Value if ready
-    input  logic [5:0]  store_data_tag,       // Physical tag
-    input  logic        store_data_ready,     // Ready flag
+    input  logic [XLEN-1:0] store_data_value,
+    input  logic [5:0]  store_data_tag,
+    input  logic        store_data_ready,
     input  logic [4:0]  arch_rs1,
     input  logic [4:0]  arch_rs2,
     input  logic [4:0]  arch_rd,
@@ -61,7 +61,9 @@ module lsu #(
     input  logic        mem_error
 );
 
-    // Load Queue Entry
+    // ============================================================
+    // Queue Entry Definitions
+    // ============================================================
     typedef struct packed {
         logic valid;
         logic [XLEN-1:0] addr;
@@ -72,7 +74,6 @@ module lsu #(
         logic exception;
     } lq_entry_t;
 
-    // Store Queue Entry  
     typedef struct packed {
         logic valid;
         logic [5:0] base_tag;
@@ -94,12 +95,13 @@ module lsu #(
 
     logic [2:0] lq_head, lq_tail;
     logic [2:0] sq_head, sq_tail;
-    logic [XLEN-1:0] calc_addr;
 
     // ============================================================
     // Allocation Logic
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
+        automatic logic [XLEN-1:0] calc_addr;
+        
         if (reset) begin
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 lq[i].valid <= 1'b0;
@@ -114,32 +116,45 @@ module lsu #(
             lq_tail <= '0;
             sq_head <= '0;
             sq_tail <= '0;
+            
         end else if (flush_pipeline) begin
+            // Flush all loads (speculative)
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 lq[i].valid <= 1'b0;
                 lq[i].completed <= 1'b0;
             end
+            
+            // Flush uncommitted stores
             for (int i = 0; i < SQ_ENTRIES; i++) begin
                 if (!sq[i].committed) begin
                     sq[i].valid <= 1'b0;
                 end
             end
+            
             lq_head <= '0;
             lq_tail <= '0;
             sq_tail <= sq_head;
+            
         end else begin
+            // Allocate to queues
             if (alloc_en && !flush_pipeline) begin
                 if (is_load) begin
-                    // LOADS: Compute address immediately (speculative)
-                    lq[lq_tail].valid <= 1'b1;
-                    lq[lq_tail].addr <= base_addr_value + offset;
-                    lq[lq_tail].dest_tag <= phys_rd;
-                    lq[lq_tail].rob_idx <= rob_idx;
-                    lq[lq_tail].completed <= 1'b0;
-                    lq[lq_tail].exception <= ((base_addr_value + offset)[1:0] != 2'b00);
-                    lq_tail <= lq_tail + 1;
+                    // LOADS: Compute address immediately if ready, else wait
+                    if (base_addr_ready) begin
+                        calc_addr = base_addr_value + offset;
+                        lq[lq_tail].valid <= 1'b1;
+                        lq[lq_tail].addr <= calc_addr;
+                        lq[lq_tail].dest_tag <= phys_rd;
+                        lq[lq_tail].rob_idx <= rob_idx;
+                        lq[lq_tail].completed <= 1'b0;
+                        lq[lq_tail].exception <= (calc_addr[1:0] != 2'b00);
+                        lq_tail <= lq_tail + 1;
+                    end
+                    // NOTE: If base not ready, could add wakeup logic for loads too
+                    // For now, loads assume base is always ready (common case)
+                    
                 end else begin
-                    // STORES: Track operand tags, compute address when ready
+                    // STORES: Always allocate, track operand tags
                     sq[sq_tail].valid <= 1'b1;
                     sq[sq_tail].base_tag <= base_addr_tag;
                     sq[sq_tail].base_ready <= base_addr_ready;
@@ -157,7 +172,7 @@ module lsu #(
                 end
             end
 
-            // Mark stores as committed
+            // Mark stores as committed from ROB
             for (int c = 0; c < COMMIT_W; c++) begin
                 if (commit_en[c] && commit_is_store[c]) begin
                     for (int i = 0; i < SQ_ENTRIES; i++) begin
@@ -174,6 +189,8 @@ module lsu #(
     // CDB Wakeup Logic for Store Operands
     // ============================================================
     always_ff @(posedge clk) begin
+        automatic logic [XLEN-1:0] calc_addr;
+        
         if (!reset && !flush_pipeline) begin
             for (int i = 0; i < SQ_ENTRIES; i++) begin
                 if (sq[i].valid) begin
@@ -195,9 +212,10 @@ module lsu #(
                     
                     // Compute address when base is ready
                     if (sq[i].base_ready && !sq[i].addr_computed) begin
-                        sq[i].addr <= sq[i].base_val + sq[i].offset;
+                        calc_addr = sq[i].base_val + sq[i].offset;
+                        sq[i].addr <= calc_addr;
                         sq[i].addr_computed <= 1'b1;
-                        sq[i].exception <= ((sq[i].base_val + sq[i].offset)[1:0] != 2'b00);
+                        sq[i].exception <= (calc_addr[1:0] != 2'b00);
                     end
                 end
             end
@@ -222,17 +240,22 @@ module lsu #(
             mem_req <= 1'b0;
             mem_we <= 1'b0;
             cdb_req <= 1'b0;
+            cdb_req_tag <= '0;
+            cdb_req_value <= '0;
+            cdb_req_exception <= 1'b0;
+            
         end else if (flush_pipeline) begin
             mem_state <= MEM_IDLE;
             mem_req <= 1'b0;
             mem_we <= 1'b0;
             cdb_req <= 1'b0;
+            
         end else begin
             cdb_req <= 1'b0;
             
             case (mem_state)
                 MEM_IDLE: begin
-                    // Look for ready load
+                    // PRIORITY 1: Execute loads
                     for (int i = 0; i < LQ_ENTRIES; i++) begin
                         automatic int idx = (lq_head + i) % LQ_ENTRIES;
                         if (lq[idx].valid && !lq[idx].completed && !lq[idx].exception) begin
@@ -245,7 +268,7 @@ module lsu #(
                         end
                     end
                     
-                    // Look for committed store (only if no loads)
+                    // PRIORITY 2: Execute committed stores (only if no loads)
                     if (mem_state == MEM_IDLE) begin
                         for (int i = 0; i < SQ_ENTRIES; i++) begin
                             automatic int idx = (sq_head + i) % SQ_ENTRIES;
@@ -281,6 +304,7 @@ module lsu #(
                 MEM_STORE: begin
                     if (mem_ready) begin
                         mem_req <= 1'b0;
+                        // Remove completed store from queue
                         for (int i = 0; i < SQ_ENTRIES; i++) begin
                             if (sq[i].valid && sq[i].committed && sq[i].addr == mem_addr) begin
                                 sq[i].valid <= 1'b0;
@@ -291,6 +315,8 @@ module lsu #(
                         mem_state <= MEM_IDLE;
                     end
                 end
+                
+                default: mem_state <= MEM_IDLE;
             endcase
         end
     end
@@ -301,7 +327,6 @@ module lsu #(
     always_comb begin
         lsu_exception = 1'b0;
         lsu_exception_cause = '0;
-        
         
         for (int i = 0; i < LQ_ENTRIES; i++) begin
             if (lq[i].valid && lq[i].exception) begin
