@@ -102,18 +102,36 @@ module lsu #(
     logic load_in_flight;
     logic [2:0] load_in_flight_idx;
     logic store_in_flight;
-    
+
     // ============================================================
-    // BLOCK 1: Allocation
+    // SINGLE UNIFIED ALWAYS_FF BLOCK - NO DRIVER CONFLICTS
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
+        automatic logic [XLEN-1:0] calc_addr;
+        automatic int lq_search_idx;
+        automatic int sq_search_idx;
+        automatic logic found_load;
+        automatic logic found_store;
+        
         if (reset) begin
+            // Reset all state
             lq <= '{default: '0};
             sq <= '{default: '0};
             lq_head <= '0;
             lq_tail <= '0;
             sq_head <= '0;
             sq_tail <= '0;
+            load_in_flight <= 1'b0;
+            load_in_flight_idx <= '0;
+            store_in_flight <= 1'b0;
+            mem_req <= 1'b0;
+            mem_we <= 1'b0;
+            mem_addr <= '0;
+            mem_wdata <= '0;
+            cdb_req <= 1'b0;
+            cdb_req_tag <= '0;
+            cdb_req_value <= '0;
+            cdb_req_exception <= 1'b0;
             
         end else if (flush_pipeline) begin
             // Clear speculative entries
@@ -124,48 +142,53 @@ module lsu #(
             lq_head <= '0;
             lq_tail <= '0;
             sq_tail <= sq_head;
+            load_in_flight <= 1'b0;
+            store_in_flight <= 1'b0;
+            mem_req <= 1'b0;
+            cdb_req <= 1'b0;
             
-        end else if (alloc_en) begin
-            if (is_load) begin
-                // Allocate load
-                lq[lq_tail].valid <= 1'b1;
-                lq[lq_tail].dest_tag <= phys_rd;
-                lq[lq_tail].rob_idx <= rob_idx;
-                lq[lq_tail].base_tag <= base_addr_tag;
-                lq[lq_tail].base_ready <= base_addr_ready;
-                lq[lq_tail].base_val <= base_addr_value;
-                lq[lq_tail].offset <= offset;
-                lq[lq_tail].addr_valid <= 1'b0;
-                lq[lq_tail].executing <= 1'b0;
-                lq[lq_tail].exception <= 1'b0;
-                lq_tail <= lq_tail + 1;
-                
-            end else begin
-                // Allocate store
-                sq[sq_tail].valid <= 1'b1;
-                sq[sq_tail].rob_idx <= rob_idx;
-                sq[sq_tail].base_tag <= base_addr_tag;
-                sq[sq_tail].base_ready <= base_addr_ready;
-                sq[sq_tail].base_val <= base_addr_value;
-                sq[sq_tail].data_tag <= store_data_tag;
-                sq[sq_tail].data_ready <= store_data_ready;
-                sq[sq_tail].data_val <= store_data_value;
-                sq[sq_tail].offset <= offset;
-                sq[sq_tail].addr_valid <= 1'b0;
-                sq[sq_tail].committed <= 1'b0;
-                sq[sq_tail].executing <= 1'b0;
-                sq[sq_tail].exception <= 1'b0;
-                sq_tail <= sq_tail + 1;
+        end else begin
+            // Default: clear one-cycle signals
+            cdb_req <= 1'b0;
+            
+            // ========================================================
+            // STEP 1: Allocation (highest priority - happens first)
+            // ========================================================
+            if (alloc_en) begin
+                if (is_load) begin
+                    lq[lq_tail].valid <= 1'b1;
+                    lq[lq_tail].dest_tag <= phys_rd;
+                    lq[lq_tail].rob_idx <= rob_idx;
+                    lq[lq_tail].base_tag <= base_addr_tag;
+                    lq[lq_tail].base_ready <= base_addr_ready;
+                    lq[lq_tail].base_val <= base_addr_value;
+                    lq[lq_tail].offset <= offset;
+                    lq[lq_tail].addr_valid <= 1'b0;
+                    lq[lq_tail].executing <= 1'b0;
+                    lq[lq_tail].exception <= 1'b0;
+                    lq_tail <= lq_tail + 1;
+                    
+                end else begin
+                    sq[sq_tail].valid <= 1'b1;
+                    sq[sq_tail].rob_idx <= rob_idx;
+                    sq[sq_tail].base_tag <= base_addr_tag;
+                    sq[sq_tail].base_ready <= base_addr_ready;
+                    sq[sq_tail].base_val <= base_addr_value;
+                    sq[sq_tail].data_tag <= store_data_tag;
+                    sq[sq_tail].data_ready <= store_data_ready;
+                    sq[sq_tail].data_val <= store_data_value;
+                    sq[sq_tail].offset <= offset;
+                    sq[sq_tail].addr_valid <= 1'b0;
+                    sq[sq_tail].committed <= 1'b0;
+                    sq[sq_tail].executing <= 1'b0;
+                    sq[sq_tail].exception <= 1'b0;
+                    sq_tail <= sq_tail + 1;
+                end
             end
-        end
-    end
-    
-    // ============================================================
-    // BLOCK 2: CDB Wakeup - Update Operands
-    // ============================================================
-    always_ff @(posedge clk) begin
-        if (!reset && !flush_pipeline) begin
-            // Wake up loads
+            
+            // ========================================================
+            // STEP 2: CDB Wakeup - Update operands
+            // ========================================================
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 if (lq[i].valid && !lq[i].base_ready) begin
                     for (int j = 0; j < 2; j++) begin
@@ -177,10 +200,8 @@ module lsu #(
                 end
             end
             
-            // Wake up stores
             for (int i = 0; i < SQ_ENTRIES; i++) begin
                 if (sq[i].valid) begin
-                    // Base address wakeup
                     if (!sq[i].base_ready) begin
                         for (int j = 0; j < 2; j++) begin
                             if (cdb_valid[j] && sq[i].base_tag == cdb_tag[j]) begin
@@ -190,7 +211,6 @@ module lsu #(
                         end
                     end
                     
-                    // Store data wakeup
                     if (!sq[i].data_ready) begin
                         for (int j = 0; j < 2; j++) begin
                             if (cdb_valid[j] && sq[i].data_tag == cdb_tag[j]) begin
@@ -201,17 +221,10 @@ module lsu #(
                     end
                 end
             end
-        end
-    end
-    
-    // ============================================================
-    // BLOCK 3: Address Computation
-    // ============================================================
-    always_ff @(posedge clk) begin
-        automatic logic [XLEN-1:0] calc_addr;
-        
-        if (!reset && !flush_pipeline) begin
-            // Compute load addresses
+            
+            // ========================================================
+            // STEP 3: Address Computation
+            // ========================================================
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 if (lq[i].valid && !lq[i].addr_valid && lq[i].base_ready) begin
                     calc_addr = lq[i].base_val + lq[i].offset;
@@ -221,7 +234,6 @@ module lsu #(
                 end
             end
             
-            // Compute store addresses
             for (int i = 0; i < SQ_ENTRIES; i++) begin
                 if (sq[i].valid && !sq[i].addr_valid && sq[i].base_ready) begin
                     calc_addr = sq[i].base_val + sq[i].offset;
@@ -230,14 +242,10 @@ module lsu #(
                     sq[i].exception <= (calc_addr[1:0] != 2'b00);
                 end
             end
-        end
-    end
-    
-    // ============================================================
-    // BLOCK 4: Mark Stores as Committed
-    // ============================================================
-    always_ff @(posedge clk) begin
-        if (!reset && !flush_pipeline) begin
+            
+            // ========================================================
+            // STEP 4: Mark Stores as Committed
+            // ========================================================
             for (int c = 0; c < COMMIT_W; c++) begin
                 if (commit_en[c] && commit_is_store[c]) begin
                     for (int i = 0; i < SQ_ENTRIES; i++) begin
@@ -247,64 +255,26 @@ module lsu #(
                     end
                 end
             end
-        end
-    end
-    
-    // ============================================================
-    // BLOCK 5: Load Execution (Priority 1)
-    // ============================================================
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            load_in_flight <= 1'b0;
-            load_in_flight_idx <= '0;
-            mem_req <= 1'b0;
-            mem_we <= 1'b0;
             
-        end else if (flush_pipeline) begin
-            load_in_flight <= 1'b0;
-            mem_req <= 1'b0;
+            // ========================================================
+            // STEP 5: Memory Operations
+            // ========================================================
             
-        end else begin
-            // Check if previous load completed
+            // Check if load completed
             if (load_in_flight && mem_ready && !mem_we) begin
                 lq[load_in_flight_idx].valid <= 1'b0;
                 lq_head <= lq_head + 1;
                 load_in_flight <= 1'b0;
                 mem_req <= 1'b0;
+                
+                // Broadcast result on CDB
+                cdb_req <= 1'b1;
+                cdb_req_tag <= lq[load_in_flight_idx].dest_tag;
+                cdb_req_value <= mem_rdata;
+                cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
             
-            // Issue new load if no load in flight
-            if (!load_in_flight && !store_in_flight) begin
-                for (int i = 0; i < LQ_ENTRIES; i++) begin
-                    automatic int idx = (lq_head + i) % LQ_ENTRIES;
-                    if (lq[idx].valid && lq[idx].addr_valid && 
-                        !lq[idx].executing && !lq[idx].exception) begin
-                        
-                        mem_req <= 1'b1;
-                        mem_we <= 1'b0;
-                        mem_addr <= lq[idx].addr;
-                        load_in_flight <= 1'b1;
-                        load_in_flight_idx <= idx[2:0];
-                        lq[idx].executing <= 1'b1;
-                        break;
-                    end
-                end
-            end
-        end
-    end
-    
-    // ============================================================
-    // BLOCK 6: Store Execution (Priority 2)
-    // ============================================================
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            store_in_flight <= 1'b0;
-            
-        end else if (flush_pipeline) begin
-            store_in_flight <= 1'b0;
-            
-        end else begin
-            // Check if previous store completed
+            // Check if store completed
             if (store_in_flight && mem_ready && mem_we) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr) begin
@@ -317,20 +287,40 @@ module lsu #(
                 mem_req <= 1'b0;
             end
             
-            // Issue new store if no operations in flight
+            // Issue new load (priority 1)
+            found_load = 1'b0;
             if (!load_in_flight && !store_in_flight) begin
+                for (int i = 0; i < LQ_ENTRIES; i++) begin
+                    lq_search_idx = (lq_head + i) % LQ_ENTRIES;
+                    if (lq[lq_search_idx].valid && lq[lq_search_idx].addr_valid && 
+                        !lq[lq_search_idx].executing && !lq[lq_search_idx].exception) begin
+                        
+                        mem_req <= 1'b1;
+                        mem_we <= 1'b0;
+                        mem_addr <= lq[lq_search_idx].addr;
+                        load_in_flight <= 1'b1;
+                        load_in_flight_idx <= lq_search_idx[2:0];
+                        lq[lq_search_idx].executing <= 1'b1;
+                        found_load = 1'b1;
+                        break;
+                    end
+                end
+            end
+            
+            // Issue new store (priority 2 - only if no load found)
+            if (!found_load && !load_in_flight && !store_in_flight) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
-                    automatic int idx = (sq_head + i) % SQ_ENTRIES;
-                    if (sq[idx].valid && sq[idx].committed &&
-                        sq[idx].addr_valid && sq[idx].data_ready &&
-                        !sq[idx].executing && !sq[idx].exception) begin
+                    sq_search_idx = (sq_head + i) % SQ_ENTRIES;
+                    if (sq[sq_search_idx].valid && sq[sq_search_idx].committed &&
+                        sq[sq_search_idx].addr_valid && sq[sq_search_idx].data_ready &&
+                        !sq[sq_search_idx].executing && !sq[sq_search_idx].exception) begin
                         
                         mem_req <= 1'b1;
                         mem_we <= 1'b1;
-                        mem_addr <= sq[idx].addr;
-                        mem_wdata <= sq[idx].data_val;
+                        mem_addr <= sq[sq_search_idx].addr;
+                        mem_wdata <= sq[sq_search_idx].data_val;
                         store_in_flight <= 1'b1;
-                        sq[idx].executing <= 1'b1;
+                        sq[sq_search_idx].executing <= 1'b1;
                         break;
                     end
                 end
@@ -339,33 +329,7 @@ module lsu #(
     end
     
     // ============================================================
-    // BLOCK 7: CDB Broadcast (Load Results)
-    // ============================================================
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            cdb_req <= 1'b0;
-            cdb_req_tag <= '0;
-            cdb_req_value <= '0;
-            cdb_req_exception <= 1'b0;
-            
-        end else if (flush_pipeline) begin
-            cdb_req <= 1'b0;
-            
-        end else begin
-            // Capture load result when memory returns data
-            if (load_in_flight && mem_ready && !mem_we) begin
-                cdb_req <= 1'b1;
-                cdb_req_tag <= lq[load_in_flight_idx].dest_tag;
-                cdb_req_value <= mem_rdata;
-                cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
-            end else begin
-                cdb_req <= 1'b0;
-            end
-        end
-    end
-    
-    // ============================================================
-    // Exception Handling
+    // Exception Handling (Combinational - separate from state)
     // ============================================================
     always_comb begin
         lsu_exception = 1'b0;
