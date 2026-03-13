@@ -306,5 +306,29 @@ module tb_ooo_core;
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
     end */
-
+always_ff @(posedge clk) begin
+        if (dut.lsu_alloc_en) begin
+            $display("[LSU_ALLOC] ld:%b addr_tag=p%0d addr_ready=%b addr_val=%h data_tag=p%0d data_ready=%b rob=%0d",
+                dut.lsu_is_load,
+                dut.lsu_base_tag,
+                dut.lsu_base_ready,
+                dut.lsu_base_value,
+                dut.lsu_store_data_tag,
+                dut.lsu_store_data_ready,
+                dut.lsu_rob_idx);
+        end
+        
+        if (dut.lsu_inst.mem_req) begin
+            $display("[LSU_MEM] we:%b addr=%h wdata=%h",
+                dut.lsu_inst.mem_we,
+                dut.lsu_inst.mem_addr,
+                dut.lsu_inst.mem_wdata);
+        end
+        
+        if (dut.lsu_inst.cdb_req) begin
+            $display("[LSU_CDB] tag=p%0d value=%h",
+                dut.lsu_inst.cdb_req_tag,
+                dut.lsu_inst.cdb_req_value);
+        end
+    end
 endmodule
