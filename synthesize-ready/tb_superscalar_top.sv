@@ -306,29 +306,74 @@ module tb_ooo_core;
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
     end */
+// Add this to your testbench
 always_ff @(posedge clk) begin
-        if (dut.lsu_alloc_en) begin
-            $display("[LSU_ALLOC] ld:%b addr_tag=p%0d addr_ready=%b addr_val=%h data_tag=p%0d data_ready=%b rob=%0d",
-                dut.lsu_is_load,
-                dut.lsu_base_tag,
-                dut.lsu_base_ready,
-                dut.lsu_base_value,
-                dut.lsu_store_data_tag,
-                dut.lsu_store_data_ready,
-                dut.lsu_rob_idx);
-        end
-        
-        if (dut.lsu_inst.mem_req) begin
-            $display("[LSU_MEM] we:%b addr=%h wdata=%h",
-                dut.lsu_inst.mem_we,
-                dut.lsu_inst.mem_addr,
-                dut.lsu_inst.mem_wdata);
-        end
-        
-        if (dut.lsu_inst.cdb_req) begin
-            $display("[LSU_CDB] tag=p%0d value=%h",
-                dut.lsu_inst.cdb_req_tag,
-                dut.lsu_inst.cdb_req_value);
-        end
-    end
+    $display("========== LSU SIGNALS ==========");
+    
+    // Allocation inputs
+    $display("[LSU_ALLOC] en=%b is_load=%b opcode=%h", 
+        dut.lsu_inst.alloc_en, 
+        dut.lsu_inst.is_load, 
+        dut.lsu_inst.opcode);
+    
+    $display("[LSU_ADDR] base_tag=p%0d base_ready=%b base_val=%h offset=%h", 
+        dut.lsu_inst.base_addr_tag,
+        dut.lsu_inst.base_addr_ready,
+        dut.lsu_inst.base_addr_value,
+        dut.lsu_inst.offset);
+    
+    $display("[LSU_DATA] store_tag=p%0d store_ready=%b store_val=%h",
+        dut.lsu_inst.store_data_tag,
+        dut.lsu_inst.store_data_ready,
+        dut.lsu_inst.store_data_value);
+    
+    $display("[LSU_ARCH] rs1=x%0d rs2=x%0d rd=x%0d phys_rd=p%0d rob=%0d",
+        dut.lsu_inst.arch_rs1,
+        dut.lsu_inst.arch_rs2,
+        dut.lsu_inst.arch_rd,
+        dut.lsu_inst.phys_rd,
+        dut.lsu_inst.rob_idx);
+    
+    // CDB output
+    $display("[LSU_CDB] req=%b tag=p%0d value=%h exception=%b",
+        dut.lsu_inst.cdb_req,
+        dut.lsu_inst.cdb_req_tag,
+        dut.lsu_inst.cdb_req_value,
+        dut.lsu_inst.cdb_req_exception);
+    
+    // ROB commit inputs
+    $display("[LSU_COMMIT] en=%b%b is_store=%b%b rob_idx=%0d,%0d",
+        dut.lsu_inst.commit_en[1],
+        dut.lsu_inst.commit_en[0],
+        dut.lsu_inst.commit_is_store[1],
+        dut.lsu_inst.commit_is_store[0],
+        dut.lsu_inst.commit_rob_idx[0],
+        dut.lsu_inst.commit_rob_idx[1]);
+    
+    // Memory interface
+    $display("[LSU_MEM] req=%b we=%b addr=%h wdata=%h ready=%b rdata=%h error=%b",
+        dut.lsu_inst.mem_req,
+        dut.lsu_inst.mem_we,
+        dut.lsu_inst.mem_addr,
+        dut.lsu_inst.mem_wdata,
+        dut.lsu_inst.mem_ready,
+        dut.lsu_inst.mem_rdata,
+        dut.lsu_inst.mem_error);
+    
+    // Exception
+    $display("[LSU_EXCEPT] exception=%b cause=%h",
+        dut.lsu_inst.lsu_exception,
+        dut.lsu_inst.lsu_exception_cause);
+    
+    // Internal state
+    $display("[LSU_STATE] lq_head=%0d lq_tail=%0d sq_head=%0d sq_tail=%0d load_flight=%b store_flight=%b",
+        dut.lsu_inst.lq_head,
+        dut.lsu_inst.lq_tail,
+        dut.lsu_inst.sq_head,
+        dut.lsu_inst.sq_tail,
+        dut.lsu_inst.load_in_flight,
+        dut.lsu_inst.store_in_flight);
+    
+    $display("=================================");
+end
 endmodule
