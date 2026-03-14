@@ -70,6 +70,7 @@ module data_scratchpad #(
             // atomic_old_val <= '0;
             mem_ready <= 1'b0;
             mem_rdata <= '0;
+            mem_error <= 1'b0;
             // Initialize memory to zeros
             for (int i = 0; i < (MEM_SIZE/4); i++) begin
                 mem[i] <= '0;
