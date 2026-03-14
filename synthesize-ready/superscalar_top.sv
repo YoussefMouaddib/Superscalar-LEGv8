@@ -687,7 +687,7 @@ module ooo_core_top (
         
         // CDB interface (for wakeup)
         .cdb_valid(cdb_valid),
-        .cdb_tag(cdb_rob_tag),       // Note: using rob_tag from CDB
+        .cdb_tag(cdb_tag),      
         .cdb_value(cdb_value),
         
         // CDB output
