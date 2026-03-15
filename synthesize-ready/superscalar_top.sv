@@ -103,6 +103,16 @@ module ooo_core_top (
     logic [1:0][5:0] cdb_tag, cdb_rob_tag;
     logic [1:0][31:0] cdb_value;
     
+    logic branch_result_valid;
+    logic [5:0] branch_result_tag;
+    logic [31:0] branch_result_value;
+    logic [5:0] branch_result_rob_tag;
+    logic branch_taken;
+    logic [31:0] branch_target_pc;
+    logic branch_mispredict;
+
+
+    
     // ============================================================
     // ROB/Commit
     // ============================================================
@@ -713,6 +723,38 @@ module ooo_core_top (
         .mem_rdata(mem_rdata),
         .mem_error(mem_error)
     );
+
+    // ============================================================
+    // Branch Execution Unit
+    // ============================================================
+    
+    branch_ex branch_inst (
+        .clk(clk),
+        .reset(reset),
+        .flush_pipeline(flush_pipeline),
+        
+        // From RS issue (lane 2 typically for branches)
+        .issue_valid(rs_issue_valid[2]),     // Assuming RS has 3+ issue ports
+        .issue_op(rs_issue_op[2]),
+        .issue_dst_tag(rs_issue_dst[2]),
+        .issue_src1_val(rs_issue_src1_val[2]),
+        .issue_src2_val(rs_issue_src2_val[2]),
+        .issue_pc(rs_issue_pc[2]),            // Need to add PC to RS entries
+        .issue_imm(rs_issue_imm[2]),          // Need to add IMM to RS entries
+        .issue_rob_tag(rs_issue_rob_tag[2]),
+        
+        // Outputs to CDB arbiter
+        .branch_result_valid(branch_result_valid),
+        .branch_result_tag(branch_result_tag),
+        .branch_result_value(branch_result_value),
+        .branch_result_rob_tag(branch_result_rob_tag),
+        
+        // Outputs to ROB/Fetch for mispredict handling
+        .branch_taken(branch_taken),
+        .branch_target_pc(branch_target_pc),
+        .branch_mispredict(branch_mispredict)
+    );
+    
     // ============================================================
     // DATA SCRATCHPAD
     // ============================================================
