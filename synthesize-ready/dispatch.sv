@@ -63,6 +63,8 @@ module dispatch #(
     output logic [FETCH_W-1:0]      rs_alloc_src1_ready,
     output logic [FETCH_W-1:0]      rs_alloc_src2_ready,
     output logic [FETCH_W-1:0][11:0] rs_alloc_op,
+    output logic [1:0][31:0] rs_alloc_pc,
+    output logic [1:0][31:0] rs_alloc_imm,
     output logic [FETCH_W-1:0][5:0] rs_alloc_rob_tag,
     input  logic                    rs_full,          // From RS
     
@@ -108,7 +110,8 @@ module dispatch #(
     // ============================================================
     input  logic [1:0]              cdb_valid,
     input  logic [1:0][PHYS_W-1:0]  cdb_tag,
-    input  logic [1:0][XLEN-1:0]    cdb_value
+    input  logic [1:0][XLEN-1:0]    cdb_value,
+    
 );
 
     // ============================================================
@@ -270,6 +273,8 @@ module dispatch #(
                 rs_alloc_src2_ready[i] = src2_ready[i];
                 rs_alloc_op[i] = {rename_opcode[i], rename_alu_func[i]};
                 rs_alloc_rob_tag[i] = rob_alloc_idx[i];
+                rs_alloc_pc[i] = rename_pc[i];    
+                rs_alloc_imm[i] = rename_imm[i]; 
             end
         end
     end
