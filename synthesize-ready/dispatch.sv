@@ -110,7 +110,7 @@ module dispatch #(
     // ============================================================
     input  logic [1:0]              cdb_valid,
     input  logic [1:0][PHYS_W-1:0]  cdb_tag,
-    input  logic [1:0][XLEN-1:0]    cdb_value,
+    input  logic [1:0][XLEN-1:0]    cdb_value
     
 );
 
