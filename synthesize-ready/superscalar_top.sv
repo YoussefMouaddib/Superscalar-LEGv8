@@ -170,6 +170,7 @@ module ooo_core_top (
     logic        lsu_base_ready;
     logic [31:0] lsu_base_value;
     logic [5:0]  lsu_store_data_tag;
+    logic [4:0] lsu_exception_cause;
     
     
     // ============================================================
@@ -740,7 +741,7 @@ module ooo_core_top (
         .flush_pipeline(flush_pipeline),
         
         // From RS issue (lane 2 typically for branches)
-        .issue_valid(issue_valid),     
+        .issue_valid(issue_valid[1]),     
         .issue_op(issue_op),
         .issue_dst_tag(issue_dst_tag),
         .issue_src1_val(issue_src1_val),
