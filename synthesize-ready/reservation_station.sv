@@ -24,6 +24,8 @@ module reservation_station #(
     input  logic [ISSUE_W-1:0]       alloc_src2_ready,
     input  logic [ISSUE_W-1:0][11:0]  alloc_op,
     input  logic [ISSUE_W-1:0][5:0]  alloc_rob_tag,
+    input  logic [ISSUE_W-1:0][31:0] alloc_pc,
+    input  logic [ISSUE_W-1:0][31:0] alloc_imm,
 
     // CDB broadcast
     input  logic [CDB_W-1:0]         cdb_valid,
@@ -36,7 +38,9 @@ module reservation_station #(
     output logic [ISSUE_W-1:0][PHYS_W-1:0] issue_dst_tag,
     output logic [ISSUE_W-1:0][31:0] issue_src1_val,
     output logic [ISSUE_W-1:0][31:0] issue_src2_val,
-    output logic [ISSUE_W-1:0][5:0]  issue_rob_tag
+    output logic [ISSUE_W-1:0][5:0]  issue_rob_tag,
+    output logic [ISSUE_W-1:0][31:0] issue_pc,
+    output logic [ISSUE_W-1:0][31:0] issue_imm
 );
 
     typedef struct packed {
@@ -51,6 +55,8 @@ module reservation_station #(
         logic [11:0] opcode;
         logic [5:0] rob_tag;
         logic [4:0] age;
+        logic [31:0] pc;      
+        logic [31:0] imm;
     } rs_entry_t;
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
@@ -62,6 +68,8 @@ module reservation_station #(
     logic [ISSUE_W-1:0][31:0] issue_src1_val_comb;
     logic [ISSUE_W-1:0][31:0] issue_src2_val_comb;
     logic [ISSUE_W-1:0][5:0]  issue_rob_tag_comb;
+    logic [ISSUE_W-1:0][31:0]  issue_pc_comb;
+    logic [ISSUE_W-1:0][31:0]  issue_imm_comb;
     
     // For clearing: capture what was actually issued
     logic [ISSUE_W-1:0][5:0]  issued_rob_tag_reg;
@@ -114,6 +122,9 @@ module reservation_station #(
                 issue_src1_val_comb[p] = oldest[p].src1_val;
                 issue_src2_val_comb[p] = oldest[p].src2_val;
                 issue_rob_tag_comb[p] = oldest[p].rob_tag;
+                issue_pc_comb[p] = oldest[p].pc;
+                issue_imm_comb[p] = oldest[p].imm;
+    
             end
         end
     end
@@ -161,6 +172,8 @@ module reservation_station #(
             issue_src1_val <= issue_src1_val_comb;
             issue_src2_val <= issue_src2_val_comb;
             issue_rob_tag <= issue_rob_tag_comb;
+            issue_pc <= issue_pc_comb;
+            issue_imm <= issue_imm_comb;
             
             // Capture rob tags for clearing next cycle
             for (p = 0; p < ISSUE_W; p++) begin
@@ -219,6 +232,8 @@ module reservation_station #(
                         rs_mem[current_slot].opcode <= alloc_op[a];
                         rs_mem[current_slot].rob_tag <= alloc_rob_tag[a];
                         rs_mem[current_slot].age <= 5'd0;
+                        rs_mem[current_slot].pc <= alloc_pc[a];
+                        rs_mem[current_slot].imm <= alloc_imm[a];
                         current_slot++;
                     end
                 end
