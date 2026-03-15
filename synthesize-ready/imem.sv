@@ -61,7 +61,7 @@ module inst_rom #(
         // CBZ X15, #-7 (if X15==0, branch back to rom[0])
         // Offset = -7 words → PC = PC + (-7*4) = PC - 28
         // Current PC = 0x1C, target = 0x00 → offset = -7
-        rom[7] <= {6'b011000, 5'd15, 19'h7FFF9, 2'b00}; // -7 in 19-bit signed
+        rom[7] <= {6'b011000, 5'd15, 19'sd(-7), 2'b00}; // -7 in 19-bit signed
         
         // ADDI X15, X15, #1 (increment loop counter, X15 becomes 1)
         rom[8] <= {6'b001000, 5'd15, 5'd15, 16'd1};
@@ -71,7 +71,7 @@ module inst_rom #(
         
         // B #40 (unconditional jump to rom[50])
         // Current PC = 0x28, target = 0xC8 (rom[50]) → offset = (0xC8-0x28)/4 = 40
-        rom[10] <= {6'b100000, 26'd40};
+            rom[10] <= {6'b100000, 26'sd40};
         
         // Fill NOPs from rom[11] to rom[49]
         for (int i = 11; i < 50; i++) begin
@@ -80,7 +80,7 @@ module inst_rom #(
         
         // B #-50 (unconditional jump back to rom[0])
         // Current PC = 0xC8, target = 0x00 → offset = (0x00-0xC8)/4 = -50
-        rom[50] <= {6'b100000, 26'h3FFFFCE}; // -50 in 26-bit signed (two's complement)
+        rom[50] <= {6'b100000, 26'sd(-50)}; // -50 in 26-bit signed (two's complement)
         
         // Fill remaining with NOPs
         for (int i = 51; i < 256; i++) begin
