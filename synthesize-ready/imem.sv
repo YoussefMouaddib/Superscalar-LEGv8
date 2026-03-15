@@ -35,27 +35,58 @@ module inst_rom #(
         if (reset) begin
             // Initialize with NOPs or your test program
             for (int i = 0; i < (ROM_SIZE/4); i++) begin
-                rom[i] <= '0;  // Default to NOP (opcode 111111)
+                rom[i] <= '0;  // Default to 0
             end
-
-            // ADDI X1, X0, #10 (0+10=10)
-            rom[0] <= {6'b001000, 5'd1, 5'd0, 16'd10};
-            rom[1] <= 32'b11111111111111111111111111111111;
-            // ADDI X2, X0, #5
-            // rom[1] <= {6'b001000, 5'd2, 5'd0, 16'd5};
-            // ADD X3, X9, X5 (4+4=8)
-            rom[2] <= {6'b000000, 5'd3, 5'd9, 5'd5, 5'd0, 6'b100000};
+        // ADDI X1, X0, #10 (0+10=10)
+        rom[0] <= {6'b001000, 5'd1, 5'd0, 16'd10};
+        
+        // SUBI X15, X15, #4 (4-4=0, sets loop counter to 0)
+        rom[1] <= {6'b001001, 5'd15, 5'd15, 16'd4};
+        
+        // ADD X3, X9, X5 (4+4=8)
+        rom[2] <= {6'b000000, 5'd3, 5'd9, 5'd5, 5'd0, 6'b100000};
+        
+        // SUBI X4, X3, #2 (8-2=6) with x3 dependency
+        rom[3] <= {6'b001001, 5'd4, 5'd3, 16'd2};
+        
+        // STR X2, [X4, #58] (fixed alignment: 6+58=64=0x40)
+        rom[4] <= {6'b010001, 5'd2, 5'd4, 16'd58};
+        
+        // NOP
+        rom[5] <= 32'hFFFFFFFF;
+        
+        // LDR X8, [X12, #12]
+        rom[6] <= {6'b010000, 5'd8, 5'd12, 16'd12};
+        
+        // CBZ X15, #-7 (if X15==0, branch back to rom[0])
+        // Offset = -7 words → PC = PC + (-7*4) = PC - 28
+        // Current PC = 0x1C, target = 0x00 → offset = -7
+        rom[7] <= {6'b011000, 5'd15, 19'h7FFF9, 2'b00}; // -7 in 19-bit signed
+        
+        // ADDI X15, X15, #1 (increment loop counter, X15 becomes 1)
+        rom[8] <= {6'b001000, 5'd15, 5'd15, 16'd1};
+        
+        // NOP
+        rom[9] <= 32'hFFFFFFFF;
+        
+        // B #40 (unconditional jump to rom[50])
+        // Current PC = 0x28, target = 0xC8 (rom[50]) → offset = (0xC8-0x28)/4 = 40
+        rom[10] <= {6'b100000, 26'd40};
+        
+        // Fill NOPs from rom[11] to rom[49]
+        for (int i = 11; i < 50; i++) begin
+            rom[i] <= 32'hFFFFFFFF;
+        end
+        
+        // B #-50 (unconditional jump back to rom[0])
+        // Current PC = 0xC8, target = 0x00 → offset = (0x00-0xC8)/4 = -50
+        rom[50] <= {6'b100000, 26'h3FFFFCE}; // -50 in 26-bit signed (two's complement)
+        
+        // Fill remaining with NOPs
+        for (int i = 51; i < 256; i++) begin
+            rom[i] <= 32'hFFFFFFFF;
+        end
             
-            // SUBI X4, X3, #2 (8-2=6) with x3 depency
-            rom[3] <= {6'b001001, 5'd4, 5'd3, 16'd2};
-            // STR X2, [X4, #60]
-            rom[4] <= {6'b010001, 5'd2, 5'd4, 16'd60};
-            rom[5] <= 32'b11111111111111111111111111111111;
-            // LDR X8, [X12, #12]
-            rom[6] <= {6'b010000, 5'd8, 5'd12, 16'd12};
-            // NOP (repeat)
-            for (int i=7; i<16; i++) rom[i] <= 32'b11111111111111111111111111111111;            
-
         end else if (prog_en) begin
             // Program ROM at runtime (for testbench loading)
             rom[prog_addr[XLEN-1:2]] <= prog_data;
@@ -112,3 +143,23 @@ module inst_rom #(
 
     // Note: Out-of-range accesses return 0 (could trap if needed)
 endmodule
+/*
+            // ADDI X1, X0, #10 (0+10=10)
+            rom[0] <= {6'b001000, 5'd1, 5'd0, 16'd10};
+            rom[1] <= 32'b11111111111111111111111111111111;
+            // ADDI X2, X0, #5
+            // rom[1] <= {6'b001000, 5'd2, 5'd0, 16'd5};
+            // ADD X3, X9, X5 (4+4=8)
+            rom[2] <= {6'b000000, 5'd3, 5'd9, 5'd5, 5'd0, 6'b100000};
+            
+            // SUBI X4, X3, #2 (8-2=6) with x3 depency
+            rom[3] <= {6'b001001, 5'd4, 5'd3, 16'd2};
+            // STR X2, [X4, #60] ram[62+6=68] = 4
+            rom[4] <= {6'b010001, 5'd2, 5'd4, 16'd62};
+            rom[5] <= 32'b11111111111111111111111111111111;
+            // LDR X8, [X12, #12] x8 = ram[12+4= 16] = 67
+            rom[6] <= {6'b010000, 5'd8, 5'd12, 16'd12};
+            // NOP (repeat)
+            for (int i=7; i<16; i++) rom[i] <= 32'b11111111111111111111111111111111;            
+
+*/
