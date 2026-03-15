@@ -70,7 +70,7 @@ module ooo_core_top (
     
     logic [1:0] rs_alloc_en;
     logic [1:0][5:0] rs_alloc_dst_tag, rs_alloc_src1_tag, rs_alloc_src2_tag, rs_alloc_rob_tag;
-    logic [1:0][31:0] rs_alloc_src1_val, rs_alloc_src2_val;
+    logic [1:0][31:0] rs_alloc_src1_val, rs_alloc_src2_val, rs_alloc_pc, rs_alloc_imm;
     logic [1:0] rs_alloc_src1_ready, rs_alloc_src2_ready;
     logic [1:0][11:0] rs_alloc_op;
     logic rs_full;
@@ -91,12 +91,12 @@ module ooo_core_top (
     logic lsu_store_data_ready;
     
     // ============================================================
-    // Execution
+    // ISSUE/Execution
     // ============================================================
     logic [1:0] issue_valid;
     logic [1:0][11:0] issue_op;
     logic [1:0][5:0] issue_dst_tag, issue_rob_tag;
-    logic [1:0][31:0] issue_src1_val, issue_src2_val;
+    logic [1:0][31:0] issue_src1_val, issue_src2_val, issue_pc, issue_imm;
     
     // CDB
     logic [1:0] cdb_valid;
@@ -359,6 +359,8 @@ module ooo_core_top (
         .rs_alloc_src1_ready(rs_alloc_src1_ready),
         .rs_alloc_src2_ready(rs_alloc_src2_ready),
         .rs_alloc_op(rs_alloc_op),
+        .rs_alloc_pc(rs_alloc_pc),
+        .rs_alloc_imm(rs_alloc_imm),
         .rs_alloc_rob_tag(rs_alloc_rob_tag),
         .rs_full(rs_full),
         .rob_alloc_en(rob_alloc_en),
@@ -409,6 +411,8 @@ module ooo_core_top (
         .alloc_src2_ready(rs_alloc_src2_ready),
         .alloc_op(rs_alloc_op),
         .alloc_rob_tag(rs_alloc_rob_tag),
+        .alloc_pc(rs_alloc_pc),
+        .alloc_imm(rs_alloc_imm),
         .cdb_valid(cdb_valid),
         .cdb_tag(cdb_tag),
         .cdb_value(cdb_value),
@@ -417,7 +421,9 @@ module ooo_core_top (
         .issue_dst_tag(issue_dst_tag),
         .issue_src1_val(issue_src1_val),
         .issue_src2_val(issue_src2_val),
-        .issue_rob_tag(issue_rob_tag)
+        .issue_rob_tag(issue_rob_tag),
+        .issue_pc(issue_pc),
+        .issue_imm(issue_imm)
     );
     
     assign rs_full = 1'b0; // Simplified
@@ -734,14 +740,14 @@ module ooo_core_top (
         .flush_pipeline(flush_pipeline),
         
         // From RS issue (lane 2 typically for branches)
-        .issue_valid(rs_issue_valid[2]),     // Assuming RS has 3+ issue ports
-        .issue_op(rs_issue_op[2]),
-        .issue_dst_tag(rs_issue_dst[2]),
-        .issue_src1_val(rs_issue_src1_val[2]),
-        .issue_src2_val(rs_issue_src2_val[2]),
-        .issue_pc(rs_issue_pc[2]),            // Need to add PC to RS entries
-        .issue_imm(rs_issue_imm[2]),          // Need to add IMM to RS entries
-        .issue_rob_tag(rs_issue_rob_tag[2]),
+        .issue_valid(issue_valid),     
+        .issue_op(issue_op),
+        .issue_dst_tag(issue_dst_tag),
+        .issue_src1_val(issue_src1_val),
+        .issue_src2_val(issue_src2_val),
+        .issue_pc(issue_pc),            
+        .issue_imm(issue_imm),          
+        .issue_rob_tag(issue_rob_tag),
         
         // Outputs to CDB arbiter
         .branch_result_valid(branch_result_valid),
