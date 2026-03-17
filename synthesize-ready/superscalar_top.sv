@@ -17,6 +17,8 @@ module ooo_core_top (
     
     logic [1:0] if_valid;
     logic [1:0][31:0] if_pc, if_instr;
+    logic flush_pipeline;
+    logic [5:0] flush_rob_idx;
     
     // ============================================================
     // Fetch ↔ Control
@@ -194,8 +196,7 @@ module ooo_core_top (
         .prog_data('0)
     );
     
-    // Demo program (loaded at reset in inst_rom)
-    // X1 = 10, X2 = 5, X3 = X1+X2, X4 = X1-X2, Store X3, Load back
+    
     
     // ============================================================
     // FETCH
@@ -203,12 +204,15 @@ module ooo_core_top (
     fetch fetch_inst (
         .clk(clk),
         .reset(reset),
+        .branch_taken(branch_taken),
+        .branch_target_pc(branch_target_pc),
+        .flush_pipeline(flush_pipeline),
         .fetch_en(fetch_en),
         .stall(fetch_stall),
         .redirect_en(redirect_en),
         .redirect_pc(redirect_pc),
         .flush_pipeline(flush_pipeline),
-        .flush_pc(flush_pc),
+        
         .bp_update_en(bp_update_en),
         .bp_update_pc(bp_update_pc),
         .bp_update_taken(bp_update_taken),
@@ -315,6 +319,9 @@ module ooo_core_top (
     // Stub connections (connect remaining modules similarly)
     assign redirect_en = 1'b0;
     assign redirect_pc = '0;
+    
+    assign flush_pipeline = branch_mispredict;
+    assign flush_rob_idx = branch_result_rob_tag; 
     
 // ============================================================
     // DISPATCH
@@ -561,7 +568,9 @@ module ooo_core_top (
         .rob_full(),
         .rob_almost_full(),
         .flush_en(1'b0),
-        .flush_ptr('0)
+        .flush_ptr('0),
+        .flush_pipeline(flush_pipeline),
+        .flush_rob_idx(flush_rob_idx)
     );
     
     // Mark ROB ready from CDB
