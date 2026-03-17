@@ -17,7 +17,7 @@ module ooo_core_top (
     
     logic [1:0] if_valid;
     logic [1:0][31:0] if_pc, if_instr;
-    logic flush_pipeline;
+    
     logic [5:0] flush_rob_idx;
     
     // ============================================================
