@@ -28,6 +28,7 @@ module ooo_core_top (
     logic redirect_en;
     logic [31:0] redirect_pc;
     logic flush_pipeline;
+    logic flush_exception;
     logic [31:0] flush_pc;
     
     // Branch predictor update
@@ -320,7 +321,8 @@ module ooo_core_top (
     assign redirect_en = 1'b0;
     assign redirect_pc = '0;
     
-    assign flush_pipeline = branch_mispredict;
+    
+    assign flush_pipeline = branch_mispredict || flush_exception;
     assign flush_rob_idx = branch_result_rob_tag; 
     
 // ============================================================
@@ -615,7 +617,7 @@ module ooo_core_top (
         .exception_cause(),
         .exception_pc(),
         .exception_tval(),
-        .flush_pipeline(flush_pipeline),
+        .flush_pipeline(flush_exception),
         .flush_pc(flush_pc),
         .lsu_commit_en(lsu_commit_en),
         .lsu_commit_is_store(lsu_commit_is_store),
