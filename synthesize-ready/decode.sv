@@ -147,7 +147,7 @@ module decode #(
                     end
 
                     // Conditional Branches
-                    6'b100010, 6'b100011: begin
+                    6'b011000, 6'b011001: begin
                         dec_rs1[i]       = instr[i][25:21];
                         dec_imm[i]       = {{11{instr[i][20]}}, instr[i][20:0], 2'b00};
 
@@ -169,7 +169,7 @@ module decode #(
                         
                     end
                 endcase
-                if (instr[i] == 32'hFFFFFFFF || instr[i] == 32'h00000000) begin
+                if (instr[i] == 32'h00000000) begin
                  dec_valid[i] = 1'b0;
                 end
             end
