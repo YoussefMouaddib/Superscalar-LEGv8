@@ -7,6 +7,10 @@ module fetch #(
 )(
     input  logic        clk,
     input  logic        reset,
+
+    input  logic        branch_taken,
+    input  logic [31:0] branch_target_pc,
+    input  logic        flush_pipeline, 
     
     input  logic        fetch_en,
     input  logic        stall,
