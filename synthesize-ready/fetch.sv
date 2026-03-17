@@ -17,9 +17,6 @@ module fetch #(
     input  logic        redirect_en,
     input  logic [XLEN-1:0] redirect_pc,
     
-    // Flush from commit (highest priority)
-    input  logic        flush_pipeline,
-    input  logic [XLEN-1:0] flush_pc,
     
     // Branch predictor update from commit
     input  logic        bp_update_en,
@@ -86,15 +83,15 @@ module fetch #(
     // ============================================================
     always_comb begin
         if (flush_pipeline) begin
-            pc_next = flush_pc;  // Highest priority: exception/flush
+            pc_next = branch_target_pc;  // Use branch_target_pc instead of flush_pc
         end else if (redirect_en) begin
-            pc_next = redirect_pc;  // Misprediction recovery
+            pc_next = redirect_pc;
         end else if (bp_predict_valid && bp_predict_taken && fetch_en && !stall) begin
-            pc_next = bp_predict_target;  // Follow prediction
+            pc_next = bp_predict_target;
         end else if (fetch_en && !stall) begin
-            pc_next = pc_reg + 32'd8;  // Sequential fetch (2-wide)
+            pc_next = pc_reg + 32'd8;
         end else begin
-            pc_next = pc_reg;  // Stall
+            pc_next = pc_reg;
         end
     end
     
