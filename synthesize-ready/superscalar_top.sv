@@ -18,7 +18,7 @@ module ooo_core_top (
     logic [1:0] if_valid;
     logic [1:0][31:0] if_pc, if_instr;
     
-    logic [5:0] flush_rob_idx;
+    logic [3:0] flush_rob_idx;
     
     // ============================================================
     // Fetch ↔ Control
@@ -206,7 +206,7 @@ module ooo_core_top (
         .reset(reset),
         .branch_taken(branch_taken),
         .branch_target_pc(branch_target_pc),
-        .flush_pipeline(flush_pipeline),
+        
         .fetch_en(fetch_en),
         .stall(fetch_stall),
         .redirect_en(redirect_en),
