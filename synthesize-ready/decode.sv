@@ -142,14 +142,14 @@ module decode #(
 
                     // Unconditional Branches
                     6'b100000, 6'b100001: begin
-                        dec_imm[i]       = {{6{instr[i][25]}}, instr[i][25:0], 2'b00};
+                        dec_imm[i]       = {{6{instr[i][25]}}, instr[i][25:0]};
                         dec_is_branch[i] = 1'b1;
                     end
 
                     // Conditional Branches
                     6'b011000, 6'b011001: begin
                         dec_rs1[i]       = instr[i][25:21];
-                        dec_imm[i]       = {{11{instr[i][20]}}, instr[i][20:0], 2'b00};
+                        dec_imm[i]       = {{11{instr[i][20]}}, instr[i][20:0]};
 
                         dec_rs1_valid[i] = 1'b1;
                         dec_is_branch[i] = 1'b1;
