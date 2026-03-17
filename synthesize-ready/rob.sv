@@ -65,7 +65,9 @@ module rob #(
   output logic                    rob_full,
   output logic                    rob_almost_full,
   input  logic                    flush_en,
-  input  logic [$clog2(ROB_SIZE)-1:0] flush_ptr
+  input  logic [$clog2(ROB_SIZE)-1:0] flush_ptr,
+  input  logic                    flush_pipeline,
+  input  logic [$clog2(ROB_SIZE)-1:0] flush_rob_idx
 );
 
   localparam int IDX_BITS = $clog2(ROB_SIZE);
@@ -152,8 +154,25 @@ module rob #(
       automatic int commit_slots;
       automatic int look_idx;
       automatic int k, j;
-      
-      if (flush_en) begin
+
+      if (flush_pipeline) begin
+          // Flush all entries AFTER flush_rob_idx (speculative instructions)
+          automatic int idx = (flush_rob_idx + 1) % ROB_SIZE;
+          automatic int count = 0;
+          
+          while (idx != tail && count < ROB_SIZE) begin
+              rob_mem[idx].valid <= 1'b0;
+              rob_mem[idx].ready <= 1'b0;
+              idx = (idx + 1) % ROB_SIZE;
+              count++;
+          end
+          
+          tail <= (flush_rob_idx + 1) % ROB_SIZE;
+          occupancy <= (flush_rob_idx >= head) ? 
+                       (flush_rob_idx - head + 1) : 
+                       (ROB_SIZE - head + flush_rob_idx + 1);
+                       
+      end else if (flush_en) begin
         head <= flush_ptr;
         tail <= flush_ptr;
         occupancy <= 0;
