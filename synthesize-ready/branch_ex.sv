@@ -25,6 +25,9 @@ module branch_ex #(
     output logic [PHYS_W-1:0]   branch_result_tag,
     output logic [XLEN-1:0]     branch_result_value,
     output logic [5:0]          branch_result_rob_tag,
+    output logic                branch_is_call,
+    output logic                branch_is_return,
+    
     
     // Branch control outputs
     output logic                branch_taken,
@@ -128,24 +131,32 @@ module branch_ex #(
                 6'b100000: begin
                     taken = 1'b1;
                     target_pc = active_pc + active_imm;
+                    is_call = 1'b0;      
+                    is_return = 1'b0;
                 end
                 
                 // BL - Branch and Link (opcode 0x21)
                 6'b100001: begin
                     taken = 1'b1;
                     target_pc = active_pc + active_imm;
+                    is_call = 1'b1;      
+                    is_return = 1'b0;
                 end
                 
                 // CBZ - Compare and Branch if Zero (opcode 0x18)
                 6'b011000: begin
                     taken = (active_src1_val == '0);
                     target_pc = active_pc + active_imm;
+                    is_call = 1'b0;
+                    is_return = 1'b0;
                 end
                 
                 // CBNZ - Compare and Branch if Non-Zero (opcode 0x19)
                 6'b011001: begin
                     taken = (active_src1_val != '0);
                     target_pc = active_pc + active_imm;
+                    is_call = 1'b0;
+                    is_return = 1'b0;
                 end
                 
                 // RET - Return (R-type opcode 0x00, func 0x38)
@@ -153,12 +164,16 @@ module branch_ex #(
                     if (func == 6'b111000) begin
                         taken = 1'b1;
                         target_pc = active_src1_val; // Return address from X30
+                        is_call = 1'b0;
+                        is_return = 1'b1;
                     end
                 end
                 
                 default: begin
                     taken = 1'b0;
                     target_pc = '0;
+                    is_call = 1'b0;
+                    is_return = 1'b0;
                 end
             endcase
         end
