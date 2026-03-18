@@ -134,8 +134,16 @@ module ooo_core_top (
     // ============================================================
     // Memory
     // ============================================================
-    logic mem_req, mem_we, mem_ready, mem_error;
-    logic [31:0] mem_addr, mem_wdata, mem_rdata;
+    logic mem_req, mem_we, mem_ready, mem_error, scratchpad_we;
+    logic [31:0] mem_addr, mem_wdata, mem_rdata, scratchpad_addr, scratchpad_wdata, scratchpad_rdata;
+
+    // ============================================================
+    // Uart
+    // ============================================================
+    logic        uart_read_en;
+    logic        uart_write_en;
+    logic [31:0] uart_read_data;
+    logic        uart_ready;
     
     // ============================================================
     // Physical Register File
@@ -174,6 +182,28 @@ module ooo_core_top (
     logic [31:0] lsu_base_value;
     logic [5:0]  lsu_store_data_tag;
     logic [4:0] lsu_exception_cause;
+
+     // ============================================================
+    // LSU -> (uart or scratchpad) logic
+    // ============================================================
+
+    // Address decoder logic
+    logic is_uart_access;
+    assign is_uart_access = (mem_addr >= 32'h00010000) && 
+                            (mem_addr <= 32'h0001000F);
+    
+    // Multiplex memory/UART signals
+    assign uart_read_en = is_uart_access && mem_req;
+    assign uart_write_en = is_uart_access && mem_we;
+    
+    // Connect scratchpad with address check
+    assign scratchpad_we = !is_uart_access && mem_we;
+    assign scratchpad_addr = mem_addr;
+    assign scratchpad_wdata = mem_wdata;
+    
+    // Multiplex read data back to LSU
+    assign mem_rdata = is_uart_access ? uart_read_data : scratchpad_rdata;
+
     
     
     // ============================================================
@@ -683,6 +713,7 @@ module ooo_core_top (
         .rdata1()
     );
     
+    
     // ============================================================
     // LSU
     // ============================================================
@@ -742,6 +773,21 @@ module ooo_core_top (
         .mem_error(mem_error)
     );
 
+    // ============================================================
+    // UART Sim Unit
+    // ============================================================
+    
+    uart_stub uart_inst (
+        .clk(clk),
+        .reset(reset),
+        .addr(mem_addr),
+        .read_en(uart_read_en),
+        .write_en(uart_write_en),
+        .write_data(mem_wdata),
+        .read_data(uart_read_data),
+        .ready(uart_ready)
+    );
+    
     // ============================================================
     // Branch Execution Unit
     // ============================================================
