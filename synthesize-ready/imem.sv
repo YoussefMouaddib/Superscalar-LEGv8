@@ -72,19 +72,22 @@ module inst_rom #(
         // B #40 (unconditional jump to rom[50])
         // Current PC = 0x28, target = 0xC8 (rom[50]) → offset = (0xC8-0x28)/4 = 40
             rom[10] <= {6'b100000, 26'sd40};
+        // Call a function
+        rom[15] <= {6'b100001, 26'sd10};  // BL #10 (call function at +40 bytes)
         
-        // Fill NOPs from rom[11] to rom[49]
-        for (int i = 11; i < 50; i++) begin
-            rom[i] <= 32'hFFFFFFFF;
-        end
+        // Function body
+        rom[25] <= {6'b001000, 5'd1, 5'd1, 16'd1};  // ADDI X1, X1, #1
         
+        // Return
+        rom[26] <= {6'b000000, 5'd0, 5'd30, 5'd0, 5'd0, 6'h38};  // RET (uses X30)
+                     
         // B #-50 (unconditional jump back to rom[0])
         // Current PC = 0xC8, target = 0x00 → offset = (0x00-0xC8)/4 = -50
             rom[50] <= {6'b100000, -26'sd50}; // -50 in 26-bit signed (two's complement)
         
         // Fill remaining with NOPs
         for (int i = 51; i < 256; i++) begin
-            rom[i] <= 32'hFFFFFFFF;
+            rom[i] <= 32'0;
         end
             
         end else if (prog_en) begin
