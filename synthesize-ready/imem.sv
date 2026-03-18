@@ -87,7 +87,7 @@ module inst_rom #(
         
         // Fill remaining with NOPs
         for (int i = 51; i < 256; i++) begin
-            rom[i] <= 32'0;
+            rom[i] <= 32'd0;
         end
             
         end else if (prog_en) begin
