@@ -766,8 +766,8 @@ module ooo_core_top (
         .branch_result_tag(branch_result_tag),
         .branch_result_value(branch_result_value),
         .branch_result_rob_tag(branch_result_rob_tag),
-        .branch_is_call(branch_outcome_is_call),
-        .branch_is_return(branch_outcome_is_return),
+        .is_call(branch_outcome_is_call),
+        .is_return(branch_outcome_is_return),
         
         // Outputs to ROB/Fetch for mispredict handling
         .branch_taken(branch_taken),
