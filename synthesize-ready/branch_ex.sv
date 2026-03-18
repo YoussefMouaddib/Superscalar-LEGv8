@@ -25,8 +25,8 @@ module branch_ex #(
     output logic [PHYS_W-1:0]   branch_result_tag,
     output logic [XLEN-1:0]     branch_result_value,
     output logic [5:0]          branch_result_rob_tag,
-    output logic                branch_is_call,
-    output logic                branch_is_return,
+    output logic                is_call,
+    output logic                is_return,
     
     
     // Branch control outputs
