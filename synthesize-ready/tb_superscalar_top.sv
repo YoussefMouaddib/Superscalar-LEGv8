@@ -207,11 +207,11 @@ module tb_ooo_core;
     end
     // In your testbench module, add these signals:
         logic [7:0] uart_tx_char;
-        assign uart_tx_char = top.uart_inst.tx_data_reg;
+        assign uart_tx_char = dut.uart_inst.tx_data_reg;
         
         // Monitor UART writes
         always @(posedge clk) begin
-            if (!reset && top.uart_write_en) begin
+            if (!reset && dut.uart_write_en) begin
                 // Display as both ASCII and hex
                 if (uart_tx_char >= 32 && uart_tx_char < 127) begin
                     $display("[UART TX] '%c' (0x%02h)", uart_tx_char, uart_tx_char);
@@ -228,7 +228,7 @@ module tb_ooo_core;
         // Accumulate the full message
         string uart_message = "";
         always @(posedge clk) begin
-            if (!reset && top.uart_write_en) begin
+            if (!reset && dut.uart_write_en) begin
                 if (uart_tx_char == 8'h0A) begin
                     // Line complete - print the full message
                     $display("\n========================================");
