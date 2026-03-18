@@ -19,7 +19,7 @@ module branch_predictor #(
     output logic                predict_valid,      // BTB hit
     
     // ============================================================
-    // Update (from Branch Execution Unit)
+    // Update (from commit stage)
     // ============================================================
     input  logic                update_en,
     input  logic [XLEN-1:0]     update_pc,
