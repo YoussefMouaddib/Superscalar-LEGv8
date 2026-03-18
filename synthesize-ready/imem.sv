@@ -34,9 +34,9 @@ module inst_rom #(
     always_ff @(posedge clk) begin
         if (reset) begin
             // Initialize with NOPs or your test program
-            /*for (int i = 0; i < (ROM_SIZE/4); i++) begin
+            for (int i = 0; i < (ROM_SIZE/4); i++) begin
                 rom[i] <= '0;  // Default to 0
-            end*/
+            end
 
         // UART Hello World Program
             rom['h00] <= 32'h20200001;  // ADDI X1, X0, #1
