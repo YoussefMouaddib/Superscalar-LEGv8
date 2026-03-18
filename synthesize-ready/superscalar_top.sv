@@ -113,8 +113,6 @@ module ooo_core_top (
     logic branch_taken;
     logic [31:0] branch_target_pc;
     logic branch_mispredict;
-
-
     
     // ============================================================
     // ROB/Commit
@@ -134,7 +132,7 @@ module ooo_core_top (
     // ============================================================
     // Memory
     // ============================================================
-    logic mem_req, mem_we, mem_ready, mem_error, scratchpad_we;
+    logic mem_req, mem_we, mem_ready, mem_error, scratchpad_we, scratchpad_ready;
     logic [31:0] mem_addr, mem_wdata, mem_rdata, scratchpad_addr, scratchpad_wdata, scratchpad_rdata;
 
     // ============================================================
@@ -203,6 +201,8 @@ module ooo_core_top (
     
     // Multiplex read data back to LSU
     assign mem_rdata = is_uart_access ? uart_read_data : scratchpad_rdata;
+    assign mem_ready = is_uart_access ? uart_ready : scratchpad_ready;
+    
 
     
     
@@ -827,15 +827,15 @@ module ooo_core_top (
     data_scratchpad dmem (
         .clk(clk),
         .reset(reset),
-        .mem_req(mem_req),
-        .mem_we(mem_we),
-        .mem_addr(mem_addr),
-        .mem_wdata(mem_wdata),
+        .mem_req(scratchpad_we || (mem_req && !is_uart_access && !mem_we)),
+        .mem_we(scratchpad_we),
+        .mem_addr(scratchpad_addr),
+        .mem_wdata(scratchpad_wdata),
         .mem_size(2'b10),
         .mem_atomic(1'b0),
         .mem_cmp_val('0),
-        .mem_ready(mem_ready),
-        .mem_rdata(mem_rdata),
+        .mem_ready(scratchpad_ready),
+        .mem_rdata(scratchpad_rdata),
         .mem_error(mem_error)
     );
 
