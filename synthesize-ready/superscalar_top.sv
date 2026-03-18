@@ -21,7 +21,7 @@ module ooo_core_top (
     logic [3:0] flush_rob_idx;
     
     // ============================================================
-    // Fetch ↔ Control
+    // Fetch ↔ Control + Branch *
     // ============================================================
     logic fetch_en;
     logic fetch_stall;
@@ -32,7 +32,7 @@ module ooo_core_top (
     logic [31:0] flush_pc;
     
     // Branch predictor update
-    logic bp_update_en;
+    logic bp_update_en, branch_is_call, branch_is_return;
     logic [31:0] bp_update_pc, bp_update_target;
     logic bp_update_taken, bp_update_is_branch, bp_update_is_call, bp_update_is_return;
     
