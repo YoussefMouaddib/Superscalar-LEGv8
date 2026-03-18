@@ -548,12 +548,12 @@ module ooo_core_top (
         .mark_ready_val1(1'b1),
         .mark_exception1(1'b0),
         
-        .branch_outcome_en(1'b0),
-        .branch_outcome_idx('0),
-        .branch_outcome_taken(1'b0),
-        .branch_outcome_target('0),
-        .branch_outcome_is_call(1'b0),
-        .branch_outcome_is_return(1'b0),
+        .branch_outcome_en(branch_result_valid),
+        .branch_outcome_idx(branch_result_rob_tag),
+        .branch_outcome_taken(branch_taken),
+        .branch_outcome_target(branch_target_pc),
+        .branch_outcome_is_call(branch_outcome_is_call),   
+        .branch_outcome_is_return(branch_outcome_is_return),
         .commit_valid(rob_commit_valid),
         .commit_arch_rd(rob_commit_arch_rd),
         .commit_phys_rd(rob_commit_phys_rd),
@@ -766,6 +766,8 @@ module ooo_core_top (
         .branch_result_tag(branch_result_tag),
         .branch_result_value(branch_result_value),
         .branch_result_rob_tag(branch_result_rob_tag),
+        .branch_is_call(branch_outcome_is_call),
+        .branch_is_return(branch_outcome_is_return),
         
         // Outputs to ROB/Fetch for mispredict handling
         .branch_taken(branch_taken),
