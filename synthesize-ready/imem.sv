@@ -96,11 +96,8 @@ module inst_rom #(
             rom['h2F] = 32'h80000000;  // B    done (infinite loop)
         end
             
-        end else if (prog_en) begin
-            // Program ROM at runtime (for testbench loading)
-            rom[prog_addr[XLEN-1:2]] <= prog_data;
-        end
-    end
+        
+
 
     // ============================================================
     //  Read Logic (1-cycle latency)
