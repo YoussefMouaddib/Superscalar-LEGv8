@@ -73,11 +73,6 @@ module rename_table #(
                 map_table[i]       <= 6'(i);  // Initial mapping: arch -> same phys
                 committed_table[i] <= 6'(i);
             end
-        end else if (flush_pipeline) begin
-            // On flush: restore speculative map from committed state
-            for (int i = 0; i < ARCH_REGS; i++) begin
-                map_table[i] <= committed_table[i];
-            end
         end else begin
             // ============================================================
             // Speculative Renames (multi-port, applied sequentially)
