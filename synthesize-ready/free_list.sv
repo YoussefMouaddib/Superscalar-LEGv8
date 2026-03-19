@@ -66,10 +66,10 @@ module free_list #(
         if (reset) begin
             // Physical regs 0-31 map to architectural regs (not in free pool)
             // Physical regs 32-47 are available for renaming
-            for (int i = 0; i < core_pkg::ARCH_REGS; i++) begin
+            for (int i = 0; i < 32 ; i++) begin
                 free_mask[i] <= 1'b0;
             end
-            for (int i = core_pkg::ARCH_REGS; i < PHYS_REGS; i++) begin
+            for (int i = 32; i < 64; i++) begin
                 free_mask[i] <= 1'b1;
             end
         end else begin
