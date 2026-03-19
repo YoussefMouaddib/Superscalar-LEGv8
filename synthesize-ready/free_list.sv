@@ -20,13 +20,13 @@ module free_list #(
 );
 
     // Internal bitmask: 1 = free, 0 = allocated
-    logic [PHYS_REGS-1:0] free_mask;
+    logic [63:0] free_mask;
 
     // ============================================================
     // COMBINATIONAL Allocation Logic
     // ============================================================
     always_comb begin
-        automatic logic [PHYS_REGS-1:0] temp_mask;
+        automatic logic [63:0] temp_mask;
         
         // Start with current free_mask state
         temp_mask = free_mask;
