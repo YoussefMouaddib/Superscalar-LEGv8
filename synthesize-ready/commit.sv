@@ -6,7 +6,7 @@ module commit_stage #(
     parameter int XLEN = core_pkg::XLEN,
     parameter int ARCH_REGS = core_pkg::ARCH_REGS,
     parameter int PHYS_W = core_pkg::LOG2_PREGS,
-    parameter int ROB_ENTRIES = core_pkg::ROB_ENTRIES
+    parameter int ROB_ENTRIES = 32
 )(
     input  logic                clk,
     input  logic                reset,
