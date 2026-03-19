@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module reservation_station #(
-    parameter int RS_ENTRIES  = 16,
+    parameter int RS_ENTRIES  = 32,
     parameter int ISSUE_W     = 2,
     parameter int CDB_W       = 2,
     parameter int PHYS_W      = 6
