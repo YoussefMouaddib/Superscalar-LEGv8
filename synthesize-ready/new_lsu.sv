@@ -135,7 +135,7 @@ module lsu #(
             cdb_req_value <= '0;
             cdb_req_exception <= 1'b0;
             
-        end else if (flush_pipeline) begin
+        end /*else if (flush_pipeline) begin
             // Clear speculative entries
             for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
             for (int i = 0; i < SQ_ENTRIES; i++) begin
@@ -144,12 +144,48 @@ module lsu #(
             lq_head <= '0;
             lq_tail <= '0;
             sq_tail <= sq_head;
-            load_in_flight <= 1'b0;
-            store_in_flight <= 1'b0;
-            mem_req <= 1'b0;
+            //load_in_flight <= 1'b0;
+            //store_in_flight <= 1'b0;
+            //mem_req <= 1'b0;
+            //cdb_req <= 1'b0;
+            end*/
+        else if (flush_pipeline) begin
+            // Clear speculative entries
+            for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
+            for (int i = 0; i < SQ_ENTRIES; i++) begin
+                if (!sq[i].committed) sq[i].valid <= 1'b0;
+            end
+        
+            // Update queue pointers
+            lq_head <= '0;
+            lq_tail <= '0;
+            sq_tail <= sq_head;
+        
+            // Cancel in-flight speculative load
+            if (load_in_flight) begin
+                // Check if the load entry was valid (it should be, but we can check its valid bit)
+                // Since all LQ entries are being cleared, we must cancel the load.
+                load_in_flight <= 1'b0;
+                mem_req <= 1'b0;
+                // Note: we don't clear mem_we because it's 0 for loads.
+            end
+        
+            // Cancel in-flight speculative store (if not committed)
+            if (store_in_flight) begin
+                // Find which store is in flight (store_in_flight_idx) and check its committed flag.
+                // If it's not committed, cancel it; otherwise leave it.
+                if (!sq[store_in_flight_idx].committed) begin
+                    store_in_flight <= 1'b0;
+                    mem_req <= 1'b0;
+                    mem_we <= 1'b0;
+                end
+                // If the store is committed, we leave store_in_flight and mem_req as is.
+            end
+        
+            // Always clear any pending CDB request (speculative)
             cdb_req <= 1'b0;
-            
-        end else begin
+        end
+        else begin
             // Default: clear one-cycle signals
             cdb_req <= 1'b0;
             
