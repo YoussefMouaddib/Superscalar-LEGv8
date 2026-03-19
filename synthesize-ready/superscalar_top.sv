@@ -18,7 +18,7 @@ module ooo_core_top (
     logic [1:0] if_valid;
     logic [1:0][31:0] if_pc, if_instr;
     
-    logic [3:0] flush_rob_idx;
+    logic [4:0] flush_rob_idx;
     
     // ============================================================
     // Fetch ↔ Control + Branch *
@@ -84,7 +84,7 @@ module ooo_core_top (
     logic [1:0] rob_alloc_is_store, rob_alloc_is_load, rob_alloc_is_branch;
     logic [1:0][31:0] rob_alloc_pc;
     logic rob_alloc_ok;
-    logic [1:0][3:0] rob_alloc_idx;
+    logic [1:0][4:0] rob_alloc_idx;
     
     logic lsu_alloc_en, lsu_is_load;
     logic [7:0] lsu_opcode;
@@ -109,7 +109,7 @@ module ooo_core_top (
     logic branch_result_valid;
     logic [5:0] branch_result_tag;
     logic [31:0] branch_result_value;
-    logic [5:0] branch_result_rob_tag;
+    logic [4:0] branch_result_rob_tag;
     logic branch_taken;
     logic [31:0] branch_target_pc;
     logic branch_mispredict;
@@ -120,14 +120,14 @@ module ooo_core_top (
     logic [1:0] rob_commit_valid, rob_commit_exception;
     logic [1:0][4:0] rob_commit_arch_rd;
     logic [1:0][5:0] rob_commit_phys_rd;
-    logic [1:0][3:0] rob_commit_rob_idx;
+    logic [1:0][4:0] rob_commit_rob_idx;
     logic [1:0] rob_commit_is_store, rob_commit_is_load, rob_commit_is_branch;
     logic [1:0][31:0] rob_commit_pc;
     logic [1:0] rob_commit_branch_taken;
     logic [1:0][31:0] rob_commit_branch_target;
     logic [1:0] rob_commit_branch_is_call, rob_commit_branch_is_return;
     logic mark_ready_en0, mark_ready_en1;
-    logic [3:0] mark_ready_idx0, mark_ready_idx1;
+    logic [4:0] mark_ready_idx0, mark_ready_idx1;
     
     // ============================================================
     // Memory
@@ -173,7 +173,7 @@ module ooo_core_top (
     logic [5:0] lsu_cdb_tag;
     logic [31:0] lsu_cdb_value;
     logic [1:0] lsu_commit_en, lsu_commit_is_store;
-    logic [1:0][3:0] lsu_commit_rob_idx;
+    logic [1:0][4:0] lsu_commit_rob_idx;
     // LSU allocation signals
     logic [5:0]  lsu_base_tag;
     logic        lsu_base_ready;
