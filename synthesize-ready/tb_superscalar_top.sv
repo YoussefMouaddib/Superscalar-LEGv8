@@ -211,9 +211,9 @@ module tb_ooo_core;
         
         // Monitor UART writes
         always @(posedge clk) begin
-            if (!reset && dut.uart_write_en) begin
+            if (!reset) begin
                 // Display as both ASCII and hex
-                if (uart_tx_char >= 32 && uart_tx_char < 127) begin
+                if (uart_tx_char) begin
                     $display("[UART TX] '%c' (0x%02h)", uart_tx_char, uart_tx_char);
                 end else if (uart_tx_char == 8'h0D) begin
                     $display("[UART TX] <CR> (0x%02h)", uart_tx_char);
@@ -228,7 +228,7 @@ module tb_ooo_core;
         // Accumulate the full message
         string uart_message = "";
         always @(posedge clk) begin
-            if (!reset && dut.uart_write_en) begin
+            if (!reset) begin
                 if (uart_tx_char == 8'h0A) begin
                     // Line complete - print the full message
                     $display("\n========================================");
