@@ -150,64 +150,66 @@ module lsu #(
             //cdb_req <= 1'b0;
             end*/
         else if (flush_pipeline) begin
-            // Clear speculative entries
-            for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
-                if (!sq[i].committed) sq[i].valid <= 1'b0;
-            end
-        
-            // Reset LQ pointers (all loads are speculative)
-            lq_head <= '0;
-            lq_tail <= '0;
-        
-            // Advance SQ head past invalid entries, but keep sq_tail
-            // We need to find the first valid committed entry
-            begin
-                automatic int new_head = sq_head;
-                automatic int entries_checked = 0;
-                
-                // Scan until we find a valid committed entry or wrap around
-                while (entries_checked < SQ_ENTRIES) begin
-                    if (sq[new_head].valid && sq[new_head].committed)
-                        break;
-                    new_head = (new_head + 1) % SQ_ENTRIES;
-                    entries_checked++;
+        // Clear speculative entries
+        for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
+        for (int i = 0; i < SQ_ENTRIES; i++) begin
+            if (!sq[i].committed) begin
+                sq[i].valid <= 1'b0;
+            end else begin
+                // For committed but not yet executed stores, reset ready flags
+                // so they wait for values to be re-broadcast after flush
+                if (!sq[i].executing) begin
+                    sq[i].base_ready <= 1'b0;
+                    sq[i].data_ready <= 1'b0;
+                    sq[i].addr_valid <= 1'b0;
                 end
-                sq_head <= new_head[3:0];
             end
-            // sq_tail remains unchanged - new allocations will fill from tail
-        
-            // Handle in-flight load (all loads are speculative - cancel)
-            if (load_in_flight) begin
-                load_in_flight <= 1'b0;
-                mem_req <= 1'b0;
-                // mem_we is already 0 for loads
-            end
-        
-            // Handle in-flight store - we need to check if ANY executing store is committed
-            if (store_in_flight) begin
-                automatic logic found_committed_executing = 1'b0;
-                
-                // Scan all store entries to find if any executing store is committed
-                for (int i = 0; i < SQ_ENTRIES; i++) begin
-                    if (sq[i].valid && sq[i].executing && sq[i].committed) begin
-                        found_committed_executing = 1'b1;
-                        break;
-                    end
-                end
-                
-                if (!found_committed_executing) begin
-                    // No committed store is executing - cancel the in-flight store
-                    store_in_flight <= 1'b0;
-                    mem_req <= 1'b0;
-                    mem_we <= 1'b0;
-                end
-                // If we found a committed executing store, leave it alone
-            end
-        
-            // Always clear any pending CDB request (speculative)
-            cdb_req <= 1'b0;
         end
+    
+        // Reset LQ pointers
+        lq_head <= '0;
+        lq_tail <= '0;
+    
+        // Keep sq_tail, but ensure sq_head points to first valid committed entry
+        begin
+            automatic int new_head = sq_head;
+            automatic int entries_checked = 0;
+            
+            while (entries_checked < SQ_ENTRIES) begin
+                if (sq[new_head].valid && sq[new_head].committed)
+                    break;
+                new_head = (new_head + 1) % SQ_ENTRIES;
+                entries_checked++;
+            end
+            sq_head <= new_head[3:0];
+        end
+    
+        // Handle in-flight load (cancel)
+        if (load_in_flight) begin
+            load_in_flight <= 1'b0;
+            mem_req <= 1'b0;
+        end
+    
+        // Handle in-flight store - preserve if committed
+        if (store_in_flight) begin
+            automatic logic found_committed_executing = 1'b0;
+            
+            for (int i = 0; i < SQ_ENTRIES; i++) begin
+                if (sq[i].valid && sq[i].executing && sq[i].committed) begin
+                    found_committed_executing = 1'b0;  // We want to cancel it to let it re-issue
+                    break;
+                end
+            end
+            
+            // Always cancel in-flight store during flush - it will re-issue
+            store_in_flight <= 1'b0;
+            mem_req <= 1'b0;
+            mem_we <= 1'b0;
+        end
+    
+        // Always clear any pending CDB request
+        cdb_req <= 1'b0;
+    end
         else begin
             // Default: clear one-cycle signals
             cdb_req <= 1'b0;
