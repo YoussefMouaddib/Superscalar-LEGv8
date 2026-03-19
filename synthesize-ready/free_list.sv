@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module free_list #(
-    parameter int PHYS_REGS = core_pkg::PREGS,
+    parameter int PHYS_REGS = 64,
     parameter int ALLOC_PORTS = 2,
     parameter int FREE_PORTS = 2
 )(
