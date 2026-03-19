@@ -344,8 +344,8 @@ module tb_ooo_core;
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
     end */
-// Add this to your testbench
-        always @(posedge clk) begin
+    // Add this to your testbench
+       /* always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
         // Use a small delay to ensure all signals have settled (optional)
         #1;
