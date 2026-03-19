@@ -349,6 +349,20 @@ module lsu #(
                 store_in_flight <= 1'b0;
                 mem_req <= 1'b0;
             end
+
+            // After store completion, scan for zombie entries
+            for (int i = 0; i < SQ_ENTRIES; i++) begin
+                // Detect: store that completed but wasn't freed
+                if (!sq[i].valid && sq[i].committed && sq[i].executing) begin
+                    // Clear the entry entirely
+                    sq[i] <= '{default: '0};
+                    
+                    // If this is the head, advance it
+                    if (i == sq_head) begin
+                        sq_head <= sq_head + 1;
+                    end
+                end
+            end
             
             // Issue new load (priority 1)
             found_load = 1'b0;
