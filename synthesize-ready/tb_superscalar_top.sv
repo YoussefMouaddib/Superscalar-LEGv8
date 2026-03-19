@@ -354,7 +354,7 @@ module tb_ooo_core;
         
         // Load Queue (LQ)
         $display("LQ (head=%0d, tail=%0d):", lsu_inst.lq_head, lsu_inst.lq_tail);
-        for (int i = 0; i < LQ_ENTRIES; i++) begin
+            for (int i = 0; i < 16; i++) begin
             if (lsu_inst.lq[i].valid) begin
                 $display("  LQ[%0d]: valid=1 dest_tag=p%0d rob=%0d base_tag=p%0d base_ready=%0d base_val=%h offset=%h addr_valid=%0d addr=%h executing=%0d exception=%0d",
                     i,
@@ -376,7 +376,7 @@ module tb_ooo_core;
         
         // Store Queue (SQ)
         $display("SQ (head=%0d, tail=%0d):", lsu_inst.sq_head, lsu_inst.sq_tail);
-        for (int i = 0; i < SQ_ENTRIES; i++) begin
+            for (int i = 0; i < 16; i++) begin
             if (lsu_inst.sq[i].valid) begin
                 $display("  SQ[%0d]: valid=1 rob=%0d base_tag=p%0d base_ready=%0d base_val=%h data_tag=p%0d data_ready=%0d data_val=%h offset=%h addr_valid=%0d addr=%h committed=%0d executing=%0d exception=%0d",
                     i,
