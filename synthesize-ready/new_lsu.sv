@@ -6,7 +6,7 @@ module lsu #(
     parameter int SQ_ENTRIES = 16,
     parameter int XLEN = 32,
     parameter int COMMIT_W = 2,
-    parameter int ROB_ENTRIES = 16
+    parameter int ROB_ENTRIES = 32
 )(
     input  logic        clk,
     input  logic        reset,
