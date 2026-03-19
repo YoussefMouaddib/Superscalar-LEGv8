@@ -609,10 +609,10 @@ module ooo_core_top (
     
     
     assign mark_ready_en0 = cdb_valid[0];
-    assign mark_ready_idx0 = cdb_rob_tag[0][3:0];
+    assign mark_ready_idx0 = cdb_rob_tag[0][4:0];
     
     assign mark_ready_en1 = cdb_valid[1];
-    assign mark_ready_idx1 = cdb_rob_tag[1][3:0];
+    assign mark_ready_idx1 = cdb_rob_tag[1][4:0];
     
     // ============================================================
     // COMMIT STAGE
