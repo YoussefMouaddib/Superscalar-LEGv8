@@ -345,7 +345,69 @@ module tb_ooo_core;
         $dumpvars(0, tb_ooo_core);
     end */
 // Add this to your testbench
-always_ff @(posedge clk) begin
+        always @(posedge clk) begin
+        // Print after the posedge to capture the state at the end of the cycle
+        // Use a small delay to ensure all signals have settled (optional)
+        #1;
+        
+        $display("========== CYCLE %0d LSU QUEUES ==========", cycle);
+        
+        // Load Queue (LQ)
+        $display("LQ (head=%0d, tail=%0d):", lsu_inst.lq_head, lsu_inst.lq_tail);
+        for (int i = 0; i < LQ_ENTRIES; i++) begin
+            if (lsu_inst.lq[i].valid) begin
+                $display("  LQ[%0d]: valid=1 dest_tag=p%0d rob=%0d base_tag=p%0d base_ready=%0d base_val=%h offset=%h addr_valid=%0d addr=%h executing=%0d exception=%0d",
+                    i,
+                    lsu_inst.lq[i].dest_tag,
+                    lsu_inst.lq[i].rob_idx,
+                    lsu_inst.lq[i].base_tag,
+                    lsu_inst.lq[i].base_ready,
+                    lsu_inst.lq[i].base_val,
+                    lsu_inst.lq[i].offset,
+                    lsu_inst.lq[i].addr_valid,
+                    lsu_inst.lq[i].addr,
+                    lsu_inst.lq[i].executing,
+                    lsu_inst.lq[i].exception
+                );
+            end else begin
+                $display("  LQ[%0d]: invalid", i);
+            end
+        end
+        
+        // Store Queue (SQ)
+        $display("SQ (head=%0d, tail=%0d):", lsu_inst.sq_head, lsu_inst.sq_tail);
+        for (int i = 0; i < SQ_ENTRIES; i++) begin
+            if (lsu_inst.sq[i].valid) begin
+                $display("  SQ[%0d]: valid=1 rob=%0d base_tag=p%0d base_ready=%0d base_val=%h data_tag=p%0d data_ready=%0d data_val=%h offset=%h addr_valid=%0d addr=%h committed=%0d executing=%0d exception=%0d",
+                    i,
+                    lsu_inst.sq[i].rob_idx,
+                    lsu_inst.sq[i].base_tag,
+                    lsu_inst.sq[i].base_ready,
+                    lsu_inst.sq[i].base_val,
+                    lsu_inst.sq[i].data_tag,
+                    lsu_inst.sq[i].data_ready,
+                    lsu_inst.sq[i].data_val,
+                    lsu_inst.sq[i].offset,
+                    lsu_inst.sq[i].addr_valid,
+                    lsu_inst.sq[i].addr,
+                    lsu_inst.sq[i].committed,
+                    lsu_inst.sq[i].executing,
+                    lsu_inst.sq[i].exception
+                );
+            end else begin
+                $display("  SQ[%0d]: invalid", i);
+            end
+        end
+        
+        $display("load_in_flight=%0d load_in_flight_idx=%0d store_in_flight=%0d",
+            lsu_inst.load_in_flight,
+            lsu_inst.load_in_flight_idx,
+            lsu_inst.store_in_flight
+        );
+        
+        $display("=========================================\n");
+    end
+/*always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
     // Allocation inputs
@@ -413,5 +475,5 @@ always_ff @(posedge clk) begin
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end
+end*/
 endmodule
