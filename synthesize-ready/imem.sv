@@ -42,8 +42,7 @@ module inst_rom #(
             rom['h00] <= 32'h20200001;  // ADDI X1, X0, #1
             rom['h01] <= 32'h20A00010;  // ADDI X5, X0, #16
             
-            // LSL X1, X1, X5
-            rom['h02] <= 32'h00010425;  
+            // LSL X1, X1, X5  
             rom['h02] <= 32'h00212800;  // CORRECT: LSL X1, X1, X5
             
             rom['h03] <= 32'h20410004;  // ADDI X2, X1, #4
