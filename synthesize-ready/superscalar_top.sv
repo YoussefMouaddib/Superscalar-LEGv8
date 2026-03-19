@@ -352,8 +352,8 @@ module ooo_core_top (
     assign redirect_pc = '0;
     
     
-    assign flush_pipeline = branch_mispredict || flush_exception;
-    assign flush_rob_idx = branch_result_rob_tag; 
+    //assign flush_pipeline = branch_mispredict || flush_exception;
+    //assign flush_rob_idx = branch_result_rob_tag; 
     
 // ============================================================
     // DISPATCH
