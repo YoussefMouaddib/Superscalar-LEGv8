@@ -353,21 +353,21 @@ module tb_ooo_core;
         $display("========== CYCLE %0d LSU QUEUES ==========", cycle);
         
         // Load Queue (LQ)
-        $display("LQ (head=%0d, tail=%0d):", lsu_inst.lq_head, lsu_inst.lq_tail);
+            $display("LQ (head=%0d, tail=%0d):", dut.lsu_inst.lq_head, dut.lsu_inst.lq_tail);
             for (int i = 0; i < 16; i++) begin
-            if (lsu_inst.lq[i].valid) begin
+                if (dut.lsu_inst.lq[i].valid) begin
                 $display("  LQ[%0d]: valid=1 dest_tag=p%0d rob=%0d base_tag=p%0d base_ready=%0d base_val=%h offset=%h addr_valid=%0d addr=%h executing=%0d exception=%0d",
                     i,
-                    lsu_inst.lq[i].dest_tag,
-                    lsu_inst.lq[i].rob_idx,
-                    lsu_inst.lq[i].base_tag,
-                    lsu_inst.lq[i].base_ready,
-                    lsu_inst.lq[i].base_val,
-                    lsu_inst.lq[i].offset,
-                    lsu_inst.lq[i].addr_valid,
-                    lsu_inst.lq[i].addr,
-                    lsu_inst.lq[i].executing,
-                    lsu_inst.lq[i].exception
+                    dut.lsu_inst.lq[i].dest_tag,
+                    dut.lsu_inst.lq[i].rob_idx,
+                    dut.lsu_inst.lq[i].base_tag,
+                    dut.lsu_inst.lq[i].base_ready,
+                    dut.lsu_inst.lq[i].base_val,
+                    dut.lsu_inst.lq[i].offset,
+                    dut.lsu_inst.lq[i].addr_valid,
+                    dut.lsu_inst.lq[i].addr,
+                    dut.lsu_inst.lq[i].executing,
+                    dut.lsu_inst.lq[i].exception
                 );
             end else begin
                 $display("  LQ[%0d]: invalid", i);
@@ -375,24 +375,24 @@ module tb_ooo_core;
         end
         
         // Store Queue (SQ)
-        $display("SQ (head=%0d, tail=%0d):", lsu_inst.sq_head, lsu_inst.sq_tail);
+            $display("SQ (head=%0d, tail=%0d):", dut.lsu_inst.sq_head, dut.lsu_inst.sq_tail);
             for (int i = 0; i < 16; i++) begin
-            if (lsu_inst.sq[i].valid) begin
+                if (dut.lsu_inst.sq[i].valid) begin
                 $display("  SQ[%0d]: valid=1 rob=%0d base_tag=p%0d base_ready=%0d base_val=%h data_tag=p%0d data_ready=%0d data_val=%h offset=%h addr_valid=%0d addr=%h committed=%0d executing=%0d exception=%0d",
                     i,
-                    lsu_inst.sq[i].rob_idx,
-                    lsu_inst.sq[i].base_tag,
-                    lsu_inst.sq[i].base_ready,
-                    lsu_inst.sq[i].base_val,
-                    lsu_inst.sq[i].data_tag,
-                    lsu_inst.sq[i].data_ready,
-                    lsu_inst.sq[i].data_val,
-                    lsu_inst.sq[i].offset,
-                    lsu_inst.sq[i].addr_valid,
-                    lsu_inst.sq[i].addr,
-                    lsu_inst.sq[i].committed,
-                    lsu_inst.sq[i].executing,
-                    lsu_inst.sq[i].exception
+                    dut.lsu_inst.sq[i].rob_idx,
+                    dut.lsu_inst.sq[i].base_tag,
+                    dut.lsu_inst.sq[i].base_ready,
+                    dut.lsu_inst.sq[i].base_val,
+                    dut.lsu_inst.sq[i].data_tag,
+                    dut.lsu_inst.sq[i].data_ready,
+                    dut.lsu_inst.sq[i].data_val,
+                    dut.lsu_inst.sq[i].offset,
+                    dut.lsu_inst.sq[i].addr_valid,
+                    dut.lsu_inst.sq[i].addr,
+                    dut.lsu_inst.sq[i].committed,
+                    dut.lsu_inst.sq[i].executing,
+                    dut.lsu_inst.sq[i].exception
                 );
             end else begin
                 $display("  SQ[%0d]: invalid", i);
@@ -400,9 +400,9 @@ module tb_ooo_core;
         end
         
         $display("load_in_flight=%0d load_in_flight_idx=%0d store_in_flight=%0d",
-            lsu_inst.load_in_flight,
-            lsu_inst.load_in_flight_idx,
-            lsu_inst.store_in_flight
+            dut.lsu_inst.load_in_flight,
+            dut.lsu_inst.load_in_flight_idx,
+            dut.lsu_inst.store_in_flight
         );
         
         $display("=========================================\n");
