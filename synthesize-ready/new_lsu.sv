@@ -2,8 +2,8 @@
 import core_pkg::*;
 
 module lsu #(
-    parameter int LQ_ENTRIES = 8,
-    parameter int SQ_ENTRIES = 8,
+    parameter int LQ_ENTRIES = 16,
+    parameter int SQ_ENTRIES = 16,
     parameter int XLEN = 32,
     parameter int COMMIT_W = 2,
     parameter int ROB_ENTRIES = 16
@@ -95,12 +95,12 @@ module lsu #(
     lq_entry_t [LQ_ENTRIES-1:0] lq;
     sq_entry_t [SQ_ENTRIES-1:0] sq;
     
-    logic [2:0] lq_head, lq_tail;
-    logic [2:0] sq_head, sq_tail;
+    logic [3:0] lq_head, lq_tail;
+    logic [3:0] sq_head, sq_tail;
     
     // Memory operation tracking
     logic load_in_flight;
-    logic [2:0] load_in_flight_idx;
+    logic [3:0] load_in_flight_idx;
     logic store_in_flight;
     
 
