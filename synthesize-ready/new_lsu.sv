@@ -156,30 +156,53 @@ module lsu #(
                 if (!sq[i].committed) sq[i].valid <= 1'b0;
             end
         
-            // Update queue pointers
+            // Reset LQ pointers (all loads are speculative)
             lq_head <= '0;
             lq_tail <= '0;
-            sq_tail <= sq_head;
         
-            // Cancel in-flight speculative load
+            // Advance SQ head past invalid entries, but keep sq_tail
+            // We need to find the first valid committed entry
+            begin
+                automatic int new_head = sq_head;
+                automatic int entries_checked = 0;
+                
+                // Scan until we find a valid committed entry or wrap around
+                while (entries_checked < SQ_ENTRIES) begin
+                    if (sq[new_head].valid && sq[new_head].committed)
+                        break;
+                    new_head = (new_head + 1) % SQ_ENTRIES;
+                    entries_checked++;
+                end
+                sq_head <= new_head[3:0];
+            end
+            // sq_tail remains unchanged - new allocations will fill from tail
+        
+            // Handle in-flight load (all loads are speculative - cancel)
             if (load_in_flight) begin
-                // Check if the load entry was valid (it should be, but we can check its valid bit)
-                // Since all LQ entries are being cleared, we must cancel the load.
                 load_in_flight <= 1'b0;
                 mem_req <= 1'b0;
-                // Note: we don't clear mem_we because it's 0 for loads.
+                // mem_we is already 0 for loads
             end
         
-            // Cancel in-flight speculative store (if not committed)
+            // Handle in-flight store - we need to check if ANY executing store is committed
             if (store_in_flight) begin
-                // Find which store is in flight (store_in_flight_idx) and check its committed flag.
-                // If it's not committed, cancel it; otherwise leave it.
-                if (!sq[store_in_flight_idx].committed) begin
+                automatic logic found_committed_executing = 1'b0;
+                
+                // Scan all store entries to find if any executing store is committed
+                for (int i = 0; i < SQ_ENTRIES; i++) begin
+                    if (sq[i].valid && sq[i].executing && sq[i].committed) begin
+                        found_committed_executing = 1'b1;
+                        break;
+                    end
+                end
+                
+                if (!found_committed_executing) begin
+                    // No committed store is executing - cancel the in-flight store
                     store_in_flight <= 1'b0;
                     mem_req <= 1'b0;
                     mem_we <= 1'b0;
                 end
-                // If the store is committed, we leave store_in_flight and mem_req as is.
+                // If we found a committed executing store, leave it alone
             end
         
             // Always clear any pending CDB request (speculative)
