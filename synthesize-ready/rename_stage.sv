@@ -4,7 +4,7 @@ import core_pkg::*;
 module rename_stage #(
     parameter int FETCH_W = 2,
     parameter int ARCH_REGS = 32,
-    parameter int PHYS_REGS = 48
+    parameter int PHYS_REGS = 64
 )(
     input  logic                    clk,
     input  logic                    reset,
