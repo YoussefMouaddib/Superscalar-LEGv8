@@ -345,7 +345,7 @@ module tb_ooo_core;
         $dumpvars(0, tb_ooo_core);
     end */
 // Add this to your testbench
-/*always_ff @(posedge clk) begin
+always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
     // Allocation inputs
@@ -413,5 +413,5 @@ module tb_ooo_core;
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end*/
+end
 endmodule
