@@ -53,7 +53,7 @@ module regfile_synth #(
     if (reset) begin
       // initialize regs to four
       for (int i = 0; i < PREGS; i++) begin
-        regs[i] <= 4;
+        regs[i] <= 0;
       end
     end else begin
       // write port 0 has priority if both write same tag
