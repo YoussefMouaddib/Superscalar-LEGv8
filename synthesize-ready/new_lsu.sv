@@ -102,11 +102,7 @@ module lsu #(
     logic load_in_flight;
     logic [2:0] load_in_flight_idx;
     logic store_in_flight;
-    logic is_uart_access;
-    logic is_scratchpad_access;
-
-    assign is_uart_access = (mem_addr >= 32'h00010000) && (mem_addr <= 32'h0001000F);
-    assign is_scratchpad_access = (mem_addr >= 32'h00002000) && (mem_addr <= 32'h00002FFF);
+    
 
 
     // ============================================================
