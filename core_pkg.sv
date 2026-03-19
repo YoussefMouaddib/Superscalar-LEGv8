@@ -5,10 +5,10 @@ package core_pkg;
   // --- Datapath widths
   parameter int XLEN        = 32;   // data/register width
   parameter int ARCH_REGS   = 32;   // architectural registers (x0..x31)
-  parameter int PREGS       = 48;   // physical register count (PRF)
-  parameter int ROB_ENTRIES = 16;   // reorder buffer entries
-  parameter int IQ_ENTRIES  = 16;   // issue queue / window entries
-  parameter int LSQ_ENTRIES = 16;   // load/store queue total
+  parameter int PREGS       = 64;   // physical register count (PRF)
+  parameter int ROB_ENTRIES = 32;   // reorder buffer entries
+  parameter int IQ_ENTRIES  = 32;   // issue queue / window entries
+  parameter int LSQ_ENTRIES = 32;   // load/store queue total
   parameter int FETCH_WIDTH = 2;    // fetch bundle width
   parameter int ISSUE_WIDTH = 2;    // issue width
 
