@@ -196,7 +196,7 @@ module ooo_core_top (
     
     // Connect scratchpad with address check
     assign scratchpad_we = !is_uart_access && mem_we;
-    assign scratchpad_addr = mem_addr;
+    assign scratchpad_addr = mem_addr - 32'h00002000;
     assign scratchpad_wdata = mem_wdata;
     
     // Multiplex read data back to LSU
