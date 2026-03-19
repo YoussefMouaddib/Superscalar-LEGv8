@@ -46,7 +46,7 @@ module regfile_synth #(
 );
 
   // storage: simple flop array [0:PREGS-1]
-  logic [XLEN-1:0] regs [0:PREGS-1];
+  logic [XLEN-1:0] regs [0:63];
   
   // synchronous writes
   always_ff @(posedge clk or posedge reset) begin
