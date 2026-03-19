@@ -5,8 +5,8 @@ module dispatch #(
     parameter int FETCH_W = core_pkg::FETCH_WIDTH,
     parameter int XLEN = core_pkg::XLEN,
     parameter int PHYS_W = core_pkg::LOG2_PREGS,
-    parameter int RS_ENTRIES = 16,
-    parameter int ROB_ENTRIES = core_pkg::ROB_ENTRIES
+    parameter int RS_ENTRIES = 32,
+    parameter int ROB_ENTRIES = 32
 )(
     input  logic                    clk,
     input  logic                    reset,
