@@ -351,9 +351,9 @@ module ooo_core_top (
     assign redirect_en = 1'b0;
     assign redirect_pc = '0;
     
-    
+    assign flush_pipeline = '0;
     //assign flush_pipeline = branch_mispredict || flush_exception;
-    //assign flush_rob_idx = branch_result_rob_tag; 
+    assign flush_rob_idx = branch_result_rob_tag; 
     
 // ============================================================
     // DISPATCH
