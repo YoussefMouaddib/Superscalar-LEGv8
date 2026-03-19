@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module rob #(
-  parameter int ROB_SIZE = 32
+  parameter int ROB_SIZE = 16
 )(
   input  logic                    clk,
   input  logic                    reset,
