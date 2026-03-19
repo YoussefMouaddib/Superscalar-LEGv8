@@ -52,7 +52,7 @@ module inst_rom #(
             rom['h06] <= 32'h20A0000C;  // ADDI X5, X0, #12
             
             // LSL X9, X9, X5
-            rom['h07] <= 32'h01B02800;  // CORRECT: LSL X9, X9, X5
+            rom['h07] <= 32'h01292800;
             
             // Rest of the program (all STR instructions use X9 as base)
             rom['h08] <= 32'h20C00048;  // ADDI X6, X0, #72
