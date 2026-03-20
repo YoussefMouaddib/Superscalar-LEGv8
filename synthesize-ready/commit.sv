@@ -87,11 +87,16 @@ module commit_stage #(
     output logic                        bp_update_is_return,
     
     // ============================================================
-    // Performance Counters
+    // Perf Counters
     // ============================================================
     output logic [63:0]                 perf_insns_committed,
     output logic [63:0]                 perf_cycles,
-    output logic [63:0]                 perf_exceptions
+    output logic [63:0]                 perf_exceptions,
+    // ============================================================
+    // Wait to commit if lsu base is using the preg
+    // ============================================================
+    input logic [5:0]                   lsu_base_tag,
+    input logic                         lsu_base_ready
 );
 
     // ============================================================
@@ -187,7 +192,7 @@ module commit_stage #(
                 automatic int branch_commit_idx = -1;
                 
                 for (int i = 0; i < COMMIT_W; i++) begin
-                    if (rob_commit_valid[i]) begin
+                    if (rob_commit_valid[i] && !(rob_commit_arch_rd[i] = lsu_base_tag && lsu_base_ready)) begin
                         // ============================================================
                         // Update Architectural Register File (ARF)
                         // ============================================================
