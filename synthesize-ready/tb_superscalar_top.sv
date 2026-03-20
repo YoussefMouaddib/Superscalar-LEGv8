@@ -270,12 +270,12 @@ module tb_ooo_core;
             end
         end
     end
-    
+    */
     // ============================================================
     // ROB Table Display (every 10 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 2 == 0)) begin
+        if (!reset ) begin
             $display("\n===== ROB TABLE (Cycle %0d) =====", cycle);
             $display("Idx | V | R | ARD | PRD | PC       | LD | ST | BR | Exception");
             $display("----|---|---|-----|-----|----------|----|----|----|-----------");
@@ -306,7 +306,7 @@ module tb_ooo_core;
                 dut.mem_ready, dut.mem_rdata);
         end
     end
-    
+    /*
     // ============================================================
     // ARF Display (every 50 cycles)
     // ============================================================
@@ -343,7 +343,7 @@ module tb_ooo_core;
     initial begin
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
-    end */
+    end 
     // Add this to your testbench
         always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
