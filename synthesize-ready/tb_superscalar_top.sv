@@ -270,7 +270,7 @@ module tb_ooo_core;
             end
         end
     end
-    */
+    
     // ============================================================
     // ROB Table Display (every 10 cycles)
     // ============================================================
@@ -344,8 +344,8 @@ module tb_ooo_core;
     initial begin
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
-    end 
-    // Add this to your testbench
+    end */
+    
         always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
         // Use a small delay to ensure all signals have settled (optional)
