@@ -89,17 +89,17 @@ module inst_rom #(
             rom['h28] <= 32'h20690000;  // ADDI X3, X9, #0
             
             // send_string loop
-            //rom['h29] <= 32'h40830000;  // LDR X4, [X3, #0]
-            //rom['h2A] <= 32'h6080001B;  // CBZ X4, done (PC+27 words)
+            rom['h29] <= 32'h40830000;  // LDR X4, [X3, #0]
+            rom['h2A] <= 32'h6080001B;  // CBZ X4, done (PC+27 words)
             
             // wait_tx loop
-            //rom['h2B] <= 32'h40C20000;  // LDR X6, [X2, #0]
-            //rom['h2C] <= 32'h00C62824;  // AND X6, X6, X6 (mask with itself? needs X5)
-            //rom['h2D] <= 32'h64DFFFFE;  // CBNZ X6, wait_tx (PC-8)
+            rom['h2B] <= 32'h40C20000;  // LDR X6, [X2, #0]
+            rom['h2C] <= 32'h00C62824;  // AND X6, X6, X6 (mask with itself? needs X5)
+            rom['h2D] <= 32'h64DFFFFE;  // CBNZ X6, wait_tx (PC-8)
             
-            //rom['h2E] <= 32'h44810000;  // STR X4, [X1, #0]
-            //rom['h2F] <= 32'h20630004;  // ADDI X3, X3, #4
-            //rom['h30] <= 32'h83FFFFF6;  // B send_string (PC-40)
+            rom['h2E] <= 32'h44810000;  // STR X4, [X1, #0]
+            rom['h2F] <= 32'h20630004;  // ADDI X3, X3, #4
+            rom['h30] <= 32'h83FFFFF6;  // B send_string (PC-40)
             
             // done
             //rom['h31] <= 32'h80000000;  // B done
