@@ -144,18 +144,24 @@ module dispatch #(
         end
     end
 
-    always_ff @(posedge clk or posedge reset) begin
+    always_ff @(posedge clk) begin
         if (reset || flush_pipeline) begin
             cached_valid <= 1'b0;
-            cached_base_tag <= '0;
-            cached_base_value <= '0;
-            cached_base_ready <= '0;
-        end else if (lsu_alloc_en) begin
-            // Cache the values we just dispatched
-            cached_valid <= 1'b1;
-            cached_base_tag <= lsu_base_tag;
-            cached_base_value <= lsu_base_value;
-            cached_base_ready <= lsu_base_ready;
+        end else begin
+            // Cache new dispatch
+            if (lsu_alloc_en) begin
+                cached_valid <= 1'b1;
+                cached_base_tag <= lsu_base_tag;
+                cached_base_value <= lsu_base_value;
+                cached_base_ready <= lsu_base_ready;
+            end
+            
+            // Invalidate cache if the tag gets committed (freed)
+            for (int c = 0; c < COMMIT_WIDTH; c++) begin
+                if (commit_valid[c] && commit_phys_rd[c] == cached_base_tag) begin
+                    cached_valid <= 1'b0;  // Force PRF read next time
+                end
+            end
         end
     end
     
