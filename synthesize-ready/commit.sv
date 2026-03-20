@@ -192,7 +192,7 @@ module commit_stage #(
                 automatic int branch_commit_idx = -1;
                 
                 for (int i = 0; i < COMMIT_W; i++) begin
-                    if (rob_commit_valid[i] && !(rob_commit_arch_rd[i] == lsu_base_tag && lsu_base_ready)) begin
+                    if (rob_commit_valid[i]) begin
                         // ============================================================
                         // Update Architectural Register File (ARF)
                         // ============================================================
