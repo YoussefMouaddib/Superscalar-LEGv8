@@ -223,7 +223,7 @@ module rob #(
             for (k = 0; k < ISSUE_W; k++) begin
               if (alloc_en[k]) begin
                 rob_mem[cur_tail].valid     <= 1'b1;
-                rob_mem[cur_tail].ready     <= alloc_is_store[k];
+                rob_mem[cur_tail].ready     <= alloc_is_store[k] | alloc_is_load[k];
                 rob_mem[cur_tail].arch_rd   <= alloc_arch_rd[k];
                 rob_mem[cur_tail].phys_rd   <= alloc_phys_rd[k];
                 rob_mem[cur_tail].exception <= 1'b0;
