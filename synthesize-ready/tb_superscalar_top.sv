@@ -345,7 +345,7 @@ module tb_ooo_core;
         $dumpvars(0, tb_ooo_core);
     end */
     // Add this to your testbench
-       /* always @(posedge clk) begin
+        always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
         // Use a small delay to ensure all signals have settled (optional)
         #1;
@@ -407,7 +407,7 @@ module tb_ooo_core;
         
         $display("=========================================\n");
     end
-/*always_ff @(posedge clk) begin
+always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
     // Allocation inputs
@@ -475,5 +475,5 @@ module tb_ooo_core;
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end*/
+end
 endmodule
