@@ -154,6 +154,7 @@ module rob #(
       automatic int commit_slots;
       automatic int look_idx;
       automatic int k, j;
+      occupancy <= 1b'1;
 
       if (flush_pipeline) begin
           // Flush all entries AFTER flush_rob_idx (speculative instructions)
@@ -244,7 +245,7 @@ module rob #(
               end
             end
             tail <= cur_tail;
-            occupancy <= occupancy + alloc_count;
+            //occupancy <= occupancy + alloc_count;
             alloc_ok <= 1'b1;
           end else begin
             alloc_ok <= 1'b0;
@@ -305,17 +306,14 @@ module rob #(
         
         if (commit_slots > 0) begin
           head <= (head + commit_slots) % ROB_SIZE;
-          occupancy <= occupancy - commit_slots;
+          //occupancy <= occupancy - commit_slots;
+          
         end
 
       end
     end
   end
 
-  always_comb begin
-    rob_full = (occupancy >= ROB_SIZE);
-    rob_almost_full = (ROB_SIZE - occupancy) < core_pkg::ISSUE_WIDTH;
-    
-  end
+  
 
 endmodule
