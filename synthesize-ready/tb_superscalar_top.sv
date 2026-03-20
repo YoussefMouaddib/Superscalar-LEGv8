@@ -307,7 +307,7 @@ module tb_ooo_core;
                 dut.mem_ready, dut.mem_rdata);
         end
     end
-    /*
+    
     // ============================================================
     // ARF Display (every 50 cycles)
     // ============================================================
@@ -407,7 +407,7 @@ module tb_ooo_core;
         );
         
         $display("=========================================\n");
-    end*/
+    end
 always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
