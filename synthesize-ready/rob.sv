@@ -154,7 +154,7 @@ module rob #(
       automatic int commit_slots;
       automatic int look_idx;
       automatic int k, j;
-      occupancy <= 1b'1;
+      occupancy <= 1;
 
       if (flush_pipeline) begin
           // Flush all entries AFTER flush_rob_idx (speculative instructions)
