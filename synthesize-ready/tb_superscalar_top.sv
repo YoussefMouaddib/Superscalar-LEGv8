@@ -407,7 +407,7 @@ module tb_ooo_core;
         );
         
         $display("=========================================\n");
-    end
+    end*/
 always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
@@ -476,5 +476,5 @@ always_ff @(posedge clk) begin
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end*/
+end
 endmodule
