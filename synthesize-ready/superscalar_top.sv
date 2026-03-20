@@ -661,7 +661,9 @@ module ooo_core_top (
         .bp_update_is_return(bp_update_is_return),
         .perf_insns_committed(),
         .perf_cycles(),
-        .perf_exceptions()
+        .perf_exceptions(),
+        .lsu_base_tag(lsu_base_tag),
+        .lsu_base_ready(lsu_base_ready)
     );
     
     // ============================================================
