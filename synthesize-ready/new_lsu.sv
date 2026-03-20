@@ -411,7 +411,7 @@ module lsu #(
     always_comb begin
         lsu_exception = 1'b0;
         lsu_exception_cause = '0;
-        
+        /*
         for (int i = 0; i < LQ_ENTRIES; i++) begin
             if (lq[i].valid && lq[i].exception) begin
                 lsu_exception = 1'b1;
@@ -429,7 +429,7 @@ module lsu #(
         if (mem_error) begin
             lsu_exception = 1'b1;
             lsu_exception_cause = 5'h3;
-        end
+        end*/
     end
 
 endmodule
