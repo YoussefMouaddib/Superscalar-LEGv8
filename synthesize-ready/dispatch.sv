@@ -118,6 +118,10 @@ module dispatch #(
     // Scoreboard for tracking physical register readiness
     // ============================================================
     logic [core_pkg::PREGS-1:0] preg_ready;
+    logic [5:0] cached_base_tag;
+    logic [XLEN-1:0] cached_base_value;
+    logic cached_base_ready;
+    logic cached_valid;
     
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -137,6 +141,21 @@ module dispatch #(
                     preg_ready[cdb_tag[j]] <= 1'b1;
                 end
             end
+        end
+    end
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset || flush_pipeline) begin
+            cached_valid <= 1'b0;
+            cached_base_tag <= '0;
+            cached_base_value <= '0;
+            cached_base_ready <= '0;
+        end else if (lsu_alloc_en) begin
+            // Cache the values we just dispatched
+            cached_valid <= 1'b1;
+            cached_base_tag <= lsu_base_tag;
+            cached_base_value <= lsu_base_value;
+            cached_base_ready <= lsu_base_ready;
         end
     end
     
@@ -330,9 +349,9 @@ module dispatch #(
                 lsu_alloc_en = 1'b1;
                 lsu_is_load = rename_is_load[i];
                 lsu_opcode = {rename_opcode[i], 2'b00};
-                lsu_base_value = src1_value[i];
+                
                 lsu_base_tag = rename_prs1[i];
-                lsu_base_ready = src1_ready[i];
+                
                 lsu_offset = rename_imm[i];
                 lsu_store_data_value = src2_value[i];
                 lsu_store_data_tag = rename_prs2[i];
@@ -342,6 +361,18 @@ module dispatch #(
                 lsu_arch_rd = rename_arch_rd[i];
                 lsu_phys_rd = rename_prd[i];
                 lsu_rob_idx = rob_alloc_idx[i];
+                
+                if (cached_valid && rename_prs1[i] == cached_base_tag && cached_base_ready) begin
+                    // Same tag as last dispatch - reuse cached value!
+                    lsu_base_value = cached_base_value;
+                    lsu_base_ready = cached_base_ready;
+                end else begin
+                    // Different tag or cache invalid - read PRF
+                    lsu_base_value = src1_value[i];
+                    lsu_base_ready = src1_ready[i];
+                end
+
+                
                 break;
             end
         end
