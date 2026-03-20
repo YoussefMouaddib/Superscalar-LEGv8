@@ -345,7 +345,7 @@ module tb_ooo_core;
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
     end */
-    
+    /*
         always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
         // Use a small delay to ensure all signals have settled (optional)
@@ -476,5 +476,5 @@ always_ff @(posedge clk) begin
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end
+end*/
 endmodule
