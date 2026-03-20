@@ -475,5 +475,5 @@ always_ff @(posedge clk) begin
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-end
+end*/
 endmodule
