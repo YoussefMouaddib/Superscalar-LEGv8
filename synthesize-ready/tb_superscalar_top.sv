@@ -279,7 +279,7 @@ module tb_ooo_core;
             $display("\n===== ROB TABLE (Cycle %0d) =====", cycle);
             $display("Idx | V | R | ARD | PRD | PC       | LD | ST | BR | Exception");
             $display("----|---|---|-----|-----|----------|----|----|----|-----------");
-            for (int i = 0; i < 16; i++) begin
+            for (int i = 0; i < 32; i++) begin
                 if (dut.rob_inst.rob_mem[i].valid) begin
                     $display(" %2d | %b | %b | x%-2d | p%-2d | %h |  %b |  %b |  %b |     %b",
                         i,
@@ -296,6 +296,7 @@ module tb_ooo_core;
             end
             $display("HEAD=%0d TAIL=%0d OCCUPANCY=%0d", 
                 dut.rob_inst.head, dut.rob_inst.tail, dut.rob_inst.occupancy);
+            
         end
     end
     
