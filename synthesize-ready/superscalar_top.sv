@@ -180,6 +180,9 @@ module ooo_core_top (
     logic [31:0] lsu_base_value;
     logic [5:0]  lsu_store_data_tag;
     logic [4:0] lsu_exception_cause;
+    
+    // Add this as a module-level register:
+    logic [31:0] global_seq_counter;
 
      // ============================================================
     // LSU -> (uart or scratchpad) logic
@@ -202,6 +205,22 @@ module ooo_core_top (
     // Multiplex read data back to LSU
     assign mem_rdata = is_uart_access ? uart_read_data : scratchpad_rdata;
     assign mem_ready = is_uart_access ? uart_ready : scratchpad_ready;
+
+    // Add this in your always_ff block:
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            global_seq_counter <= 32'd0;
+        end else begin
+            // Increment by number of instructions allocated this cycle
+            if (|rob_alloc_en) begin
+                automatic int alloc_count = 0;
+                for (int i = 0; i < ISSUE_WIDTH; i++) begin
+                    if (rob_alloc_en[i]) alloc_count++;
+                end
+                global_seq_counter <= global_seq_counter + alloc_count;
+            end
+        end
+    end
     
 
     
