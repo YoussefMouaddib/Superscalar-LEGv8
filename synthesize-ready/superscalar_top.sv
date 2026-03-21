@@ -183,6 +183,7 @@ module ooo_core_top (
     
     // Add this as a module-level register:
     logic [31:0] global_seq_counter;
+    logic [ISSUE_WIDTH-1:0][31:0] alloc_seq_array ;
 
      // ============================================================
     // LSU -> (uart or scratchpad) logic
@@ -221,7 +222,14 @@ module ooo_core_top (
             end
         end
     end
-    
+    // Compute sequence numbers combinationally:
+    always_comb begin
+        automatic logic [31:0] seq_temp = global_seq_counter;
+        for (int i = 0; i < ISSUE_WIDTH; i++) begin
+            alloc_seq_array[i] = seq_temp;
+            if (rob_alloc_en[i]) seq_temp++;
+        end
+    end
 
     
     
@@ -747,6 +755,7 @@ module ooo_core_top (
         .alloc_en(lsu_alloc_en),
         .is_load(lsu_is_load),
         .opcode(lsu_opcode),
+        .alloc_seq(lsu_alloc_en ? alloc_seq_array[lsu_lane_index] : 32'd0),
         
         // Base address operand (rs1)
         .base_addr_tag(lsu_base_tag),
