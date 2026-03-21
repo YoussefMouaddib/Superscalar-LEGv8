@@ -110,8 +110,8 @@ module dispatch #(
     // ============================================================
     input  logic [1:0]              cdb_valid,
     input  logic [1:0][PHYS_W-1:0]  cdb_tag,
-    input  logic [1:0][XLEN-1:0]    cdb_value
-    
+    input  logic [1:0][XLEN-1:0]    cdb_value,
+    output logic [0:0] lsu_lane_index
 );
 
     // ============================================================
@@ -326,6 +326,7 @@ module dispatch #(
     // ============================================================
     always_comb begin
         lsu_alloc_en = 1'b0;
+        lsu_lane_index = 1'b0;
         lsu_is_load = 1'b0;
         lsu_opcode = '0;
         lsu_base_value = '0;
@@ -347,6 +348,7 @@ module dispatch #(
                 rob_alloc_ok && !flush_pipeline) begin
                 
                 lsu_alloc_en = 1'b1;
+                lsu_lane_index = i[0];
                 lsu_is_load = rename_is_load[i];
                 lsu_opcode = {rename_opcode[i], 2'b00};
                 
@@ -377,6 +379,7 @@ module dispatch #(
             end
         end
     end
+    
     
     // ============================================================
     // Backpressure/Stall Logic - UPDATED
