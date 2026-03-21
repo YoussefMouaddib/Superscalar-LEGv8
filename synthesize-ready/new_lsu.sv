@@ -16,6 +16,8 @@ module lsu #(
     input  logic        alloc_en,
     input  logic        is_load,
     input  logic [7:0]  opcode,
+    input logic [31:0] alloc_seq,
+    
     input  logic [5:0]  base_addr_tag,
     input  logic        base_addr_ready,
     input  logic [XLEN-1:0] base_addr_value,
@@ -73,6 +75,7 @@ module lsu #(
         logic [XLEN-1:0] addr;
         logic executing;
         logic exception;
+        logic [31:0] seq;
     } lq_entry_t;
 
     typedef struct packed {
@@ -90,6 +93,7 @@ module lsu #(
         logic committed;
         logic executing;
         logic exception;
+        logic [31:0] seq;
     } sq_entry_t;
 
     lq_entry_t [LQ_ENTRIES-1:0] lq;
@@ -229,6 +233,7 @@ module lsu #(
                     lq[lq_tail].addr_valid <= 1'b0;
                     lq[lq_tail].executing <= 1'b0;
                     lq[lq_tail].exception <= 1'b0;
+                    lq[lq_tail].seq <= alloc_seq; 
                     lq_tail <= lq_tail + 1;
                     
                 end else begin
@@ -245,6 +250,7 @@ module lsu #(
                     sq[sq_tail].committed <= 1'b0;
                     sq[sq_tail].executing <= 1'b0;
                     sq[sq_tail].exception <= 1'b0;
+                    sq[sq_tail].seq <= alloc_seq;
                     sq_tail <= sq_tail + 1;
                 end
             end
@@ -371,7 +377,18 @@ module lsu #(
                     lq_search_idx = (lq_head + i) % LQ_ENTRIES;
                     if (lq[lq_search_idx].valid && lq[lq_search_idx].addr_valid && 
                         !lq[lq_search_idx].executing && !lq[lq_search_idx].exception) begin
-                        
+
+                        automatic logic all_older_stores_committed = 1'b1;
+                        for (int s = 0; s < SQ_ENTRIES; s++) begin
+                            if (sq[s].valid && sq[s].seq < lq[lq_search_idx].seq) begin
+                                if (!sq[s].committed) begin
+                                    all_older_stores_committed = 1'b0;
+                                    break;
+                                end
+                            end
+                        end
+
+                        if (all_older_stores_committed) begin
                         mem_req <= 1'b1;
                         mem_we <= 1'b0;
                         mem_addr <= lq[lq_search_idx].addr;
@@ -380,6 +397,7 @@ module lsu #(
                         lq[lq_search_idx].executing <= 1'b1;
                         found_load = 1'b1;
                         break;
+                        end
                     end
                 end
             end
@@ -391,7 +409,18 @@ module lsu #(
                     if (sq[sq_search_idx].valid && sq[sq_search_idx].committed &&
                         sq[sq_search_idx].addr_valid && sq[sq_search_idx].data_ready &&
                         !sq[sq_search_idx].executing && !sq[sq_search_idx].exception) begin
+
+                        automatic logic all_older_stores_executed = 1'b1;
+                        for (int s = 0; s < SQ_ENTRIES; s++) begin
+                            if (sq[s].valid && sq[s].seq < sq[sq_search_idx].seq) begin
+                                if (sq[s].executing || !sq[s].committed) begin
+                                    all_older_stores_executed = 1'b0;
+                                    break;
+                                end
+                            end
+                        end
                         
+                        if (all_older_stores_executed) begin
                         mem_req <= 1'b1;
                         mem_we <= 1'b1;
                         mem_addr <= sq[sq_search_idx].addr;
@@ -399,6 +428,7 @@ module lsu #(
                         store_in_flight <= 1'b1;
                         sq[sq_search_idx].executing <= 1'b1;
                         break;
+                        end
                     end
                 end
             end
