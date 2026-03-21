@@ -92,6 +92,8 @@ module ooo_core_top (
     logic [4:0] lsu_arch_rs1, lsu_arch_rs2, lsu_arch_rd;
     logic [5:0] lsu_phys_rd, lsu_rob_idx;
     logic lsu_store_data_ready;
+
+    logic lsu_lane_index;
     
     // ============================================================
     // ISSUE/Execution
@@ -458,7 +460,8 @@ module ooo_core_top (
         
         .cdb_valid(cdb_valid),
         .cdb_tag(cdb_tag),
-        .cdb_value(cdb_value)
+        .cdb_value(cdb_value),
+        .lsu_lane_index(lsu_lane_index)
     );
     
     // ============================================================
