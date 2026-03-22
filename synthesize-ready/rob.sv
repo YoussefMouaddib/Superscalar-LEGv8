@@ -130,7 +130,7 @@ module rob #(
       head <= '0;
       tail <= '0;
       occupancy <= 0;
-      alloc_ok <= 0;
+      //alloc_ok <= 0;
       for (int i = 0; i < ROB_SIZE; i++) begin
         rob_mem[i].valid     <= 1'b0;
         rob_mem[i].ready     <= 1'b0;
@@ -154,7 +154,7 @@ module rob #(
       automatic int commit_slots;
       automatic int look_idx;
       automatic int k, j;
-      occupancy <= 1;
+      //occupancy <= 1;
 
       if (flush_pipeline) begin
           // Flush all entries AFTER flush_rob_idx (speculative instructions)
@@ -210,8 +210,8 @@ module rob #(
 
         // ---------- Allocation
         alloc_count = 0;
-        alloc_ok <= 1'b0;
-        for (k = 0; k < ISSUE_W; k++) alloc_idx[k] <= '0;
+        //alloc_ok <= 1'b0;
+        //for (k = 0; k < ISSUE_W; k++) alloc_idx[k] <= '0;
 
         if (alloc_en != 0) begin
           free_slots = ROB_SIZE - occupancy;
@@ -246,10 +246,9 @@ module rob #(
             end
             tail <= cur_tail;
             //occupancy <= occupancy + alloc_count;
-            alloc_ok <= 1'b1;
-          end else begin
-            alloc_ok <= 1'b0;
-          end
+            //alloc_ok <= 1'b1;
+          end 
+          // else begin alloc_ok <= 1'b0; end
         end
 
         // ---------- Commit
@@ -306,7 +305,7 @@ module rob #(
         
         if (commit_slots > 0) begin
           head <= (head + commit_slots) % ROB_SIZE;
-          //occupancy <= occupancy - commit_slots;
+          occupancy <= occupancy + alloc_count - commit_slots;
           
         end
 
