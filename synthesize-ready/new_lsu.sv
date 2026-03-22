@@ -393,7 +393,7 @@ module lsu #(
                         mem_we <= 1'b0;
                         mem_addr <= lq[lq_search_idx].addr;
                         load_in_flight <= 1'b1;
-                        load_in_flight_idx <= lq_search_idx[2:0];
+                        load_in_flight_idx <= lq_search_idx;
                         lq[lq_search_idx].executing <= 1'b1;
                         found_load = 1'b1;
                         break;
