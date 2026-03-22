@@ -23,39 +23,70 @@ module uart_stub (
     localparam ADDR_STATUS  = 32'h00010004;
     localparam ADDR_RX_DATA = 32'h00010008;
     
+    // Scratchpad range for demo (0x2000 - 0x2FFF)
+    localparam SCRATCHPAD_BASE = 32'h00002000;
+    localparam SCRATCHPAD_END  = 32'h00002FFF;
+    
     assign ready = 1'b1;  // Always ready
     assign tx_busy = 1'b0;  // Never busy in simulation
     assign rx_ready = 1'b0; // No RX data available
+    
+    // Character accumulator for demo
+    logic [8*100-1:0] demo_string;  // 100-character buffer
+    int demo_char_count;
     
     // Write logic
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             tx_data_reg <= 8'h00;
+            demo_char_count <= 0;
+            demo_string <= '0;
         end else begin
-            // Debug: Print ALL write attempts
-            if (write_en) begin
-                $display("[UART_STUB] Write: addr=%h data=%h match=%b", 
-                         addr, write_data, (addr == ADDR_TX_DATA));
+            
+            // ===================================================
+            // DEMO MODE: Capture scratchpad writes for display
+            // ===================================================
+            if (write_en && (addr >= SCRATCHPAD_BASE) && (addr <= SCRATCHPAD_END)) begin
+                automatic logic [7:0] char_val = write_data[7:0];
+                
+                // Display each character as it's written to scratchpad
+                if (char_val >= 8'h20 && char_val <= 8'h7E) begin
+                    $display("[DEMO_UART] Scratchpad[%h] = '%c' (0x%02h)", 
+                             addr, char_val, char_val);
+                    
+                    // Accumulate printable characters
+                    if (demo_char_count < 100) begin
+                        demo_string[demo_char_count*8 +: 8] <= char_val;
+                        demo_char_count <= demo_char_count + 1;
+                    end
+                    
+                end else if (char_val == 8'h0D) begin
+                    $display("[DEMO_UART] Scratchpad[%h] = <CR>", addr);
+                end else if (char_val == 8'h0A) begin
+                    $display("[DEMO_UART] Scratchpad[%h] = <LF>", addr);
+                end else if (char_val == 8'h00) begin
+                    $display("[DEMO_UART] Scratchpad[%h] = <NUL> (String terminator)", addr);
+                    
+                    // Print the complete string for demo
+                    $display("\n╔════════════════════════════════════════════════════════╗");
+                    $display("║          🎉 OUT-OF-ORDER CPU DEMO OUTPUT 🎉          ║");
+                    $display("╠════════════════════════════════════════════════════════╣");
+                    $display("║  Transmitted String: \"%s\"", demo_string[0 +: demo_char_count*8]);
+                    $display("║  Character Count:     %0d bytes", demo_char_count);
+                    $display("║  Memory Range:        0x%h - 0x%h", SCRATCHPAD_BASE, addr);
+                    $display("╚════════════════════════════════════════════════════════╝\n");
+                    
+                end else begin
+                    $display("[DEMO_UART] Scratchpad[%h] = <0x%02h>", addr, char_val);
+                end
             end
             
-            // Check for TX_DATA write
+            // ===================================================
+            // REAL MODE: Actual UART register writes (for later)
+            // ===================================================
             if (write_en && (addr == ADDR_TX_DATA)) begin
                 tx_data_reg <= write_data[7:0];
-                
-                // Print character if it's printable ASCII
-                if (write_data[7:0] >= 8'h20 && write_data[7:0] <= 8'h7E) begin
-                    $display("[UART_TX] '%c' (0x%02h)", write_data[7:0], write_data[7:0]);
-                end else if (write_data[7:0] == 8'h0D) begin
-                    $display("[UART_TX] <CR> (0x0D)");
-                end else if (write_data[7:0] == 8'h0A) begin
-                    $display("[UART_TX] <LF> (0x0A)");
-                end else if (write_data[7:0] == 8'h00) begin
-                    $display("[UART_TX] <NUL> (0x00)");
-                end else begin
-                    $display("[UART_TX] <0x%02h>", write_data[7:0]);
-                end
-                
-                $fflush();
+                $display("[REAL_UART] TX_DATA = '%c' (0x%02h)", write_data[7:0], write_data[7:0]);
             end
         end
     end
