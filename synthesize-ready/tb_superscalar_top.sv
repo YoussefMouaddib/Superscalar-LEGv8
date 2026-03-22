@@ -213,34 +213,14 @@ module tb_ooo_core;
         always @(posedge clk) begin
             if (!reset) begin
                 // Display as both ASCII and hex
-                if (uart_tx_char) begin
-                    $display("[UART TX] '%c' (0x%02h)", uart_tx_char, uart_tx_char);
-                end else if (uart_tx_char == 8'h0D) begin
-                    $display("[UART TX] <CR> (0x%02h)", uart_tx_char);
-                end else if (uart_tx_char == 8'h0A) begin
-                    $display("[UART TX] <LF> (0x%02h)", uart_tx_char);
-                end else begin
-                    $display("[UART TX] (0x%02h)", uart_tx_char);
-                end
+                
+                $display("[UART TX] '%c' ", dut.tx_data_reg);
+                
+                
             end
         end
         
-        // Accumulate the full message
-        string uart_message = "";
-        always @(posedge clk) begin
-            if (!reset) begin
-                if (uart_tx_char == 8'h0A) begin
-                    // Line complete - print the full message
-                    $display("\n========================================");
-                    $display("UART MESSAGE: \"%s\"", uart_message);
-                    $display("========================================\n");
-                    uart_message = "";  // Reset for next message
-                end else if (uart_tx_char != 8'h0D) begin
-                    // Accumulate (skip CR)
-                    uart_message = {uart_message, string'(uart_tx_char)};
-                end
-            end
-        end
+    
 
 
 
