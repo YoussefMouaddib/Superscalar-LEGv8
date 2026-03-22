@@ -240,9 +240,8 @@ module rob #(
                 
                 cur_tail = (cur_tail + 1) % ROB_SIZE;
                 alloc_count++;
-              end else begin
-                alloc_idx[k] <= '0;
-              end
+              end 
+             // else begin alloc_idx[k] <= '0; end
             end
             tail <= cur_tail;
             //occupancy <= occupancy + alloc_count;
@@ -287,7 +286,7 @@ module rob #(
               commit_branch_is_call[j] <= rob_mem[look_idx].branch_is_call;
               commit_branch_is_return[j] <= rob_mem[look_idx].branch_is_return;
               
-              // ADDED: Output actual ROB index
+              
               commit_rob_idx[j] <= look_idx[$clog2(ROB_SIZE)-1:0];
               
               rob_mem[look_idx].valid <= 1'b0;
@@ -305,10 +304,10 @@ module rob #(
         
         if (commit_slots > 0) begin
           head <= (head + commit_slots) % ROB_SIZE;
-          occupancy <= occupancy + alloc_count - commit_slots;
+          
           
         end
-
+      occupancy <= occupancy + alloc_count - commit_slots;
       end
     end
   end
