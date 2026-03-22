@@ -26,18 +26,18 @@ module uart_stub (
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             tx_data_reg <= 8'h00;
-        end else if (write_en && (addr[31:12] == 20'h00002)) begin
+        end else begin
             tx_data_reg <= write_data[7:0];
             // Print transmitted character
-            $write("%c", write_data[7:0]);
-            $fflush();
+            $display("%c", write_data[7:0]);
+            
         end
     end
     // Read logic
     always_comb begin
         read_data = 32'h00000000;
         case (addr)
-            ADDR_TX_DATA: read_data = {24'h0, tx_data_reg};
+            ADDR_TX_DATA: read_data = {24'h0, tx_data_reg};  // Read-back (not typical)
             ADDR_STATUS:  read_data = {30'h0, rx_ready, tx_busy};
             ADDR_RX_DATA: read_data = {24'h0, rx_data_reg};
             default:      read_data = 32'h00000000;
