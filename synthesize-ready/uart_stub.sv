@@ -12,7 +12,6 @@ module uart_stub (
     output logic [31:0] read_data,  // Data read
     output logic        ready       // Always ready in stub
 );
-
     // UART registers
     logic [7:0] tx_data_reg;
     logic       tx_busy;      // Always 0 in stub
@@ -32,11 +31,32 @@ module uart_stub (
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             tx_data_reg <= 8'h00;
-        end else if (write_en && addr == ADDR_TX_DATA) begin
-            tx_data_reg <= write_data[7:0];
-            // Print transmitted character
-            $write("%c", write_data[7:0]);
-            $fflush();
+        end else begin
+            // Debug: Print ALL write attempts
+            if (write_en) begin
+                $display("[UART_STUB] Write: addr=%h data=%h match=%b", 
+                         addr, write_data, (addr == ADDR_TX_DATA));
+            end
+            
+            // Check for TX_DATA write
+            if (write_en && (addr == ADDR_TX_DATA)) begin
+                tx_data_reg <= write_data[7:0];
+                
+                // Print character if it's printable ASCII
+                if (write_data[7:0] >= 8'h20 && write_data[7:0] <= 8'h7E) begin
+                    $display("[UART_TX] '%c' (0x%02h)", write_data[7:0], write_data[7:0]);
+                end else if (write_data[7:0] == 8'h0D) begin
+                    $display("[UART_TX] <CR> (0x0D)");
+                end else if (write_data[7:0] == 8'h0A) begin
+                    $display("[UART_TX] <LF> (0x0A)");
+                end else if (write_data[7:0] == 8'h00) begin
+                    $display("[UART_TX] <NUL> (0x00)");
+                end else begin
+                    $display("[UART_TX] <0x%02h>", write_data[7:0]);
+                end
+                
+                $fflush();
+            end
         end
     end
     
@@ -45,11 +65,11 @@ module uart_stub (
         read_data = 32'h00000000;
         
         case (addr)
-            ADDR_TX_DATA: read_data = {24'h0, tx_data_reg};  // Read-back (not typical)
+            ADDR_TX_DATA: read_data = {24'h0, tx_data_reg};
             ADDR_STATUS:  read_data = {30'h0, rx_ready, tx_busy};
             ADDR_RX_DATA: read_data = {24'h0, rx_data_reg};
             default:      read_data = 32'h00000000;
         endcase
     end
-
+    
 endmodule
