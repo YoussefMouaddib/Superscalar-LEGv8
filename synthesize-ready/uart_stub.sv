@@ -29,7 +29,7 @@ module uart_stub (
         end else begin
             tx_data_reg <= write_data[7:0];
             // Print transmitted character
-            $display("%c", write_data[7:0]);
+            $display("UART WRITE: %c", write_data[7:0]);
             
         end
     end
