@@ -556,22 +556,27 @@ module ooo_core_top (
     cdb_arbiter cdb_arb_inst (
         .clk(clk),
         .reset(reset),
+        
         .src0_valid(alu0_result_valid),
         .src0_tag(alu0_result_tag),
         .src0_value(alu0_result_value),
         .src0_rob_tag(alu0_result_rob_tag),
+        
         .src1_valid(alu1_result_valid),
         .src1_tag(alu1_result_tag),
         .src1_value(alu1_result_value),
         .src1_rob_tag(alu1_result_rob_tag),
+        
         .src2_valid(branch_result_valid),
         .src2_tag(branch_result_tag),
         .src2_value(branch_result_value),
         .src2_rob_tag(branch_result_rob_tag),
+        
         .src3_valid(lsu_cdb_valid),
-        .src3_tag(lsu_cdb_tag),
+        .src3_tag(rob_commit_rob_idx),
         .src3_value(lsu_cdb_value),
         .src3_rob_tag(lsu_cdb_rob_tag),
+        
         .cdb_valid(cdb_valid),
         .cdb_tag(cdb_tag),
         .cdb_value(cdb_value),
