@@ -214,7 +214,7 @@ module tb_ooo_core;
             if (!reset) begin
                 // Display as both ASCII and hex
                 
-                $display("[UART TX] '%c' ", dut.tx_data_reg);
+                $display("[UART TX] '%c' (0x%h)", uart_tx_char, uart_tx_char);
                 
                 
             end
