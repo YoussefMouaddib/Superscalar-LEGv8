@@ -1,5 +1,5 @@
 
- ## LEGv8 2-Wide Superscalar Out-of-Order Processor
+ ## LEGv8 2-Wide Superscalar Out-of-Order Processor + Bare-Metal OS
 ### Custom CPU Microarchitecture & End-to-End Software Stack — Toolchain, Firmware & Bare-Metal OS
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
