@@ -3,7 +3,7 @@
 ### Custom CPU Microarchitecture & End-to-End Software Stack — Toolchain, Firmware & Bare-Metal OS
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![FPGA](https://img.shields.io/badge/Target-ColorLight%205A--75B-blue)](https://github.com/wuxx/ColorLight-FPGA)
+[![FPGA](https://img.shields.io/badge/Target-Xilinx%20Arty%20A7--100T-blue)](https://digilent.com/reference/programmable-logic/arty-a7/start)
 [![Verilog](https://img.shields.io/badge/HDL-SystemVerilog-ff69b4)](https://en.wikipedia.org/wiki/SystemVerilog)
 [![LUTs](https://img.shields.io/badge/LUTs-14k%2F24k-success)]()
 # ![CpuI7GIF](https://github.com/user-attachments/assets/4eb98bca-c9c1-4a54-bd70-918482c4340f)
