@@ -5,7 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![FPGA](https://img.shields.io/badge/Target-Xilinx%20Arty%20A7--100T-blue)](https://digilent.com/reference/programmable-logic/arty-a7/start)
 [![Verilog](https://img.shields.io/badge/HDL-SystemVerilog-ff69b4)](https://en.wikipedia.org/wiki/SystemVerilog)
-[![LUTs](https://img.shields.io/badge/LUTs-14k%2F24k-success)]()
 # ![CpuI7GIF](https://github.com/user-attachments/assets/4eb98bca-c9c1-4a54-bd70-918482c4340f)
 
 A complete RTL implementation of a 2-wide superscalar out-of-order processor supporting a subset of the LEGv8 ISA. This isn't a textbook example or a tutorial clone—this is a real CPU built from first principles, debugged at the waveform level, and verified running actual programs.
