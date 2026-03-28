@@ -224,16 +224,16 @@ module tb_ooo_core;
 
 
 
-    /*
+    
     // ============================================================
     // RS Table Display (every 10 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
-        if (!reset && (cycle % 2 == 0)) begin
+        if (!reset ) begin
             $display("\n===== RS TABLE (Cycle %0d) =====", cycle);
             $display("Entry | V | Dst | Src1(R) | Src2(R) | Op   | ROB | Age");
             $display("------|---|-----|---------|---------|------|-----|----");
-            for (int i = 0; i < 16; i++) begin
+            for (int i = 0; i < 32; i++) begin
                 if (dut.rs_inst.rs_mem[i].valid) begin
                     $display("  %2d  | %b | p%-2d | p%-2d(%b) | p%-2d(%b) | %h |  %-2d | %0d",
                         i,
@@ -250,7 +250,7 @@ module tb_ooo_core;
             end
         end
     end
-    
+    /*
     // ============================================================
     // ROB Table Display (every 10 cycles)
     // ============================================================
