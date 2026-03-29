@@ -224,7 +224,7 @@ module tb_ooo_core;
 
 
 
-    
+    /*
     // ============================================================
     // RS Table Display (every 10 cycles)
     // ============================================================
@@ -250,18 +250,18 @@ module tb_ooo_core;
             end
         end
     end
-    /*
+    */
     // ============================================================
     // ROB Table Display (every 10 cycles)
     // ============================================================
     always_ff @(posedge clk) begin
         if (!reset ) begin
             $display("\n===== ROB TABLE (Cycle %0d) =====", cycle);
-            $display("Idx | V | R | ARD | PRD | PC       | LD | ST | BR | Exception");
-            $display("----|---|---|-----|-----|----------|----|----|----|-----------");
+            $display("Idx | V | R | ARD | PRD | PC       | LD | ST | BR | Exception | Br Taken  | Br target | Br is Call| Br is return|");
+            $display("----|---|---|-----|-----|----------|----|----|----|-----------|-----------|-----------|-----------|-------------");
             for (int i = 0; i < 32; i++) begin
                 if (dut.rob_inst.rob_mem[i].valid) begin
-                    $display(" %2d | %b | %b | x%-2d | p%-2d | %h |  %b |  %b |  %b |     %b",
+                    $display(" %2d | %b | %b | x%-2d | p%-2d | %h |  %b |  %b |  %b |     %b |     %h |     %h |     %h |     %h |",
                         i,
                         dut.rob_inst.rob_mem[i].valid,
                         dut.rob_inst.rob_mem[i].ready,
@@ -271,7 +271,12 @@ module tb_ooo_core;
                         dut.rob_inst.rob_mem[i].is_load,
                         dut.rob_inst.rob_mem[i].is_store,
                         dut.rob_inst.rob_mem[i].is_branch,
-                        dut.rob_inst.rob_mem[i].exception);
+                        dut.rob_inst.rob_mem[i].exception,
+                        dut.rob_inst.rob_mem[i].branch_taken,    
+                        dut.rob_inst.rob_mem[i].branch_target,    
+                        dut.rob_inst.rob_mem[i].branch_is_call,
+                        dut.rob_inst.rob_mem[i].branch_is_return
+                        );
                 end
             end
             $display("HEAD=%0d TAIL=%0d OCCUPANCY=%0d", 
@@ -279,7 +284,7 @@ module tb_ooo_core;
             
         end
     end
-    
+    /*
     always_ff @(posedge clk) begin
         if (dut.mem_req) begin
             $display("[MEM] req=%b we=%b addr=%h wdata=%h ready=%b rdata=%h",
