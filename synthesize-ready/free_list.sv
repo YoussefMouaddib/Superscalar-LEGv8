@@ -1,7 +1,7 @@
 module free_list #(
     parameter int PHYS_REGS = 64,
-    parameter int RENAME_START = 32,  // First rename register
-    parameter int RENAME_REGS = 32,    // Number of rename registers
+    parameter int RENAME_START = 32,
+    parameter int RENAME_REGS = 32,
     parameter int ALLOC_PORTS = 2,
     parameter int FREE_PORTS = 2
 )(
@@ -24,7 +24,11 @@ module free_list #(
     // ============================================================
     
     logic [PHYS_REGS-1:0] temp_mask;
+    logic [PHYS_REGS-1:0] mask_after_port0;
+    logic [5:0] start_ptr;
+    
     always_comb begin
+        // Apply frees to create temporary mask
         temp_mask = free_mask;
         for (int j = 0; j < FREE_PORTS; j++) begin
             if (free_en[j]) begin
@@ -33,20 +37,18 @@ module free_list #(
         end
     end
     
-    logic [PHYS_REGS-1:0] mask_after_port0;
-    
     always_comb begin
-        // Port 0 allocation (only search rename registers)
+        // Port 0 allocation
         if (alloc_en[0]) begin
             alloc_valid[0] = 1'b0;
             alloc_phys[0] = '0;
             
-            // Search only RENAME_REGS slots, starting from alloc_ptr
+            // Search only rename registers
             for (int i = 0; i < RENAME_REGS; i++) begin
-                // Map i to a rename register with wrap within rename pool
-                int idx = RENAME_START + ((alloc_ptr - RENAME_START + i) % RENAME_REGS);
+                automatic int idx;
+                idx = RENAME_START + ((alloc_ptr - RENAME_START + i) % RENAME_REGS);
                 if (temp_mask[idx] && !alloc_valid[0]) begin
-                    alloc_phys[0] = idx;
+                    alloc_phys[0] = idx[5:0];
                     alloc_valid[0] = 1'b1;
                 end
             end
@@ -54,20 +56,23 @@ module free_list #(
             alloc_valid[0] = 1'b0;
             alloc_phys[0] = '0;
         end
-        
-        // Create mask for port 1
+    end
+    
+    always_comb begin
+        // Create mask for port 1 (remove port 0's allocation)
         mask_after_port0 = temp_mask;
         if (alloc_en[0] && alloc_valid[0]) begin
             mask_after_port0[alloc_phys[0]] = 1'b0;
         end
-        
+    end
+    
+    always_comb begin
         // Port 1 allocation
         if (alloc_en[1]) begin
             alloc_valid[1] = 1'b0;
             alloc_phys[1] = '0;
             
-            // Start pointer for port 1
-            logic [5:0] start_ptr;
+            // Calculate start pointer for port 1
             if (alloc_en[0] && alloc_valid[0]) begin
                 start_ptr = (alloc_phys[0] + 1 - RENAME_START) % RENAME_REGS + RENAME_START;
             end else begin
@@ -75,9 +80,10 @@ module free_list #(
             end
             
             for (int i = 0; i < RENAME_REGS; i++) begin
-                int idx = RENAME_START + ((start_ptr - RENAME_START + i) % RENAME_REGS);
+                automatic int idx;
+                idx = RENAME_START + ((start_ptr - RENAME_START + i) % RENAME_REGS);
                 if (mask_after_port0[idx] && !alloc_valid[1]) begin
-                    alloc_phys[1] = idx;
+                    alloc_phys[1] = idx[5:0];
                     alloc_valid[1] = 1'b1;
                 end
             end
@@ -94,27 +100,26 @@ module free_list #(
         if (reset) begin
             // Only registers 32-63 are free
             for (int i = 0; i < PHYS_REGS; i++) begin
-                free_mask[i] <= (i >= RENAME_START) ? 1'b1 : 1'b0;
+                if (i >= RENAME_START) begin
+                    free_mask[i] <= 1'b1;
+                end else begin
+                    free_mask[i] <= 1'b0;
+                end
             end
             alloc_ptr <= RENAME_START;
         end else begin
-            logic [PHYS_REGS-1:0] new_mask = free_mask;
-            
-            // Apply frees
+            // Apply frees and allocations
             for (int j = 0; j < FREE_PORTS; j++) begin
                 if (free_en[j]) begin
-                    new_mask[free_phys[j]] = 1'b1;
+                    free_mask[free_phys[j]] <= 1'b1;
                 end
             end
             
-            // Apply allocations
             for (int a = 0; a < ALLOC_PORTS; a++) begin
                 if (alloc_en[a] && alloc_valid[a]) begin
-                    new_mask[alloc_phys[a]] = 1'b0;
+                    free_mask[alloc_phys[a]] <= 1'b0;
                 end
             end
-            
-            free_mask <= new_mask;
             
             // Update pointer to next register after last allocation
             if (alloc_en[1] && alloc_valid[1]) begin
