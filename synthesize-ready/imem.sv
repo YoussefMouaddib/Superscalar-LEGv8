@@ -23,6 +23,7 @@ module inst_rom #(
     input  logic [XLEN-1:0]  prog_data
 );
     // ROM storage (implemented as EBR/BRAM)
+    (* ram_style = "block" *) 
     logic [XLEN-1:0] rom [0:(ROM_SIZE/4)-1];  // 2048 entries
 
     // Registered addresses for 1-cycle latency
