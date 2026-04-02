@@ -1,5 +1,5 @@
 # ==============================================================================
-# Arty A7-35T Constraints for OOO CPU
+# Arty A7-100T Constraints for OOO CPU
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -75,4 +75,13 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 # ------------------------------------------------------------------------------
 # Relax timing on debug outputs (they're just for observability)
 set_false_path -from [get_clocks sys_clk] -to [get_ports {uart_read_data_out[*]}]
-set_false_path -from [get_clocks sys_clk] -to [get_ports uart_tx]
+
+# Optional: Add input/output delay constraints if needed
+# set_input_delay -clock sys_clk 2 [get_ports reset]
+# set_output_delay -clock sys_clk 2 [get_ports uart_tx]
+
+# ------------------------------------------------------------------------------
+# Device-specific for 100T - add these to ensure proper mapping
+# ------------------------------------------------------------------------------
+# Tell Vivado this is a 100T device (the part is set in project, but these help)
+set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
