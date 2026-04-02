@@ -177,15 +177,18 @@ module lsu #(
         // Keep sq_tail, but ensure sq_head points to first valid committed entry
         begin
             automatic int new_head = sq_head;
-            automatic int entries_checked = 0;
+            automatic logic found = 1'b0;
             
-            while (entries_checked < SQ_ENTRIES) begin
-                if (sq[new_head].valid && sq[new_head].committed)
-                    break;
-                new_head = (new_head + 1) % SQ_ENTRIES;
-                entries_checked++;
+            for (int i = 0; i < SQ_ENTRIES; i++) begin
+                automatic int idx = (sq_head + i) % SQ_ENTRIES;
+                if (!found && sq[idx].valid && sq[idx].committed) begin
+                    new_head = idx;
+                    found = 1'b1;
+                end
             end
-            sq_head <= new_head[3:0];
+            
+            // If no valid committed entry found, keep original head
+            sq_head <= found ? new_head[3:0] : sq_head;
         end
     
         // Handle in-flight load (cancel)
