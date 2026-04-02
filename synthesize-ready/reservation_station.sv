@@ -143,6 +143,7 @@ module reservation_station #(
         for (int i = 0; i < RS_ENTRIES; i++) begin
             if (!rs_mem[i].valid) begin
                 free_mask[i] = 1'b1;
+            end
         end
         
         // Step 4b: Allocate each port in parallel
