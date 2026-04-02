@@ -3,7 +3,10 @@ import core_pkg::*;
 
 module ooo_core_top (
     input  logic clk,
-    input  logic reset
+    input  logic reset,
+    output logic [7:0] debug_out,      // Connect to LEDs
+    output logic uart_tx,              // Connect to UART TX pin
+    output logic [31:0] uart_read_data_out
 );
 
     // ============================================================
@@ -876,5 +879,9 @@ module ooo_core_top (
         .mem_rdata(scratchpad_rdata),
         .mem_error(mem_error)
     );
+    assign debug_out = uart_tx_data;  // From your UART
+    assign uart_tx = uart_tx_valid;
+    assign uart_read_data_out = uart_read_data;
+    
 
 endmodule
