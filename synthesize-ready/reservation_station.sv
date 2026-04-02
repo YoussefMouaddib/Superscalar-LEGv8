@@ -73,6 +73,12 @@ module reservation_station #(
     
     // For clearing: capture what was actually issued
     logic [ISSUE_W-1:0][5:0]  issued_rob_tag_reg;
+    
+    // Allocation signals (parallel priority encoder)
+    logic [RS_ENTRIES-1:0] free_mask;
+    logic [RS_ENTRIES-1:0] mask_after_port0;
+    logic [ISSUE_W-1:0][$clog2(RS_ENTRIES)-1:0] alloc_slot_idx;
+    logic [ISSUE_W-1:0] alloc_slot_valid;
 
     // === Combinational Issue Selection ===
     always_comb begin
@@ -89,7 +95,9 @@ module reservation_station #(
             issue_src1_val_comb[p] = '0;
             issue_src2_val_comb[p] = '0;
             issue_rob_tag_comb[p] = '0;
-            oldest_idx[p] = -1;
+            issue_pc_comb[p] = '0;
+            issue_imm_comb[p] = '0;
+            oldest_idx[p] = '0;
             oldest[p].age = 0;
             oldest[p].valid = 0;
         end
@@ -109,7 +117,7 @@ module reservation_station #(
                 end
             end
             
-            if (issue_valid_comb[p] && oldest_idx[p] != -1) begin
+            if (issue_valid_comb[p] && oldest_idx[p] < RS_ENTRIES) begin
                 considered_entries[oldest_idx[p]] = 1'b1;
             end
         end
@@ -124,16 +132,57 @@ module reservation_station #(
                 issue_rob_tag_comb[p] = oldest[p].rob_tag;
                 issue_pc_comb[p] = oldest[p].pc;
                 issue_imm_comb[p] = oldest[p].imm;
+            end
+        end
+    end
     
+    // === Combinational Allocation Logic (Parallel Priority Encoder) ===
+    always_comb begin
+        // Step 4a: Create a mask of free slots
+        free_mask = '0;
+        for (int i = 0; i < RS_ENTRIES; i++) begin
+            if (!rs_mem[i].valid) begin
+                free_mask[i] = 1'b1;
+            }
+        end
+        
+        // Step 4b: Allocate each port in parallel
+        // Defaults
+        for (int a = 0; a < ISSUE_W; a++) begin
+            alloc_slot_idx[a] = '0;
+            alloc_slot_valid[a] = 1'b0;
+        end
+        
+        // Port 0 allocation - find first free slot
+        if (alloc_en[0]) begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                if (free_mask[i] && !alloc_slot_valid[0]) begin
+                    alloc_slot_idx[0] = i;
+                    alloc_slot_valid[0] = 1'b1;
+                end
+            end
+        end
+        
+        // Create mask for port 1 (remove port 0's allocation)
+        mask_after_port0 = free_mask;
+        if (alloc_en[0] && alloc_slot_valid[0]) begin
+            mask_after_port0[alloc_slot_idx[0]] = 1'b0;
+        end
+        
+        // Port 1 allocation - find first free slot after port 0
+        if (alloc_en[1]) begin
+            for (int i = 0; i < RS_ENTRIES; i++) begin
+                if (mask_after_port0[i] && !alloc_slot_valid[1]) begin
+                    alloc_slot_idx[1] = i;
+                    alloc_slot_valid[1] = 1'b1;
+                end
             end
         end
     end
 
     // === Sequential Logic ===
     always_ff @(posedge clk or posedge reset) begin
-        automatic logic [RS_ENTRIES-1:0] free_slots;
         automatic logic [RS_ENTRIES-1:0] clear_mask;
-        automatic int current_slot;
         automatic int i, a, b, p;
         
         if (reset) begin
@@ -152,6 +201,8 @@ module reservation_station #(
             issue_src1_val <= '0;
             issue_src2_val <= '0;
             issue_rob_tag <= '0;
+            issue_pc <= '0;
+            issue_imm <= '0;
             issued_rob_tag_reg <= '0;
             
         end else if (flush_pipeline) begin
@@ -204,38 +255,28 @@ module reservation_station #(
             end
 
             // ============================================================
-            // STEP 3: Find free slots (include being-cleared slots)
+            // STEP 3: Update free slots mask is handled in combinational block
             // ============================================================
-            for (i = 0; i < RS_ENTRIES; i++) begin
-                free_slots[i] = !rs_mem[i].valid || clear_mask[i];
-            end
-
+            
             // ============================================================
-            // STEP 4: Allocate new entries
+            // STEP 4: Allocate new entries (using pre-computed combinational results)
             // ============================================================
-            current_slot = 0;
             for (a = 0; a < ISSUE_W; a++) begin
-                if (alloc_en[a]) begin
-                    // Find next free slot
-                    while (current_slot < RS_ENTRIES && !free_slots[current_slot]) begin
-                        current_slot++;
-                    end
-                    if (current_slot < RS_ENTRIES) begin
-                        rs_mem[current_slot].valid <= 1'b1;
-                        rs_mem[current_slot].dst_tag <= alloc_dst_tag[a];
-                        rs_mem[current_slot].src1_tag <= alloc_src1_tag[a];
-                        rs_mem[current_slot].src2_tag <= alloc_src2_tag[a];
-                        rs_mem[current_slot].src1_val <= alloc_src1_val[a];
-                        rs_mem[current_slot].src2_val <= alloc_src2_val[a];
-                        rs_mem[current_slot].src1_ready <= alloc_src1_ready[a];
-                        rs_mem[current_slot].src2_ready <= alloc_src2_ready[a];
-                        rs_mem[current_slot].opcode <= alloc_op[a];
-                        rs_mem[current_slot].rob_tag <= alloc_rob_tag[a];
-                        rs_mem[current_slot].age <= 5'd0;
-                        rs_mem[current_slot].pc <= alloc_pc[a];
-                        rs_mem[current_slot].imm <= alloc_imm[a];
-                        current_slot++;
-                    end
+                if (alloc_en[a] && alloc_slot_valid[a]) begin
+                    automatic int slot = alloc_slot_idx[a];
+                    rs_mem[slot].valid <= 1'b1;
+                    rs_mem[slot].dst_tag <= alloc_dst_tag[a];
+                    rs_mem[slot].src1_tag <= alloc_src1_tag[a];
+                    rs_mem[slot].src2_tag <= alloc_src2_tag[a];
+                    rs_mem[slot].src1_val <= alloc_src1_val[a];
+                    rs_mem[slot].src2_val <= alloc_src2_val[a];
+                    rs_mem[slot].src1_ready <= alloc_src1_ready[a];
+                    rs_mem[slot].src2_ready <= alloc_src2_ready[a];
+                    rs_mem[slot].opcode <= alloc_op[a];
+                    rs_mem[slot].rob_tag <= alloc_rob_tag[a];
+                    rs_mem[slot].age <= 5'd0;
+                    rs_mem[slot].pc <= alloc_pc[a];
+                    rs_mem[slot].imm <= alloc_imm[a];
                 end
             end
 
@@ -264,8 +305,10 @@ module reservation_station #(
                         end
                     end
                     
-                    // Increment age
-                    rs_mem[i].age <= rs_mem[i].age + 1'b1;
+                    // Increment age (only if still valid and not being cleared)
+                    if (!clear_mask[i]) begin
+                        rs_mem[i].age <= rs_mem[i].age + 1'b1;
+                    end
                 end
             end
         end
