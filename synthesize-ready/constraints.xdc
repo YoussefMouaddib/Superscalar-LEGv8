@@ -21,6 +21,8 @@ set_property -dict {PACKAGE_PIN D10 IOSTANDARD LVCMOS33} [get_ports uart_tx]
 # ------------------------------------------------------------------------------
 # Debug Output - uart_read_data_out[31:0] mapped to LEDs + Pmod connectors
 # ------------------------------------------------------------------------------
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets reset_IBUF]
+set_property MAX_FANOUT 1000 [get_nets reset_IBUF]
 
 # --- LEDs (4 bits: LD3, LD2, LD1, LD0) for bits [3:0] ---
 set_property -dict {PACKAGE_PIN H5  IOSTANDARD LVCMOS33} [get_ports {uart_read_data_out[0]}]
@@ -69,6 +71,7 @@ set_property -dict {PACKAGE_PIN U13 IOSTANDARD LVCMOS33} [get_ports {uart_read_d
 # ------------------------------------------------------------------------------
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
+
 
 # ------------------------------------------------------------------------------
 # Timing Constraints
