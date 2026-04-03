@@ -241,22 +241,19 @@ module ooo_core_top (
     // INSTRUCTION ROM with Demo Program
     // ============================================================
     inst_rom #(
-        .ROM_SIZE(8192),
-        .XLEN(32)
-    ) imem (
-        .clk(clk),
-        .reset(reset),
-        .imem_ren(imem_ren),
-        .imem_addr0(imem_addr0),
-        .imem_addr1(imem_addr1),
-        .imem_valid(imem_valid),
-        .imem_rdata0(imem_rdata0),
-        .imem_rdata1(imem_rdata1),
-        .imem_pc(imem_pc),
-        .prog_en(1'b0),
-        .prog_addr('0),
-        .prog_data('0)
-    );
+    .ROM_SIZE(8192),
+    .XLEN(32)
+) imem (
+    .clk(clk),
+    .reset(reset),
+    .imem_ren(imem_ren),
+    .imem_addr0(imem_addr0),
+    .imem_addr1(imem_addr1),
+    .imem_valid(imem_valid),
+    .imem_rdata0(imem_rdata0),
+    .imem_rdata1(imem_rdata1),
+    .imem_pc(imem_pc)
+);
     
     
     
@@ -865,19 +862,19 @@ module ooo_core_top (
     // DATA SCRATCHPAD
     // ============================================================
     data_scratchpad dmem (
-        .clk(clk),
-        .reset(reset),
-        .mem_req(scratchpad_we || (mem_req && !is_uart_access && !mem_we)),
-        .mem_we(scratchpad_we),
-        .mem_addr(scratchpad_addr),
-        .mem_wdata(scratchpad_wdata),
-        .mem_size(2'b10),
-        .mem_atomic(1'b0),
-        .mem_cmp_val('0),
-        .mem_ready(scratchpad_ready),
-        .mem_rdata(scratchpad_rdata),
-        .mem_error(mem_error)
-    );
+    .clk(clk),
+    .reset(reset),
+    .mem_req(scratchpad_we || (mem_req && !is_uart_access && !mem_we)),
+    .mem_we(scratchpad_we),
+    .mem_addr(scratchpad_addr),
+    .mem_wdata(scratchpad_wdata),
+    .mem_size(2'b10),
+    .mem_atomic(1'b0),
+    .mem_cmp_val('0),
+    .mem_ready(scratchpad_ready),
+    .mem_rdata(scratchpad_rdata),
+    .mem_error(mem_error)
+);
     
     assign uart_tx = uart_write_en;
     assign uart_read_data_out = uart_read_data;
