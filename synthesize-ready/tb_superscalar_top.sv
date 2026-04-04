@@ -392,7 +392,7 @@ module tb_ooo_core;
         );
         
         $display("=========================================\n");
-    end
+    end */
 always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
@@ -450,7 +450,7 @@ always_ff @(posedge clk) begin
     $display("[LSU_EXCEPT] exception=%b cause=%h",
         dut.lsu_inst.lsu_exception,
         dut.lsu_inst.lsu_exception_cause);
-    
+    /*
     // Internal state
     $display("[LSU_STATE] lq_head=%0d lq_tail=%0d sq_head=%0d sq_tail=%0d load_flight=%b store_flight=%b",
         dut.lsu_inst.lq_head,
