@@ -34,7 +34,7 @@ module dispatch #(
     input  logic                    flush_pipeline,
     output logic                    dispatch_stall,
     
-    // To Physical Register File (combinational)
+    // To Physical Register File (combinational - must be, PRF reads this cycle)
     output logic [PHYS_W-1:0]       prf_rtag0,
     output logic [PHYS_W-1:0]       prf_rtag1,
     output logic [PHYS_W-1:0]       prf_rtag2,
@@ -94,6 +94,33 @@ module dispatch #(
     input  logic [1:0][XLEN-1:0]    cdb_value
 );
 
+    // ============================================================
+    // PIPELINE REGISTERS — sample all rename inputs on clock edge
+    // ============================================================
+    logic [FETCH_W-1:0]      rename_valid_r;
+    logic [FETCH_W-1:0][5:0] rename_opcode_r;
+    logic [FETCH_W-1:0][5:0] rename_prs1_r;
+    logic [FETCH_W-1:0][5:0] rename_prs2_r;
+    logic [FETCH_W-1:0][5:0] rename_prd_r;
+    logic [FETCH_W-1:0][31:0] rename_imm_r;
+    logic [FETCH_W-1:0][31:0] rename_pc_r;
+    logic [FETCH_W-1:0]      rename_rs1_valid_r;
+    logic [FETCH_W-1:0]      rename_rs2_valid_r;
+    logic [FETCH_W-1:0]      rename_rd_valid_r;
+    logic [FETCH_W-1:0]      rename_is_alu_r;
+    logic [FETCH_W-1:0]      rename_is_load_r;
+    logic [FETCH_W-1:0]      rename_is_store_r;
+    logic [FETCH_W-1:0]      rename_is_branch_r;
+    logic [FETCH_W-1:0]      rename_is_cas_r;
+    logic [FETCH_W-1:0][5:0] rename_alu_func_r;
+    logic [FETCH_W-1:0][4:0] rename_arch_rs1_r;
+    logic [FETCH_W-1:0][4:0] rename_arch_rs2_r;
+    logic [FETCH_W-1:0][4:0] rename_arch_rd_r;
+    
+    // ROB idx captured this cycle (combinational from ROB, then registered)
+    logic [FETCH_W-1:0][$clog2(ROB_ENTRIES)-1:0] rob_alloc_idx_r;
+    logic rob_alloc_ok_r;
+    
     // Scoreboard
     logic [core_pkg::PREGS-1:0] preg_ready;
     
@@ -103,14 +130,8 @@ module dispatch #(
     logic            cached_base_ready;
     logic            cached_valid;
     
-    // Combinational signals
-    logic [FETCH_W-1:0] src1_ready, src2_ready;
-    logic [FETCH_W-1:0][31:0] src1_value, src2_value;
-    logic [FETCH_W-1:0] alloc_en_comb;
-    logic memory_op_stall;
-    
     // ============================================================
-    // PRF Read Ports (combinational)
+    // PRF Read Port Arbitration (combinational — feeds rename inputs)
     // ============================================================
     always_comb begin
         prf_rtag0 = rename_valid[0] ? rename_prs1[0] : '0;
@@ -120,19 +141,69 @@ module dispatch #(
     end
     
     // ============================================================
-    // Scoreboard (registered)
+    // SAMPLE rename inputs (all at once)
+    // ============================================================
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset || flush_pipeline) begin
+            rename_valid_r <= '0;
+            rename_opcode_r <= '0;
+            rename_prs1_r <= '0;
+            rename_prs2_r <= '0;
+            rename_prd_r <= '0;
+            rename_imm_r <= '0;
+            rename_pc_r <= '0;
+            rename_rs1_valid_r <= '0;
+            rename_rs2_valid_r <= '0;
+            rename_rd_valid_r <= '0;
+            rename_is_alu_r <= '0;
+            rename_is_load_r <= '0;
+            rename_is_store_r <= '0;
+            rename_is_branch_r <= '0;
+            rename_is_cas_r <= '0;
+            rename_alu_func_r <= '0;
+            rename_arch_rs1_r <= '0;
+            rename_arch_rs2_r <= '0;
+            rename_arch_rd_r <= '0;
+            rob_alloc_idx_r <= '0;
+            rob_alloc_ok_r <= 1'b0;
+        end else if (!dispatch_stall) begin
+            rename_valid_r <= rename_valid;
+            rename_opcode_r <= rename_opcode;
+            rename_prs1_r <= rename_prs1;
+            rename_prs2_r <= rename_prs2;
+            rename_prd_r <= rename_prd;
+            rename_imm_r <= rename_imm;
+            rename_pc_r <= rename_pc;
+            rename_rs1_valid_r <= rename_rs1_valid;
+            rename_rs2_valid_r <= rename_rs2_valid;
+            rename_rd_valid_r <= rename_rd_valid;
+            rename_is_alu_r <= rename_is_alu;
+            rename_is_load_r <= rename_is_load;
+            rename_is_store_r <= rename_is_store;
+            rename_is_branch_r <= rename_is_branch;
+            rename_is_cas_r <= rename_is_cas;
+            rename_alu_func_r <= rename_alu_func;
+            rename_arch_rs1_r <= rename_arch_rs1;
+            rename_arch_rs2_r <= rename_arch_rs2;
+            rename_arch_rd_r <= rename_arch_rd;
+            rob_alloc_idx_r <= rob_alloc_idx;
+            rob_alloc_ok_r <= rob_alloc_ok;
+        end
+    end
+    
+    // ============================================================
+    // Scoreboard (using registered rename signals)
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             preg_ready <= '1;
         end else begin
-            // Mark busy for instructions being dispatched this cycle
+            preg_ready <= preg_ready;
             for (int i = 0; i < FETCH_W; i++) begin
-                if (rob_alloc_en[i] && rename_rd_valid[i]) begin
-                    preg_ready[rename_prd[i]] <= 1'b0;
+                if (rob_alloc_en[i] && rename_rd_valid_r[i]) begin
+                    preg_ready[rename_prd_r[i]] <= 1'b0;
                 end
             end
-            // Mark ready on CDB
             for (int j = 0; j < 2; j++) begin
                 if (cdb_valid[j]) begin
                     preg_ready[cdb_tag[j]] <= 1'b1;
@@ -142,27 +213,28 @@ module dispatch #(
     end
     
     // ============================================================
-    // Operand Readiness (combinational)
+    // Operand readiness (using registered rename + PRF data)
     // ============================================================
+    logic [FETCH_W-1:0] src1_ready, src2_ready;
+    logic [FETCH_W-1:0][31:0] src1_value, src2_value;
+    
     always_comb begin
         for (int i = 0; i < FETCH_W; i++) begin
             // Source 1
-            if (!rename_rs1_valid[i] || rename_prs1[i] == 6'd0) begin
+            if (!rename_rs1_valid_r[i] || rename_prs1_r[i] == 6'd0) begin
                 src1_ready[i] = 1'b1;
                 src1_value[i] = '0;
             end else begin
-                src1_ready[i] = preg_ready[rename_prs1[i]];
-                // Same-cycle forwarding
+                src1_ready[i] = preg_ready[rename_prs1_r[i]];
                 for (int j = 0; j < i; j++) begin
-                    if (rename_valid[j] && rename_rd_valid[j] && 
-                        rename_prs1[i] == rename_prd[j]) begin
+                    if (rename_valid_r[j] && rename_rd_valid_r[j] && 
+                        rename_prs1_r[i] == rename_prd_r[j]) begin
                         src1_ready[i] = 1'b0;
                     end
                 end
                 src1_value[i] = (i == 0) ? prf_rdata0 : prf_rdata2;
-                // CDB bypass
                 for (int j = 0; j < 2; j++) begin
-                    if (cdb_valid[j] && cdb_tag[j] == rename_prs1[i]) begin
+                    if (cdb_valid[j] && cdb_tag[j] == rename_prs1_r[i]) begin
                         src1_ready[i] = 1'b1;
                         src1_value[i] = cdb_value[j];
                     end
@@ -170,23 +242,23 @@ module dispatch #(
             end
             
             // Source 2
-            if (!rename_rs2_valid[i]) begin
+            if (!rename_rs2_valid_r[i]) begin
                 src2_ready[i] = 1'b1;
-                src2_value[i] = rename_imm[i];
-            end else if (rename_prs2[i] == 6'd0) begin
+                src2_value[i] = rename_imm_r[i];
+            end else if (rename_prs2_r[i] == 6'd0) begin
                 src2_ready[i] = 1'b1;
                 src2_value[i] = '0;
             end else begin
-                src2_ready[i] = preg_ready[rename_prs2[i]];
+                src2_ready[i] = preg_ready[rename_prs2_r[i]];
                 for (int j = 0; j < i; j++) begin
-                    if (rename_valid[j] && rename_rd_valid[j] && 
-                        rename_prs2[i] == rename_prd[j]) begin
+                    if (rename_valid_r[j] && rename_rd_valid_r[j] && 
+                        rename_prs2_r[i] == rename_prd_r[j]) begin
                         src2_ready[i] = 1'b0;
                     end
                 end
                 src2_value[i] = (i == 0) ? prf_rdata1 : prf_rdata3;
                 for (int j = 0; j < 2; j++) begin
-                    if (cdb_valid[j] && cdb_tag[j] == rename_prs2[i]) begin
+                    if (cdb_valid[j] && cdb_tag[j] == rename_prs2_r[i]) begin
                         src2_ready[i] = 1'b1;
                         src2_value[i] = cdb_value[j];
                     end
@@ -213,20 +285,9 @@ module dispatch #(
     end
     
     // ============================================================
-    // Combinational alloc_en for stall logic
+    // Stall Logic (combinational, based on current rename inputs)
     // ============================================================
-    always_comb begin
-        alloc_en_comb = '0;
-        for (int i = 0; i < FETCH_W; i++) begin
-            if (rename_valid[i] && !rs_full && !flush_pipeline) begin
-                alloc_en_comb[i] = 1'b1;
-            end
-        end
-    end
-    
-    // ============================================================
-    // Stall Logic
-    // ============================================================
+    logic memory_op_stall;
     always_comb begin
         automatic int mem_op_count = 0;
         for (int i = 0; i < FETCH_W; i++) begin
@@ -239,11 +300,11 @@ module dispatch #(
     end
     
     // ============================================================
-    // REGISTERED OUTPUTS
+    // REGISTERED OUTPUTS (all from registered rename signals)
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         if (reset || flush_pipeline) begin
-            // RS
+            // RS outputs
             rs_alloc_en <= '0;
             rs_alloc_dst_tag <= '0;
             rs_alloc_src1_tag <= '0;
@@ -257,7 +318,7 @@ module dispatch #(
             rs_alloc_imm <= '0;
             rs_alloc_rob_tag <= '0;
             
-            // ROB
+            // ROB outputs
             rob_alloc_en <= '0;
             rob_alloc_arch_rd <= '0;
             rob_alloc_phys_rd <= '0;
@@ -266,7 +327,7 @@ module dispatch #(
             rob_alloc_is_branch <= '0;
             rob_alloc_pc <= '0;
             
-            // LSU
+            // LSU outputs
             lsu_alloc_en <= 1'b0;
             lsu_lane_index <= 1'b0;
             lsu_is_load <= 1'b0;
@@ -285,23 +346,24 @@ module dispatch #(
             lsu_rob_idx <= '0;
             
         end else if (!dispatch_stall) begin
+            
             // ====================================================
             // RS Allocation
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
-                if (rename_valid[i] && (rename_is_alu[i] || rename_is_branch[i])) begin
+                if (rename_valid_r[i] && (rename_is_alu_r[i] || rename_is_branch_r[i])) begin
                     rs_alloc_en[i] <= 1'b1;
-                    rs_alloc_dst_tag[i] <= rename_prd[i];
-                    rs_alloc_src1_tag[i] <= rename_prs1[i];
-                    rs_alloc_src2_tag[i] <= rename_prs2[i];
+                    rs_alloc_dst_tag[i] <= rename_prd_r[i];
+                    rs_alloc_src1_tag[i] <= rename_prs1_r[i];
+                    rs_alloc_src2_tag[i] <= rename_prs2_r[i];
                     rs_alloc_src1_val[i] <= src1_value[i];
                     rs_alloc_src2_val[i] <= src2_value[i];
                     rs_alloc_src1_ready[i] <= src1_ready[i];
                     rs_alloc_src2_ready[i] <= src2_ready[i];
-                    rs_alloc_op[i] <= {rename_opcode[i], rename_alu_func[i]};
-                    rs_alloc_pc[i] <= rename_pc[i];
-                    rs_alloc_imm[i] <= rename_imm[i];
-                    rs_alloc_rob_tag[i] <= rob_alloc_idx[i];
+                    rs_alloc_op[i] <= {rename_opcode_r[i], rename_alu_func_r[i]};
+                    rs_alloc_pc[i] <= rename_pc_r[i];
+                    rs_alloc_imm[i] <= rename_imm_r[i];
+                    rs_alloc_rob_tag[i] <= rob_alloc_idx_r[i];
                 end else begin
                     rs_alloc_en[i] <= 1'b0;
                 end
@@ -311,15 +373,15 @@ module dispatch #(
             // ROB Allocation
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
-                rob_alloc_arch_rd[i] <= rename_arch_rd[i];
-                rob_alloc_phys_rd[i] <= rename_prd[i];
-                rob_alloc_pc[i] <= rename_pc[i];
+                rob_alloc_arch_rd[i] <= rename_arch_rd_r[i];
+                rob_alloc_phys_rd[i] <= rename_prd_r[i];
+                rob_alloc_pc[i] <= rename_pc_r[i];
                 
-                if (rename_valid[i]) begin
+                if (rename_valid_r[i]) begin
                     rob_alloc_en[i] <= 1'b1;
-                    rob_alloc_is_store[i] <= rename_is_store[i];
-                    rob_alloc_is_load[i] <= rename_is_load[i];
-                    rob_alloc_is_branch[i] <= rename_is_branch[i];
+                    rob_alloc_is_store[i] <= rename_is_store_r[i];
+                    rob_alloc_is_load[i] <= rename_is_load_r[i];
+                    rob_alloc_is_branch[i] <= rename_is_branch_r[i];
                 end else begin
                     rob_alloc_en[i] <= 1'b0;
                     rob_alloc_is_store[i] <= 1'b0;
@@ -333,30 +395,30 @@ module dispatch #(
             // ====================================================
             lsu_alloc_en <= 1'b0;
             for (int i = 0; i < FETCH_W; i++) begin
-                if (rename_valid[i] && (rename_is_load[i] || rename_is_store[i])) begin
+                if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i])) begin
                     lsu_alloc_en <= 1'b1;
                     lsu_lane_index <= i[0];
-                    lsu_is_load <= rename_is_load[i];
-                    lsu_opcode <= {rename_opcode[i], 2'b00};
-                    lsu_base_tag <= rename_prs1[i];
-                    lsu_offset <= rename_imm[i];
+                    lsu_is_load <= rename_is_load_r[i];
+                    lsu_opcode <= {rename_opcode_r[i], 2'b00};
+                    lsu_base_tag <= rename_prs1_r[i];
+                    lsu_offset <= rename_imm_r[i];
                     lsu_store_data_value <= src2_value[i];
-                    lsu_store_data_tag <= rename_prs2[i];
+                    lsu_store_data_tag <= rename_prs2_r[i];
                     lsu_store_data_ready <= src2_ready[i];
-                    lsu_arch_rs1 <= rename_arch_rs1[i];
-                    lsu_arch_rs2 <= rename_arch_rs2[i];
-                    lsu_arch_rd <= rename_arch_rd[i];
-                    lsu_phys_rd <= rename_prd[i];
-                    lsu_rob_idx <= rob_alloc_idx[i];
+                    lsu_arch_rs1 <= rename_arch_rs1_r[i];
+                    lsu_arch_rs2 <= rename_arch_rs2_r[i];
+                    lsu_arch_rd <= rename_arch_rd_r[i];
+                    lsu_phys_rd <= rename_prd_r[i];
+                    lsu_rob_idx <= rob_alloc_idx_r[i];
                     
-                    if (cached_valid && rename_prs1[i] == cached_base_tag && cached_base_ready) begin
+                    if (cached_valid && rename_prs1_r[i] == cached_base_tag && cached_base_ready) begin
                         lsu_base_value <= cached_base_value;
                         lsu_base_ready <= cached_base_ready;
                     end else begin
                         lsu_base_value <= src1_value[i];
                         lsu_base_ready <= src1_ready[i];
                     end
-                    break;
+                    break;  // Only one memory op per cycle
                 end
             end
         end
