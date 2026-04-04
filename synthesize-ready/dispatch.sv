@@ -235,7 +235,7 @@ module dispatch #(
             end
         end
         memory_op_stall = (mem_op_count > 1);
-        dispatch_stall = rs_full || !rob_alloc_ok || flush_pipeline || memory_op_stall;
+        dispatch_stall = rs_full  || flush_pipeline || memory_op_stall;
     end
     
     // ============================================================
