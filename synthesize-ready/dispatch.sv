@@ -116,7 +116,7 @@ module dispatch #(
         prf_rtag0 = rename_valid[0] ? rename_prs1[0] : '0;
         prf_rtag1 = rename_valid[0] ? rename_prs2[0] : '0;
         prf_rtag2 = rename_valid[1] ? rename_prs1[1] : '0;
-        prf_rtag3 = rename_valid[1] ? rename_prs2[1] : '0';
+        prf_rtag3 = rename_valid[1] ? rename_prs2[1] : '0;
     end
     
     // ============================================================
