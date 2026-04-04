@@ -250,7 +250,7 @@ module tb_ooo_core;
             end
         end
     end
-    */
+    
     // ============================================================
     // ROB Table Display (every 10 cycles)
     // ============================================================
@@ -284,7 +284,7 @@ module tb_ooo_core;
             
         end
     end
-    /*
+    
     always_ff @(posedge clk) begin
         if (dut.mem_req) begin
             $display("[MEM] req=%b we=%b addr=%h wdata=%h ready=%b rdata=%h",
