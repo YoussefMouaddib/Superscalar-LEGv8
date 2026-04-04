@@ -70,6 +70,24 @@ module rename_stage #(
     logic [FETCH_W-1:0] alloc_en;
     logic [FETCH_W-1:0][5:0] alloc_phys;
     logic [FETCH_W-1:0] alloc_valid;
+    // ============================================================
+    // INPUT PIPELINE REGISTERS (Cut commit → rename path)
+    // ============================================================
+    logic [FETCH_W-1:0]      commit_en_r;
+    logic [1:0][4:0]         commit_arch_rd_r;
+    logic [1:0][5:0]         commit_phys_rd_r;
+    
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset || flush_pipeline) begin
+            commit_en_r <= '0;
+            commit_arch_rd_r <= '0;
+            commit_phys_rd_r <= '0;
+        end else begin
+            commit_en_r <= commit_en;
+            commit_arch_rd_r <= commit_arch_rd;
+            commit_phys_rd_r <= commit_phys_rd;
+        end
+    end
     
     // Create allocation requests
     always_comb begin
@@ -91,8 +109,8 @@ module rename_stage #(
         .alloc_phys(alloc_phys),
         .alloc_valid(alloc_valid),
         // Free (multi-port)
-        .free_en(commit_en),
-        .free_phys(commit_phys_rd)
+        .free_en(commit_en_r),
+        .free_phys(commit_phys_rd_r)
     );
     
     // ============================================================
@@ -128,9 +146,9 @@ module rename_stage #(
         .arch_rd(rename_arch_rd_wire),
         .new_phys_rd(rename_new_phys_rd),
         // Commits (multi-port committed state updates)
-        .commit_en(commit_en),
-        .commit_arch_rd(commit_arch_rd),
-        .commit_phys_rd(commit_phys_rd),
+        .commit_en(commit_en_r),
+        .commit_arch_rd(commit_arch_rd_r),
+        .commit_phys_rd(commit_phys_rd_r),
         .flush_pipeline(flush_pipeline)
     );
     
