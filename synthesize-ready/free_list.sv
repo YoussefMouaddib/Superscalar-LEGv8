@@ -17,18 +17,16 @@ module free_list #(
 );
     
     logic [PHYS_REGS-1:0] free_mask;
-    logic [5:0] alloc_ptr;
     
-    // Pipeline registers for free operations
+    // Pipeline registers for free operations (freeing can be slow)
     logic [FREE_PORTS-1:0]      free_en_r;
     logic [FREE_PORTS-1:0][5:0] free_phys_r;
     
-    // Pipeline registers for allocation results
+    // Combinational allocation results
     logic [ALLOC_PORTS-1:0][5:0] alloc_phys_comb;
     logic [ALLOC_PORTS-1:0]     alloc_valid_comb;
-    logic [5:0]                 alloc_ptr_next;
     
-    // Stage 1: Register free inputs
+    // Register free inputs (1 cycle delay — fine, freeing isn't critical)
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             free_en_r <= '0;
@@ -39,14 +37,16 @@ module free_list #(
         end
     end
     
-    // Stage 1 combinational: Apply frees and compute allocation
+    // ============================================================
+    // COMBINATIONAL ALLOCATION — NO ROUND-ROBIN, JUST FIRST FREE
+    // ============================================================
     logic [PHYS_REGS-1:0] temp_mask;
-    logic [PHYS_REGS-1:0] mask_after_port0;
-    logic [5:0] start_ptr;
     
     always_comb begin
-        // Apply frees to create temporary mask
+        // Start with current free_mask
         temp_mask = free_mask;
+        
+        // Apply pending frees (from registered inputs)
         for (int j = 0; j < FREE_PORTS; j++) begin
             if (free_en_r[j]) begin
                 temp_mask[free_phys_r[j]] = 1'b1;
@@ -54,16 +54,15 @@ module free_list #(
         end
     end
     
+    // Port 0 allocation: find first free register starting from RENAME_START
     always_comb begin
-        // Port 0 allocation
         if (alloc_en[0]) begin
             alloc_valid_comb[0] = 1'b0;
             alloc_phys_comb[0] = '0;
             
-            for (int i = 0; i < RENAME_REGS; i++) begin
-                automatic int idx = RENAME_START + ((alloc_ptr - RENAME_START + i) % RENAME_REGS);
-                if (temp_mask[idx] && !alloc_valid_comb[0]) begin
-                    alloc_phys_comb[0] = idx[5:0];
+            for (int i = RENAME_START; i < PHYS_REGS; i++) begin
+                if (temp_mask[i] && !alloc_valid_comb[0]) begin
+                    alloc_phys_comb[0] = i[5:0];
                     alloc_valid_comb[0] = 1'b1;
                 end
             end
@@ -72,6 +71,9 @@ module free_list #(
             alloc_phys_comb[0] = '0;
         end
     end
+    
+    // Port 1 allocation: find second free register (after removing port 0's allocation)
+    logic [PHYS_REGS-1:0] mask_after_port0;
     
     always_comb begin
         mask_after_port0 = temp_mask;
@@ -85,16 +87,9 @@ module free_list #(
             alloc_valid_comb[1] = 1'b0;
             alloc_phys_comb[1] = '0;
             
-            if (alloc_en[0] && alloc_valid_comb[0]) begin
-                start_ptr = (alloc_phys_comb[0] + 1 - RENAME_START) % RENAME_REGS + RENAME_START;
-            end else begin
-                start_ptr = alloc_ptr;
-            end
-            
-            for (int i = 0; i < RENAME_REGS; i++) begin
-                automatic int idx = RENAME_START + ((start_ptr - RENAME_START + i) % RENAME_REGS);
-                if (mask_after_port0[idx] && !alloc_valid_comb[1]) begin
-                    alloc_phys_comb[1] = idx[5:0];
+            for (int i = RENAME_START; i < PHYS_REGS; i++) begin
+                if (mask_after_port0[i] && !alloc_valid_comb[1]) begin
+                    alloc_phys_comb[1] = i[5:0];
                     alloc_valid_comb[1] = 1'b1;
                 end
             end
@@ -104,44 +99,34 @@ module free_list #(
         end
     end
     
-    // Compute next alloc_ptr
-    always_comb begin
-        if (alloc_en[1] && alloc_valid_comb[1]) begin
-            alloc_ptr_next = (alloc_phys_comb[1] + 1 - RENAME_START) % RENAME_REGS + RENAME_START;
-        end else if (alloc_en[0] && alloc_valid_comb[0]) begin
-            alloc_ptr_next = (alloc_phys_comb[0] + 1 - RENAME_START) % RENAME_REGS + RENAME_START;
-        end else begin
-            alloc_ptr_next = alloc_ptr;
-        end
-    end
-    
-    // Stage 2: Register allocation results and update free_mask
+    // ============================================================
+    // SEQUENTIAL UPDATE (free_mask and outputs)
+    // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
+            // Initialize: only rename registers (RENAME_START to PHYS_REGS-1) are free
             for (int i = 0; i < PHYS_REGS; i++) begin
                 free_mask[i] <= (i >= RENAME_START) ? 1'b1 : 1'b0;
             end
-            alloc_ptr <= RENAME_START;
             alloc_phys <= '0;
             alloc_valid <= '0;
+            
         end else begin
-            // Update free_mask
+            // Update free_mask: apply frees (from registered inputs)
             for (int j = 0; j < FREE_PORTS; j++) begin
                 if (free_en_r[j]) begin
                     free_mask[free_phys_r[j]] <= 1'b1;
                 end
             end
             
+            // Update free_mask: apply allocations (from combinational results)
             for (int a = 0; a < ALLOC_PORTS; a++) begin
                 if (alloc_en[a] && alloc_valid_comb[a]) begin
                     free_mask[alloc_phys_comb[a]] <= 1'b0;
                 end
             end
             
-            // Update alloc_ptr
-            alloc_ptr <= alloc_ptr_next;
-            
-            // Register outputs
+            // Register outputs (1 cycle delay for allocation)
             alloc_phys <= alloc_phys_comb;
             alloc_valid <= alloc_valid_comb;
         end
