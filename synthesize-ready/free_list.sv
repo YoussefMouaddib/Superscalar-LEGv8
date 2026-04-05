@@ -1,7 +1,7 @@
 module free_list #(
-    parameter int PHYS_REGS = 64,
+    parameter int PHYS_REGS = 51,
     parameter int RENAME_START = 32,
-    parameter int RENAME_REGS = 32,
+    parameter int RENAME_REGS = 19,
     parameter int ALLOC_PORTS = 2,
     parameter int FREE_PORTS = 2
 )(
