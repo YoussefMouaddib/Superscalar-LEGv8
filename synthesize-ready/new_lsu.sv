@@ -1,6 +1,3 @@
-`timescale 1ns/1ps
-import core_pkg::*;
-
 module lsu #(
     parameter int LQ_ENTRIES = 16,
     parameter int SQ_ENTRIES = 16,
@@ -107,10 +104,30 @@ module lsu #(
     logic [3:0] load_in_flight_idx;
     logic store_in_flight;
     
-
+    // ============================================================
+    // PIPELINE REGISTERS FOR MEMORY OPERATIONS
+    // ============================================================
+    logic        mem_req_pipe;
+    logic        mem_we_pipe;
+    logic [XLEN-1:0] mem_addr_pipe;
+    logic [XLEN-1:0] mem_wdata_pipe;
+    logic        load_in_flight_pipe;
+    logic [3:0]  load_in_flight_idx_pipe;
+    logic        store_in_flight_pipe;
+    logic [5:0]  cdb_tag_pipe;
+    logic        cdb_exception_pipe;
+    
+    // Issue request signals (combinational)
+    logic        issue_load_comb;
+    logic        issue_store_comb;
+    logic [XLEN-1:0] issue_addr_comb;
+    logic [XLEN-1:0] issue_wdata_comb;
+    logic [3:0]  issue_load_idx_comb;
+    logic [5:0]  issue_cdb_tag_comb;
+    logic        issue_exception_comb;
 
     // ============================================================
-    // SINGLE UNIFIED ALWAYS_FF BLOCK - NO DRIVER CONFLICTS
+    // SINGLE UNIFIED ALWAYS_FF BLOCK
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         automatic logic [XLEN-1:0] calc_addr;
@@ -130,6 +147,19 @@ module lsu #(
             load_in_flight <= 1'b0;
             load_in_flight_idx <= '0;
             store_in_flight <= 1'b0;
+            
+            // Pipeline registers
+            mem_req_pipe <= 1'b0;
+            mem_we_pipe <= 1'b0;
+            mem_addr_pipe <= '0;
+            mem_wdata_pipe <= '0;
+            load_in_flight_pipe <= 1'b0;
+            load_in_flight_idx_pipe <= '0;
+            store_in_flight_pipe <= 1'b0;
+            cdb_tag_pipe <= '0;
+            cdb_exception_pipe <= 1'b0;
+            
+            // Outputs
             mem_req <= 1'b0;
             mem_we <= 1'b0;
             mem_addr <= '0;
@@ -139,90 +169,60 @@ module lsu #(
             cdb_req_value <= '0;
             cdb_req_exception <= 1'b0;
             
-        end /*else if (flush_pipeline) begin
+        end else if (flush_pipeline) begin
             // Clear speculative entries
             for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
             for (int i = 0; i < SQ_ENTRIES; i++) begin
-                if (!sq[i].committed) sq[i].valid <= 1'b0;
+                if (!sq[i].committed) begin
+                    sq[i].valid <= 1'b0;
+                end else begin
+                    if (!sq[i].executing) begin
+                        sq[i].base_ready <= 1'b0;
+                        sq[i].data_ready <= 1'b0;
+                        sq[i].addr_valid <= 1'b0;
+                    end
+                end
             end
+        
             lq_head <= '0;
             lq_tail <= '0;
-            sq_tail <= sq_head;
-            //load_in_flight <= 1'b0;
-            //store_in_flight <= 1'b0;
-            //mem_req <= 1'b0;
-            //cdb_req <= 1'b0;
-            end*/
-        else if (flush_pipeline) begin
-        // Clear speculative entries
-        for (int i = 0; i < LQ_ENTRIES; i++) lq[i].valid <= 1'b0;
-        for (int i = 0; i < SQ_ENTRIES; i++) begin
-            if (!sq[i].committed) begin
-                sq[i].valid <= 1'b0;
-            end else begin
-                // For committed but not yet executed stores, reset ready flags
-                // so they wait for values to be re-broadcast after flush
-                if (!sq[i].executing) begin
-                    sq[i].base_ready <= 1'b0;
-                    sq[i].data_ready <= 1'b0;
-                    sq[i].addr_valid <= 1'b0;
+        
+            // Keep sq_tail, but ensure sq_head points to first valid committed entry
+            begin
+                automatic int new_head = sq_head;
+                automatic logic found = 1'b0;
+                
+                for (int i = 0; i < SQ_ENTRIES; i++) begin
+                    automatic int idx = (sq_head + i) % SQ_ENTRIES;
+                    if (!found && sq[idx].valid && sq[idx].committed) begin
+                        new_head = idx;
+                        found = 1'b1;
+                    end
                 end
+                
+                sq_head <= found ? new_head[3:0] : sq_head;
             end
-        end
-    
-        // Reset LQ pointers
-        lq_head <= '0;
-        lq_tail <= '0;
-    
-        // Keep sq_tail, but ensure sq_head points to first valid committed entry
-        begin
-            automatic int new_head = sq_head;
-            automatic logic found = 1'b0;
-            
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
-                automatic int idx = (sq_head + i) % SQ_ENTRIES;
-                if (!found && sq[idx].valid && sq[idx].committed) begin
-                    new_head = idx;
-                    found = 1'b1;
-                end
+        
+            if (load_in_flight) begin
+                load_in_flight <= 1'b0;
+            end
+        
+            if (store_in_flight) begin
+                store_in_flight <= 1'b0;
             end
             
-            // If no valid committed entry found, keep original head
-            sq_head <= found ? new_head[3:0] : sq_head;
-        end
-    
-        // Handle in-flight load (cancel)
-        if (load_in_flight) begin
-            load_in_flight <= 1'b0;
-            mem_req <= 1'b0;
-        end
-    
-        // Handle in-flight store - preserve if committed
-        if (store_in_flight) begin
-            automatic logic found_committed_executing = 1'b0;
+            // Clear pipeline
+            mem_req_pipe <= 1'b0;
+            load_in_flight_pipe <= 1'b0;
+            store_in_flight_pipe <= 1'b0;
+            cdb_req <= 1'b0;
             
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
-                if (sq[i].valid && sq[i].executing && sq[i].committed) begin
-                    found_committed_executing = 1'b0;  // We want to cancel it to let it re-issue
-                    break;
-                end
-            end
-            
-            // Always cancel in-flight store during flush - it will re-issue
-            store_in_flight <= 1'b0;
-            mem_req <= 1'b0;
-            mem_we <= 1'b0;
-        end
-    
-        // Always clear any pending CDB request
-        cdb_req <= 1'b0;
-    end
-        else begin
+        end else begin
             // Default: clear one-cycle signals
             cdb_req <= 1'b0;
             
             // ========================================================
-            // STEP 1: Allocation (highest priority - happens first)
+            // STEP 1: Allocation
             // ========================================================
             if (alloc_en) begin
                 if (is_load) begin
@@ -259,7 +259,7 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 2: CDB Wakeup - Update operands
+            // STEP 2: CDB Wakeup
             // ========================================================
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 if (lq[i].valid && !lq[i].base_ready) begin
@@ -329,53 +329,57 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 5: Memory Operations
+            // STEP 5: Handle Memory Response (from previous cycle)
             // ========================================================
             
-            // Check if load completed
-            if (load_in_flight && mem_ready && !mem_we) begin
-                lq[load_in_flight_idx].valid <= 1'b0;
+            // Load completed
+            if (load_in_flight_pipe && mem_ready && !mem_we_pipe) begin
+                lq[load_in_flight_idx_pipe].valid <= 1'b0;
                 lq_head <= lq_head + 1;
                 load_in_flight <= 1'b0;
-                mem_req <= 1'b0;
                 
                 // Broadcast result on CDB
                 cdb_req <= 1'b1;
-                cdb_req_tag <= lq[load_in_flight_idx].dest_tag;
+                cdb_req_tag <= cdb_tag_pipe;
                 cdb_req_value <= mem_rdata;
-                cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
+                cdb_req_exception <= mem_error || cdb_exception_pipe;
             end
             
-            // Check if store completed
-            if (store_in_flight && mem_ready && mem_we) begin
+            // Store completed
+            if (store_in_flight_pipe && mem_ready && mem_we_pipe) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
-                    if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr) begin
+                    if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr_pipe) begin
                         sq[i].valid <= 1'b0;
                         sq_head <= sq_head + 1;
                         break;
                     end
                 end
                 store_in_flight <= 1'b0;
-                mem_req <= 1'b0;
             end
-
-            // After store completion, scan for zombie entries
-            for (int i = 0; i < SQ_ENTRIES; i++) begin
-                // Detect: store that completed but wasn't freed
-                if (!sq[i].valid && sq[i].committed && sq[i].executing) begin
-                    // Clear the entry entirely
-                    sq[i] <= '{default: '0};
-                    
-                    // If this is the head, advance it
-                    if (i == sq_head) begin
-                        sq_head <= sq_head + 1;
-                    end
-                end
+            
+            // Clear pipeline memory request after response
+            if (mem_ready && (load_in_flight_pipe || store_in_flight_pipe)) begin
+                mem_req_pipe <= 1'b0;
+                load_in_flight_pipe <= 1'b0;
+                store_in_flight_pipe <= 1'b0;
             end
+            
+            // ========================================================
+            // STEP 6: Issue New Memory Operation (Combinational logic, results piped)
+            // ========================================================
+            
+            // Default: no issue
+            issue_load_comb = 1'b0;
+            issue_store_comb = 1'b0;
+            issue_addr_comb = '0;
+            issue_wdata_comb = '0;
+            issue_load_idx_comb = '0;
+            issue_cdb_tag_comb = '0;
+            issue_exception_comb = 1'b0;
             
             // Issue new load (priority 1)
             found_load = 1'b0;
-            if (!load_in_flight && !store_in_flight) begin
+            if (!load_in_flight && !store_in_flight && !load_in_flight_pipe && !store_in_flight_pipe) begin
                 for (int i = 0; i < LQ_ENTRIES; i++) begin
                     lq_search_idx = (lq_head + i) % LQ_ENTRIES;
                     if (lq[lq_search_idx].valid && lq[lq_search_idx].addr_valid && 
@@ -392,21 +396,21 @@ module lsu #(
                         end
 
                         if (all_older_stores_committed) begin
-                        mem_req <= 1'b1;
-                        mem_we <= 1'b0;
-                        mem_addr <= lq[lq_search_idx].addr;
-                        load_in_flight <= 1'b1;
-                        load_in_flight_idx <= lq_search_idx;
-                        lq[lq_search_idx].executing <= 1'b1;
-                        found_load = 1'b1;
-                        break;
+                            issue_load_comb = 1'b1;
+                            issue_addr_comb = lq[lq_search_idx].addr;
+                            issue_load_idx_comb = lq_search_idx;
+                            issue_cdb_tag_comb = lq[lq_search_idx].dest_tag;
+                            issue_exception_comb = lq[lq_search_idx].exception;
+                            lq[lq_search_idx].executing <= 1'b1;
+                            found_load = 1'b1;
+                            break;
                         end
                     end
                 end
             end
             
-            // Issue new store (priority 2 - only if no load found)
-            if (!found_load && !load_in_flight && !store_in_flight) begin
+            // Issue new store (priority 2)
+            if (!found_load && !load_in_flight && !store_in_flight && !load_in_flight_pipe && !store_in_flight_pipe) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     sq_search_idx = (sq_head + i) % SQ_ENTRIES;
                     if (sq[sq_search_idx].valid && sq[sq_search_idx].committed &&
@@ -424,14 +428,58 @@ module lsu #(
                         end
                         
                         if (all_older_stores_executed) begin
-                        mem_req <= 1'b1;
-                        mem_we <= 1'b1;
-                        mem_addr <= sq[sq_search_idx].addr;
-                        mem_wdata <= sq[sq_search_idx].data_val;
-                        store_in_flight <= 1'b1;
-                        sq[sq_search_idx].executing <= 1'b1;
-                        break;
+                            issue_store_comb = 1'b1;
+                            issue_addr_comb = sq[sq_search_idx].addr;
+                            issue_wdata_comb = sq[sq_search_idx].data_val;
+                            issue_cdb_tag_comb = sq[sq_search_idx].rob_idx;  // Stores don't broadcast
+                            issue_exception_comb = sq[sq_search_idx].exception;
+                            sq[sq_search_idx].executing <= 1'b1;
+                            break;
                         end
+                    end
+                end
+            end
+            
+            // ========================================================
+            // STEP 7: Pipeline the Memory Request
+            // ========================================================
+            if (issue_load_comb) begin
+                mem_req_pipe <= 1'b1;
+                mem_we_pipe <= 1'b0;
+                mem_addr_pipe <= issue_addr_comb;
+                mem_wdata_pipe <= '0;
+                load_in_flight_pipe <= 1'b1;
+                load_in_flight_idx_pipe <= issue_load_idx_comb;
+                store_in_flight_pipe <= 1'b0;
+                cdb_tag_pipe <= issue_cdb_tag_comb;
+                cdb_exception_pipe <= issue_exception_comb;
+                load_in_flight <= 1'b1;
+            end else if (issue_store_comb) begin
+                mem_req_pipe <= 1'b1;
+                mem_we_pipe <= 1'b1;
+                mem_addr_pipe <= issue_addr_comb;
+                mem_wdata_pipe <= issue_wdata_comb;
+                load_in_flight_pipe <= 1'b0;
+                store_in_flight_pipe <= 1'b1;
+                cdb_tag_pipe <= issue_cdb_tag_comb;
+                cdb_exception_pipe <= issue_exception_comb;
+                store_in_flight <= 1'b1;
+            end
+            
+            // ========================================================
+            // STEP 8: Drive Outputs from Pipeline Registers
+            // ========================================================
+            mem_req <= mem_req_pipe;
+            mem_we <= mem_we_pipe;
+            mem_addr <= mem_addr_pipe;
+            mem_wdata <= mem_wdata_pipe;
+            
+            // Clean up zombie store entries
+            for (int i = 0; i < SQ_ENTRIES; i++) begin
+                if (!sq[i].valid && sq[i].committed && sq[i].executing) begin
+                    sq[i] <= '{default: '0};
+                    if (i == sq_head) begin
+                        sq_head <= sq_head + 1;
                     end
                 end
             end
@@ -439,30 +487,11 @@ module lsu #(
     end
     
     // ============================================================
-    // Exception Handling (Combinational - separate from state)
+    // Exception Handling
     // ============================================================
     always_comb begin
         lsu_exception = 1'b0;
         lsu_exception_cause = '0;
-        /*
-        for (int i = 0; i < LQ_ENTRIES; i++) begin
-            if (lq[i].valid && lq[i].exception) begin
-                lsu_exception = 1'b1;
-                lsu_exception_cause = 5'h1;
-            end
-        end
-        
-        for (int i = 0; i < SQ_ENTRIES; i++) begin
-            if (sq[i].valid && sq[i].exception) begin
-                lsu_exception = 1'b1;
-                lsu_exception_cause = 5'h2;
-            end
-        end
-        
-        if (mem_error) begin
-            lsu_exception = 1'b1;
-            lsu_exception_cause = 5'h3;
-        end*/
     end
 
 endmodule
