@@ -1,6 +1,6 @@
 module lsu #(
-    parameter int LQ_ENTRIES = 16,
-    parameter int SQ_ENTRIES = 16,
+    parameter int LQ_ENTRIES = 12,
+    parameter int SQ_ENTRIES = 12,
     parameter int XLEN = 32,
     parameter int COMMIT_W = 2,
     parameter int ROB_ENTRIES = 32
@@ -96,35 +96,38 @@ module lsu #(
     lq_entry_t [LQ_ENTRIES-1:0] lq;
     sq_entry_t [SQ_ENTRIES-1:0] sq;
     
-    logic [3:0] lq_head, lq_tail;
-    logic [3:0] sq_head, sq_tail;
+    logic [$clog2(LQ_ENTRIES)-1:0] lq_head, lq_tail;
+    logic [$clog2(SQ_ENTRIES)-1:0] sq_head, sq_tail;
     
     // Memory operation tracking
     logic load_in_flight;
-    logic [3:0] load_in_flight_idx;
+    logic [$clog2(LQ_ENTRIES)-1:0] load_in_flight_idx;
     logic store_in_flight;
     
     // ============================================================
-    // PIPELINE REGISTERS FOR MEMORY OPERATIONS
+    // PIPELINE REGISTERS (Stage 1 → Stage 2)
     // ============================================================
+    // Stage 1: Issue selection results
+    logic        issue_load_pipe;
+    logic        issue_store_pipe;
+    logic [$clog2(LQ_ENTRIES)-1:0] issue_load_idx_pipe;
+    logic [$clog2(SQ_ENTRIES)-1:0] issue_store_idx_pipe;
+    logic [XLEN-1:0] issue_base_pipe;
+    logic [XLEN-1:0] issue_offset_pipe;
+    logic [XLEN-1:0] issue_data_pipe;
+    logic [5:0]      issue_dest_pipe;
+    logic [5:0]      issue_rob_pipe;
+    logic            issue_exception_pipe;
+    
+    // Stage 2: Memory request
     logic        mem_req_pipe;
     logic        mem_we_pipe;
     logic [XLEN-1:0] mem_addr_pipe;
     logic [XLEN-1:0] mem_wdata_pipe;
-    logic        load_in_flight_pipe;
-    logic [3:0]  load_in_flight_idx_pipe;
-    logic        store_in_flight_pipe;
     logic [5:0]  cdb_tag_pipe;
     logic        cdb_exception_pipe;
-    
-    // Issue request signals (combinational)
-    logic        issue_load_comb;
-    logic        issue_store_comb;
-    logic [XLEN-1:0] issue_addr_comb;
-    logic [XLEN-1:0] issue_wdata_comb;
-    logic [3:0]  issue_load_idx_comb;
-    logic [5:0]  issue_cdb_tag_comb;
-    logic        issue_exception_comb;
+    logic [$clog2(LQ_ENTRIES)-1:0] load_complete_idx_pipe;
+    logic        is_load_pipe;
 
     // ============================================================
     // SINGLE UNIFIED ALWAYS_FF BLOCK
@@ -149,15 +152,25 @@ module lsu #(
             store_in_flight <= 1'b0;
             
             // Pipeline registers
+            issue_load_pipe <= 1'b0;
+            issue_store_pipe <= 1'b0;
+            issue_load_idx_pipe <= '0;
+            issue_store_idx_pipe <= '0;
+            issue_base_pipe <= '0;
+            issue_offset_pipe <= '0;
+            issue_data_pipe <= '0;
+            issue_dest_pipe <= '0;
+            issue_rob_pipe <= '0;
+            issue_exception_pipe <= 1'b0;
+            
             mem_req_pipe <= 1'b0;
             mem_we_pipe <= 1'b0;
             mem_addr_pipe <= '0;
             mem_wdata_pipe <= '0;
-            load_in_flight_pipe <= 1'b0;
-            load_in_flight_idx_pipe <= '0;
-            store_in_flight_pipe <= 1'b0;
             cdb_tag_pipe <= '0;
             cdb_exception_pipe <= 1'b0;
+            load_complete_idx_pipe <= '0;
+            is_load_pipe <= 1'b0;
             
             // Outputs
             mem_req <= 1'b0;
@@ -200,7 +213,7 @@ module lsu #(
                     end
                 end
                 
-                sq_head <= found ? new_head[3:0] : sq_head;
+                sq_head <= found ? new_head[$clog2(SQ_ENTRIES)-1:0] : sq_head;
             end
         
             if (load_in_flight) begin
@@ -212,9 +225,9 @@ module lsu #(
             end
             
             // Clear pipeline
+            issue_load_pipe <= 1'b0;
+            issue_store_pipe <= 1'b0;
             mem_req_pipe <= 1'b0;
-            load_in_flight_pipe <= 1'b0;
-            store_in_flight_pipe <= 1'b0;
             cdb_req <= 1'b0;
             
         end else begin
@@ -295,7 +308,7 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 3: Address Computation
+            // STEP 3: Address Computation (only for entries without addr)
             // ========================================================
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 if (lq[i].valid && !lq[i].addr_valid && lq[i].base_ready) begin
@@ -333,53 +346,42 @@ module lsu #(
             // ========================================================
             
             // Load completed
-            if (load_in_flight_pipe && mem_ready && !mem_we_pipe) begin
-                lq[load_in_flight_idx_pipe].valid <= 1'b0;
+            if (load_in_flight && mem_ready && !mem_we) begin
+                lq[load_in_flight_idx].valid <= 1'b0;
                 lq_head <= lq_head + 1;
                 load_in_flight <= 1'b0;
                 
                 // Broadcast result on CDB
                 cdb_req <= 1'b1;
-                cdb_req_tag <= cdb_tag_pipe;
+                cdb_req_tag <= lq[load_in_flight_idx].dest_tag;
                 cdb_req_value <= mem_rdata;
-                cdb_req_exception <= mem_error || cdb_exception_pipe;
+                cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
             
             // Store completed
-            if (store_in_flight_pipe && mem_ready && mem_we_pipe) begin
+            if (store_in_flight && mem_ready && mem_we) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
-                    if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr_pipe) begin
+                    if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr) begin
                         sq[i].valid <= 1'b0;
                         sq_head <= sq_head + 1;
                         break;
                     end
                 end
                 store_in_flight <= 1'b0;
-            end
-            
-            // Clear pipeline memory request after response
-            if (mem_ready && (load_in_flight_pipe || store_in_flight_pipe)) begin
                 mem_req_pipe <= 1'b0;
-                load_in_flight_pipe <= 1'b0;
-                store_in_flight_pipe <= 1'b0;
             end
             
             // ========================================================
-            // STEP 6: Issue New Memory Operation (Combinational logic, results piped)
+            // STEP 6: Issue New Operation (Stage 1 - just select, no address calc)
             // ========================================================
             
             // Default: no issue
-            issue_load_comb = 1'b0;
-            issue_store_comb = 1'b0;
-            issue_addr_comb = '0;
-            issue_wdata_comb = '0;
-            issue_load_idx_comb = '0;
-            issue_cdb_tag_comb = '0;
-            issue_exception_comb = 1'b0;
+            issue_load_pipe <= 1'b0;
+            issue_store_pipe <= 1'b0;
             
             // Issue new load (priority 1)
             found_load = 1'b0;
-            if (!load_in_flight && !store_in_flight && !load_in_flight_pipe && !store_in_flight_pipe) begin
+            if (!load_in_flight && !store_in_flight && !mem_req_pipe) begin
                 for (int i = 0; i < LQ_ENTRIES; i++) begin
                     lq_search_idx = (lq_head + i) % LQ_ENTRIES;
                     if (lq[lq_search_idx].valid && lq[lq_search_idx].addr_valid && 
@@ -396,11 +398,14 @@ module lsu #(
                         end
 
                         if (all_older_stores_committed) begin
-                            issue_load_comb = 1'b1;
-                            issue_addr_comb = lq[lq_search_idx].addr;
-                            issue_load_idx_comb = lq_search_idx;
-                            issue_cdb_tag_comb = lq[lq_search_idx].dest_tag;
-                            issue_exception_comb = lq[lq_search_idx].exception;
+                            // Stage 1: Just register the selected load data (no address calc)
+                            issue_load_pipe <= 1'b1;
+                            issue_load_idx_pipe <= lq_search_idx;
+                            issue_base_pipe <= lq[lq_search_idx].base_val;
+                            issue_offset_pipe <= lq[lq_search_idx].offset;
+                            issue_dest_pipe <= lq[lq_search_idx].dest_tag;
+                            issue_rob_pipe <= lq[lq_search_idx].rob_idx;
+                            issue_exception_pipe <= lq[lq_search_idx].exception;
                             lq[lq_search_idx].executing <= 1'b1;
                             found_load = 1'b1;
                             break;
@@ -410,7 +415,7 @@ module lsu #(
             end
             
             // Issue new store (priority 2)
-            if (!found_load && !load_in_flight && !store_in_flight && !load_in_flight_pipe && !store_in_flight_pipe) begin
+            if (!found_load && !load_in_flight && !store_in_flight && !mem_req_pipe) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     sq_search_idx = (sq_head + i) % SQ_ENTRIES;
                     if (sq[sq_search_idx].valid && sq[sq_search_idx].committed &&
@@ -428,11 +433,15 @@ module lsu #(
                         end
                         
                         if (all_older_stores_executed) begin
-                            issue_store_comb = 1'b1;
-                            issue_addr_comb = sq[sq_search_idx].addr;
-                            issue_wdata_comb = sq[sq_search_idx].data_val;
-                            issue_cdb_tag_comb = sq[sq_search_idx].rob_idx;  // Stores don't broadcast
-                            issue_exception_comb = sq[sq_search_idx].exception;
+                            // Stage 1: Just register the selected store data (no address calc)
+                            issue_store_pipe <= 1'b1;
+                            issue_store_idx_pipe <= sq_search_idx;
+                            issue_base_pipe <= sq[sq_search_idx].base_val;
+                            issue_offset_pipe <= sq[sq_search_idx].offset;
+                            issue_data_pipe <= sq[sq_search_idx].data_val;
+                            issue_dest_pipe <= sq[sq_search_idx].rob_idx;  // Stores don't broadcast to CDB
+                            issue_rob_pipe <= sq[sq_search_idx].rob_idx;
+                            issue_exception_pipe <= sq[sq_search_idx].exception;
                             sq[sq_search_idx].executing <= 1'b1;
                             break;
                         end
@@ -441,28 +450,34 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 7: Pipeline the Memory Request
+            // STEP 7: Memory Request (Stage 2 - address calculation)
             // ========================================================
-            if (issue_load_comb) begin
+            mem_req_pipe <= 1'b0;  // Default
+            
+            if (issue_load_pipe) begin
+                // Calculate address NOW (in stage 2, after the pipeline register)
+                calc_addr = issue_base_pipe + issue_offset_pipe;
                 mem_req_pipe <= 1'b1;
                 mem_we_pipe <= 1'b0;
-                mem_addr_pipe <= issue_addr_comb;
+                mem_addr_pipe <= calc_addr;
                 mem_wdata_pipe <= '0;
-                load_in_flight_pipe <= 1'b1;
-                load_in_flight_idx_pipe <= issue_load_idx_comb;
-                store_in_flight_pipe <= 1'b0;
-                cdb_tag_pipe <= issue_cdb_tag_comb;
-                cdb_exception_pipe <= issue_exception_comb;
+                cdb_tag_pipe <= issue_dest_pipe;
+                cdb_exception_pipe <= issue_exception_pipe;
+                load_complete_idx_pipe <= issue_load_idx_pipe;
+                is_load_pipe <= 1'b1;
                 load_in_flight <= 1'b1;
-            end else if (issue_store_comb) begin
+                load_in_flight_idx <= issue_load_idx_pipe;
+                
+            end else if (issue_store_pipe) begin
+                // Calculate address NOW (in stage 2, after the pipeline register)
+                calc_addr = issue_base_pipe + issue_offset_pipe;
                 mem_req_pipe <= 1'b1;
                 mem_we_pipe <= 1'b1;
-                mem_addr_pipe <= issue_addr_comb;
-                mem_wdata_pipe <= issue_wdata_comb;
-                load_in_flight_pipe <= 1'b0;
-                store_in_flight_pipe <= 1'b1;
-                cdb_tag_pipe <= issue_cdb_tag_comb;
-                cdb_exception_pipe <= issue_exception_comb;
+                mem_addr_pipe <= calc_addr;
+                mem_wdata_pipe <= issue_data_pipe;
+                cdb_tag_pipe <= issue_dest_pipe;
+                cdb_exception_pipe <= issue_exception_pipe;
+                is_load_pipe <= 1'b0;
                 store_in_flight <= 1'b1;
             end
             
