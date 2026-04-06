@@ -105,39 +105,169 @@ module lsu #(
     logic store_in_flight;
     
     // ============================================================
-    // PIPELINE REGISTERS (Stage 1 → Stage 2)
+    // PIPELINE REGISTERS
     // ============================================================
-    // Stage 1: Issue selection results
-    logic        issue_load_pipe;
-    logic        issue_store_pipe;
-    logic [$clog2(LQ_ENTRIES)-1:0] issue_load_idx_pipe;
-    logic [$clog2(SQ_ENTRIES)-1:0] issue_store_idx_pipe;
-    logic [XLEN-1:0] issue_base_pipe;
-    logic [XLEN-1:0] issue_offset_pipe;
-    logic [XLEN-1:0] issue_data_pipe;
-    logic [5:0]      issue_dest_pipe;
-    logic [5:0]      issue_rob_pipe;
-    logic            issue_exception_pipe;
+    // Stage 1 results (from priority encoders)
+    logic        winner_low_valid, winner_high_valid;
+    logic [$clog2(LQ_ENTRIES)-1:0] winner_low_idx, winner_high_idx;
+    logic [XLEN-1:0] winner_low_base, winner_high_base;
+    logic [XLEN-1:0] winner_low_offset, winner_high_offset;
+    logic [5:0] winner_low_dest, winner_high_dest;
     
-    // Stage 2: Memory request
-    logic        mem_req_pipe;
-    logic        mem_we_pipe;
-    logic [XLEN-1:0] mem_addr_pipe;
-    logic [XLEN-1:0] mem_wdata_pipe;
-    logic [5:0]  cdb_tag_pipe;
-    logic        cdb_exception_pipe;
-    logic [$clog2(LQ_ENTRIES)-1:0] load_complete_idx_pipe;
-    logic        is_load_pipe;
+    // Stage 1 registered
+    logic        winner_low_valid_r, winner_high_valid_r;
+    logic [$clog2(LQ_ENTRIES)-1:0] winner_low_idx_r, winner_high_idx_r;
+    logic [XLEN-1:0] winner_low_base_r, winner_high_base_r;
+    logic [XLEN-1:0] winner_low_offset_r, winner_high_offset_r;
+    logic [5:0] winner_low_dest_r, winner_high_dest_r;
+    
+    // Stage 2 selection
+    logic        issue_load_comb;
+    logic [$clog2(LQ_ENTRIES)-1:0] issue_load_idx_comb;
+    logic [XLEN-1:0] issue_base_comb;
+    logic [XLEN-1:0] issue_offset_comb;
+    logic [5:0] issue_dest_comb;
+    
+    // Stage 2 registered (to memory)
+    logic        issue_load_reg;
+    logic [$clog2(LQ_ENTRIES)-1:0] issue_load_idx_reg;
+    logic [XLEN-1:0] issue_base_reg;
+    logic [XLEN-1:0] issue_offset_reg;
+    logic [5:0] issue_dest_reg;
+    logic        issue_exception_reg;
+    
+    // Memory request pipeline
+    logic        mem_req_reg;
+    logic        mem_we_reg;
+    logic [XLEN-1:0] mem_addr_reg;
+    logic [XLEN-1:0] mem_wdata_reg;
+    logic [5:0] cdb_tag_reg;
+    logic        cdb_exception_reg;
+    logic [$clog2(LQ_ENTRIES)-1:0] load_idx_reg;
 
     // ============================================================
-    // SINGLE UNIFIED ALWAYS_FF BLOCK
+    // Helper function for older stores check
+    // ============================================================
+    function automatic logic all_older_stores_committed(int lq_idx);
+        all_older_stores_committed = 1'b1;
+        for (int s = 0; s < SQ_ENTRIES; s++) begin
+            if (sq[s].valid && sq[s].seq < lq[lq_idx].seq && !sq[s].committed) begin
+                all_older_stores_committed = 1'b0;
+            end
+        end
+    endfunction
+
+    // ============================================================
+    // STAGE 1a: Lower half priority encoder (entries 0-5)
+    // ============================================================
+    always_comb begin
+        winner_low_valid = 1'b0;
+        winner_low_idx = '0;
+        winner_low_base = '0;
+        winner_low_offset = '0;
+        winner_low_dest = '0;
+        
+        for (int i = 0; i < 6; i++) begin
+            int idx = (lq_head + i) % LQ_ENTRIES;
+            
+            if (lq[idx].valid && lq[idx].addr_valid && 
+                !lq[idx].executing && !lq[idx].exception &&
+                all_older_stores_committed(idx) && !winner_low_valid) begin
+                winner_low_valid = 1'b1;
+                winner_low_idx = idx;
+                winner_low_base = lq[idx].base_val;
+                winner_low_offset = lq[idx].offset;
+                winner_low_dest = lq[idx].dest_tag;
+            end
+        end
+    end
+    
+    // ============================================================
+    // STAGE 1b: Upper half priority encoder (entries 6-11)
+    // ============================================================
+    always_comb begin
+        winner_high_valid = 1'b0;
+        winner_high_idx = '0;
+        winner_high_base = '0;
+        winner_high_offset = '0;
+        winner_high_dest = '0;
+        
+        for (int i = 6; i < LQ_ENTRIES; i++) begin
+            int idx = (lq_head + i) % LQ_ENTRIES;
+            
+            if (lq[idx].valid && lq[idx].addr_valid && 
+                !lq[idx].executing && !lq[idx].exception &&
+                all_older_stores_committed(idx) && !winner_high_valid) begin
+                winner_high_valid = 1'b1;
+                winner_high_idx = idx;
+                winner_high_base = lq[idx].base_val;
+                winner_high_offset = lq[idx].offset;
+                winner_high_dest = lq[idx].dest_tag;
+            end
+        end
+    end
+    
+    // ============================================================
+    // STAGE 1 PIPELINE REGISTERS
+    // ============================================================
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            winner_low_valid_r <= 1'b0;
+            winner_low_idx_r <= '0;
+            winner_low_base_r <= '0;
+            winner_low_offset_r <= '0;
+            winner_low_dest_r <= '0;
+            
+            winner_high_valid_r <= 1'b0;
+            winner_high_idx_r <= '0;
+            winner_high_base_r <= '0;
+            winner_high_offset_r <= '0;
+            winner_high_dest_r <= '0;
+        end else if (!flush_pipeline) begin
+            winner_low_valid_r <= winner_low_valid;
+            winner_low_idx_r <= winner_low_idx;
+            winner_low_base_r <= winner_low_base;
+            winner_low_offset_r <= winner_low_offset;
+            winner_low_dest_r <= winner_low_dest;
+            
+            winner_high_valid_r <= winner_high_valid;
+            winner_high_idx_r <= winner_high_idx;
+            winner_high_base_r <= winner_high_base;
+            winner_high_offset_r <= winner_high_offset;
+            winner_high_dest_r <= winner_high_dest;
+        end
+    end
+    
+    // ============================================================
+    // STAGE 2: Select between low and high winner
+    // ============================================================
+    always_comb begin
+        issue_load_comb = 1'b0;
+        issue_load_idx_comb = '0;
+        issue_base_comb = '0;
+        issue_offset_comb = '0;
+        issue_dest_comb = '0;
+        
+        if (winner_low_valid_r) begin
+            issue_load_comb = 1'b1;
+            issue_load_idx_comb = winner_low_idx_r;
+            issue_base_comb = winner_low_base_r;
+            issue_offset_comb = winner_low_offset_r;
+            issue_dest_comb = winner_low_dest_r;
+        end else if (winner_high_valid_r) begin
+            issue_load_comb = 1'b1;
+            issue_load_idx_comb = winner_high_idx_r;
+            issue_base_comb = winner_high_base_r;
+            issue_offset_comb = winner_high_offset_r;
+            issue_dest_comb = winner_high_dest_r;
+        end
+    end
+    
+    // ============================================================
+    // MAIN SEQUENTIAL BLOCK
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         automatic logic [XLEN-1:0] calc_addr;
-        automatic int lq_search_idx;
-        automatic int sq_search_idx;
-        automatic logic found_load;
-        automatic logic found_store;
         
         if (reset) begin
             // Reset all state
@@ -151,28 +281,21 @@ module lsu #(
             load_in_flight_idx <= '0;
             store_in_flight <= 1'b0;
             
-            // Pipeline registers
-            issue_load_pipe <= 1'b0;
-            issue_store_pipe <= 1'b0;
-            issue_load_idx_pipe <= '0;
-            issue_store_idx_pipe <= '0;
-            issue_base_pipe <= '0;
-            issue_offset_pipe <= '0;
-            issue_data_pipe <= '0;
-            issue_dest_pipe <= '0;
-            issue_rob_pipe <= '0;
-            issue_exception_pipe <= 1'b0;
+            issue_load_reg <= 1'b0;
+            issue_load_idx_reg <= '0;
+            issue_base_reg <= '0;
+            issue_offset_reg <= '0;
+            issue_dest_reg <= '0;
+            issue_exception_reg <= 1'b0;
             
-            mem_req_pipe <= 1'b0;
-            mem_we_pipe <= 1'b0;
-            mem_addr_pipe <= '0;
-            mem_wdata_pipe <= '0;
-            cdb_tag_pipe <= '0;
-            cdb_exception_pipe <= 1'b0;
-            load_complete_idx_pipe <= '0;
-            is_load_pipe <= 1'b0;
+            mem_req_reg <= 1'b0;
+            mem_we_reg <= 1'b0;
+            mem_addr_reg <= '0;
+            mem_wdata_reg <= '0;
+            cdb_tag_reg <= '0;
+            cdb_exception_reg <= 1'b0;
+            load_idx_reg <= '0;
             
-            // Outputs
             mem_req <= 1'b0;
             mem_we <= 1'b0;
             mem_addr <= '0;
@@ -200,11 +323,10 @@ module lsu #(
             lq_head <= '0;
             lq_tail <= '0;
         
-            // Keep sq_tail, but ensure sq_head points to first valid committed entry
+            // Find new sq_head
             begin
                 automatic int new_head = sq_head;
                 automatic logic found = 1'b0;
-                
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     automatic int idx = (sq_head + i) % SQ_ENTRIES;
                     if (!found && sq[idx].valid && sq[idx].committed) begin
@@ -212,26 +334,18 @@ module lsu #(
                         found = 1'b1;
                     end
                 end
-                
                 sq_head <= found ? new_head[$clog2(SQ_ENTRIES)-1:0] : sq_head;
             end
         
-            if (load_in_flight) begin
-                load_in_flight <= 1'b0;
-            end
-        
-            if (store_in_flight) begin
-                store_in_flight <= 1'b0;
-            end
+            if (load_in_flight) load_in_flight <= 1'b0;
+            if (store_in_flight) store_in_flight <= 1'b0;
             
-            // Clear pipeline
-            issue_load_pipe <= 1'b0;
-            issue_store_pipe <= 1'b0;
-            mem_req_pipe <= 1'b0;
+            issue_load_reg <= 1'b0;
+            mem_req_reg <= 1'b0;
             cdb_req <= 1'b0;
             
         end else begin
-            // Default: clear one-cycle signals
+            // Defaults
             cdb_req <= 1'b0;
             
             // ========================================================
@@ -251,7 +365,6 @@ module lsu #(
                     lq[lq_tail].exception <= 1'b0;
                     lq[lq_tail].seq <= alloc_seq; 
                     lq_tail <= lq_tail + 1;
-                    
                 end else begin
                     sq[sq_tail].valid <= 1'b1;
                     sq[sq_tail].rob_idx <= rob_idx;
@@ -295,7 +408,6 @@ module lsu #(
                             end
                         end
                     end
-                    
                     if (!sq[i].data_ready) begin
                         for (int j = 0; j < 2; j++) begin
                             if (cdb_valid[j] && sq[i].data_tag == cdb_tag[j]) begin
@@ -308,7 +420,7 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 3: Address Computation (only for entries without addr)
+            // STEP 3: Address Computation
             // ========================================================
             for (int i = 0; i < LQ_ENTRIES; i++) begin
                 if (lq[i].valid && !lq[i].addr_valid && lq[i].base_ready) begin
@@ -342,23 +454,19 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 5: Handle Memory Response (from previous cycle)
+            // STEP 5: Memory Response
             // ========================================================
-            
-            // Load completed
             if (load_in_flight && mem_ready && !mem_we) begin
                 lq[load_in_flight_idx].valid <= 1'b0;
                 lq_head <= lq_head + 1;
                 load_in_flight <= 1'b0;
                 
-                // Broadcast result on CDB
                 cdb_req <= 1'b1;
                 cdb_req_tag <= lq[load_in_flight_idx].dest_tag;
                 cdb_req_value <= mem_rdata;
                 cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
             
-            // Store completed
             if (store_in_flight && mem_ready && mem_we) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr) begin
@@ -368,123 +476,55 @@ module lsu #(
                     end
                 end
                 store_in_flight <= 1'b0;
-                mem_req_pipe <= 1'b0;
+                mem_req_reg <= 1'b0;
             end
             
             // ========================================================
-            // STEP 6: Issue New Operation (Stage 1 - just select, no address calc)
+            // STEP 6: Issue New Load (using pipelined winner selection)
             // ========================================================
+            issue_load_reg <= 1'b0;
             
-            // Default: no issue
-            issue_load_pipe <= 1'b0;
-            issue_store_pipe <= 1'b0;
-            
-            // Issue new load (priority 1)
-            found_load = 1'b0;
-            // Stage 1a: Encoder for lower half (entries 0-5)
-            always_comb begin
-                winner_low_valid = 1'b0;
-                winner_low_idx = '0;
-                winner_low_base = '0;
-                winner_low_offset = '0;
-                winner_low_dest = '0;
-                
-                for (int i = 0; i < 6; i++) begin
-                    int idx = (lq_head + i) % LQ_ENTRIES;
-                    if (lq[idx].valid && lq[idx].addr_valid && 
-                        !lq[idx].executing && !lq[idx].exception &&
-                        all_older_stores_committed(idx) && !winner_low_valid) begin
-                        winner_low_valid = 1'b1;
-                        winner_low_idx = idx;
-                        winner_low_base = lq[idx].base_val;
-                        winner_low_offset = lq[idx].offset;
-                        winner_low_dest = lq[idx].dest_tag;
-                    end
-                end
-            end
-            
-            // Stage 1b: Encoder for upper half (entries 6-11)
-            // Same pattern, using i from 6 to 11
-            
-            // Pipeline registers
-            always_ff @(posedge clk) begin
-                winner_low_valid_r <= winner_low_valid;
-                winner_low_idx_r <= winner_low_idx;
-                winner_low_base_r <= winner_low_base;
-                winner_low_offset_r <= winner_low_offset;
-                winner_low_dest_r <= winner_low_dest;
-                
-                winner_high_valid_r <= winner_high_valid;
-                winner_high_idx_r <= winner_high_idx;
-                winner_high_base_r <= winner_high_base;
-                winner_high_offset_r <= winner_high_offset;
-                winner_high_dest_r <= winner_high_dest;
-            end
-            
-            // Stage 2: Select between low and high
-            always_comb begin
-                if (winner_low_valid_r) begin
-                    issue_load_pipe <= 1'b1;
-                    issue_base_pipe <= winner_low_base_r;
-                    issue_offset_pipe <= winner_low_offset_r;
-                    issue_dest_pipe <= winner_low_dest_r;
-                    issue_load_idx_pipe <= winner_low_idx_r;
-                end else if (winner_high_valid_r) begin
-                    issue_load_pipe <= 1'b1;
-                    issue_base_pipe <= winner_high_base_r;
-                    issue_offset_pipe <= winner_high_offset_r;
-                    issue_dest_pipe <= winner_high_dest_r;
-                    issue_load_idx_pipe <= winner_high_idx_r;
-                end
+            if (!load_in_flight && !store_in_flight && !mem_req_reg && issue_load_comb) begin
+                issue_load_reg <= 1'b1;
+                issue_load_idx_reg <= issue_load_idx_comb;
+                issue_base_reg <= issue_base_comb;
+                issue_offset_reg <= issue_offset_comb;
+                issue_dest_reg <= issue_dest_comb;
+                issue_exception_reg <= 1'b0;  // Will get from lq later
+                lq[issue_load_idx_comb].executing <= 1'b1;
             end
             
             // ========================================================
-            // STEP 7: Memory Request (Stage 2 - address calculation)
+            // STEP 7: Memory Request (address calculation)
             // ========================================================
-            mem_req_pipe <= 1'b0;  // Default
+            mem_req_reg <= 1'b0;
             
-            if (issue_load_pipe) begin
-                // Calculate address NOW (in stage 2, after the pipeline register)
-                calc_addr = issue_base_pipe + issue_offset_pipe;
-                mem_req_pipe <= 1'b1;
-                mem_we_pipe <= 1'b0;
-                mem_addr_pipe <= calc_addr;
-                mem_wdata_pipe <= '0;
-                cdb_tag_pipe <= issue_dest_pipe;
-                cdb_exception_pipe <= issue_exception_pipe;
-                load_complete_idx_pipe <= issue_load_idx_pipe;
-                is_load_pipe <= 1'b1;
+            if (issue_load_reg) begin
+                calc_addr = issue_base_reg + issue_offset_reg;
+                mem_req_reg <= 1'b1;
+                mem_we_reg <= 1'b0;
+                mem_addr_reg <= calc_addr;
+                mem_wdata_reg <= '0;
+                cdb_tag_reg <= issue_dest_reg;
+                cdb_exception_reg <= issue_exception_reg;
+                load_idx_reg <= issue_load_idx_reg;
                 load_in_flight <= 1'b1;
-                load_in_flight_idx <= issue_load_idx_pipe;
-                
-            end else if (issue_store_pipe) begin
-                // Calculate address NOW (in stage 2, after the pipeline register)
-                calc_addr = issue_base_pipe + issue_offset_pipe;
-                mem_req_pipe <= 1'b1;
-                mem_we_pipe <= 1'b1;
-                mem_addr_pipe <= calc_addr;
-                mem_wdata_pipe <= issue_data_pipe;
-                cdb_tag_pipe <= issue_dest_pipe;
-                cdb_exception_pipe <= issue_exception_pipe;
-                is_load_pipe <= 1'b0;
-                store_in_flight <= 1'b1;
+                load_in_flight_idx <= issue_load_idx_reg;
             end
             
             // ========================================================
-            // STEP 8: Drive Outputs from Pipeline Registers
+            // STEP 8: Drive Outputs
             // ========================================================
-            mem_req <= mem_req_pipe;
-            mem_we <= mem_we_pipe;
-            mem_addr <= mem_addr_pipe;
-            mem_wdata <= mem_wdata_pipe;
+            mem_req <= mem_req_reg;
+            mem_we <= mem_we_reg;
+            mem_addr <= mem_addr_reg;
+            mem_wdata <= mem_wdata_reg;
             
-            // Clean up zombie store entries
+            // Clean up zombie stores
             for (int i = 0; i < SQ_ENTRIES; i++) begin
                 if (!sq[i].valid && sq[i].committed && sq[i].executing) begin
                     sq[i] <= '{default: '0};
-                    if (i == sq_head) begin
-                        sq_head <= sq_head + 1;
-                    end
+                    if (i == sq_head) sq_head <= sq_head + 1;
                 end
             end
         end
