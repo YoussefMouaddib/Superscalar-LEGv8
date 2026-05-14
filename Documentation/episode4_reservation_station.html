@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Episode 4: Reservation Station & Dispatch</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg2: #f7f6f2; --bg3: #f0ede6;
+    --text: #1a1a18; --text2: #5c5b56; --text3: #8c8b85;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --blue50: #E6F1FB; --blue100: #B5D4F4; --blue200: #85B7EB; --blue600: #185FA5; --blue800: #0C447C; --blue900: #042C53;
+    --teal50: #E1F5EE; --teal100: #9FE1CB; --teal200: #5DCAA5; --teal600: #0F6E56; --teal800: #085041; --teal900: #04342C;
+    --purple50: #EEEDFE; --purple200: #AFA9EC; --purple600: #534AB7; --purple800: #3C3489; --purple900: #26215C;
+    --amber50: #FAEEDA; --amber100: #FAC775; --amber200: #EF9F27; --amber600: #854F0B; --amber800: #633806;
+    --coral50: #FAECE7; --coral200: #F0997B; --coral600: #993C1D; --coral800: #712B13;
+    --green50: #EAF3DE; --green200: #97C459; --green600: #3B6D11; --green800: #27500A;
+    --gray50: #F1EFE8; --gray200: #B4B2A9; --gray600: #5F5E5A; --gray800: #444441;
+    --red50: #FCEBEB; --red200: #F09595; --red600: #A32D2D; --red800: #791F1F;
+    --pink50: #FBEAF0; --pink200: #ED93B1; --pink600: #993556; --pink800: #72243E;
+    --mono: 'Courier New', monospace;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252522; --bg3: #2e2e2b;
+      --text: #e8e6de; --text2: #a8a69e; --text3: #6e6c66;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --blue50: #042C53; --blue100: #0C447C; --blue200: #185FA5; --blue600: #378ADD; --blue800: #85B7EB; --blue900: #B5D4F4;
+      --teal50: #04342C; --teal100: #085041; --teal200: #0F6E56; --teal600: #1D9E75; --teal800: #5DCAA5; --teal900: #9FE1CB;
+      --purple50: #26215C; --purple200: #3C3489; --purple600: #7F77DD; --purple800: #AFA9EC; --purple900: #CECBF6;
+      --amber50: #412402; --amber100: #633806; --amber200: #854F0B; --amber600: #EF9F27; --amber800: #FAC775;
+      --coral50: #4A1B0C; --coral200: #993C1D; --coral600: #D85A30; --coral800: #F0997B;
+      --green50: #173404; --green200: #3B6D11; --green600: #639922; --green800: #97C459;
+      --gray50: #2C2C2A; --gray200: #5F5E5A; --gray600: #888780; --gray800: #B4B2A9;
+      --red50: #501313; --red200: #A32D2D; --red600: #E24B4A; --red800: #F09595;
+      --pink50: #4B1528; --pink200: #993556; --pink600: #D4537E; --pink800: #ED93B1;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.7; }
+  .page { max-width: 900px; margin: 0 auto; padding: 48px 32px 80px; }
+
+  .cover { border-bottom: 0.5px solid var(--border2); padding-bottom: 40px; margin-bottom: 48px; }
+  .cover-label { font-size: 12px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  h1 { font-size: 32px; font-weight: 500; line-height: 1.2; margin-bottom: 10px; }
+  .cover-sub { font-size: 16px; color: var(--text2); max-width: 600px; }
+  h2 { font-size: 22px; font-weight: 500; margin: 56px 0 16px; color: var(--text); border-top: 0.5px solid var(--border); padding-top: 32px; }
+  h3 { font-size: 17px; font-weight: 500; margin: 32px 0 10px; color: var(--text); }
+  p { margin-bottom: 14px; color: var(--text2); }
+  strong { color: var(--text); font-weight: 500; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--bg2); padding: 2px 6px; border-radius: 4px; color: var(--text); border: 0.5px solid var(--border); }
+  ul, ol { padding-left: 22px; margin-bottom: 14px; color: var(--text2); }
+  li { margin-bottom: 4px; }
+
+  .callout { background: var(--blue50); border-left: 3px solid var(--blue600); border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 18px; margin: 20px 0; }
+  .callout p { color: var(--blue800); margin: 0; }
+  .callout.warn { background: var(--amber50); border-color: var(--amber600); }
+  .callout.warn p { color: var(--amber800); }
+  .callout.danger { background: var(--red50); border-color: var(--red600); }
+  .callout.danger p { color: var(--red800); }
+  .callout.success { background: var(--teal50); border-color: var(--teal600); }
+  .callout.success p { color: var(--teal800); }
+  .callout.purple { background: var(--purple50); border-color: var(--purple600); }
+  .callout.purple p { color: var(--purple800); }
+
+  pre { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 18px 0; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  pre .kw { color: var(--purple600); font-weight: 500; }
+  pre .cm { color: var(--text3); font-style: italic; }
+  pre .nm { color: var(--blue600); }
+  pre .st { color: var(--teal600); }
+  @media (prefers-color-scheme: dark) {
+    pre .kw { color: var(--purple800); }
+    pre .nm { color: var(--blue800); }
+    pre .st { color: var(--teal800); }
+    pre .cm { color: var(--gray600); }
+  }
+
+  table.data { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13.5px; }
+  table.data th { background: var(--bg2); color: var(--text); font-weight: 500; text-align: left; padding: 9px 14px; border: 0.5px solid var(--border); }
+  table.data td { padding: 8px 14px; border: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
+  table.data tr:nth-child(even) td { background: var(--bg2); }
+
+  .toc { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 32px 0; }
+  .toc-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 12px; font-weight: 500; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; color: var(--text2); font-size: 14px; }
+  .toc a { color: var(--blue600); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  @media (prefers-color-scheme: dark) { .toc a { color: var(--blue800); } }
+
+  .viz-wrap { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 24px; margin: 24px 0; }
+  .viz-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 16px; font-weight: 500; }
+  .viz-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .viz-btn { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 5px 13px; font-size: 13px; cursor: pointer; color: var(--text); transition: background 0.15s; }
+  .viz-btn:hover { background: var(--bg3); }
+  .viz-btn.active { background: var(--blue600); color: white; border-color: var(--blue600); }
+  @media (prefers-color-scheme: dark) { .viz-btn.active { background: var(--blue600); } }
+
+  .algo-block { border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; overflow: hidden; }
+  .algo-header { background: var(--bg2); padding: 12px 18px; font-weight: 500; font-size: 14px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .algo-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 400; white-space: nowrap; }
+  .tag-comb { background: var(--purple50); color: var(--purple600); }
+  .tag-seq { background: var(--teal50); color: var(--teal600); }
+  .tag-struct { background: var(--amber50); color: var(--amber600); }
+  .algo-body { padding: 18px; }
+  .algo-body p { font-size: 13px; margin-top: 8px; margin-bottom: 0; }
+  @media (prefers-color-scheme: dark) {
+    .tag-comb { background: var(--purple200); color: var(--purple900); }
+    .tag-seq { background: var(--teal200); color: var(--teal900); }
+    .tag-struct { background: var(--amber200); color: var(--amber800); }
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 16px 0; }
+  @media (max-width: 620px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+  .sv-note { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin: 14px 0; }
+  .sv-note-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
+
+  /* RS TABLE VIZ */
+  .rs-table-container { overflow-x: auto; }
+  .rs-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .rs-table th { background: var(--bg3); color: var(--text3); font-family: -apple-system, sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; padding: 7px 10px; border: 0.5px solid var(--border); white-space: nowrap; }
+  .rs-table td { padding: 6px 10px; border: 0.5px solid var(--border); color: var(--text2); vertical-align: middle; transition: background 0.25s; white-space: nowrap; }
+  .rs-table tr.row-ready td { background: var(--teal50); }
+  .rs-table tr.row-ready td { color: var(--teal800); }
+  .rs-table tr.row-issued td { background: var(--amber50); opacity: 0.7; }
+  .rs-table tr.row-new td { background: var(--blue50); }
+  .rs-table tr.row-new td { color: var(--blue800); }
+  .rs-table tr.row-stale { opacity: 0.45; }
+  .rs-table .tag-ready { color: var(--teal600); font-weight: 500; }
+  .rs-table .tag-waiting { color: var(--coral600); }
+  .rs-table .entry-idx { color: var(--text3); font-size: 11px; }
+  .rs-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
+  .rs-legend span { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+  .rs-legend .dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  @media (prefers-color-scheme: dark) {
+    .rs-table tr.row-ready td { background: var(--teal50); color: var(--teal800); }
+    .rs-table tr.row-new td { background: var(--blue50); color: var(--blue900); }
+    .rs-table tr.row-issued td { background: var(--amber50); }
+    .rs-table .tag-ready { color: var(--teal600); }
+    .rs-table .tag-waiting { color: var(--coral600); }
+  }
+
+  .cycle-info { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius-lg); padding: 12px 16px; margin-bottom: 14px; font-size: 13px; color: var(--text2); }
+  .cycle-info strong { color: var(--text); }
+
+  .dispatch-flow { display: flex; flex-direction: column; gap: 0; border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .dispatch-row { display: grid; font-size: 12.5px; border-bottom: 0.5px solid var(--border); }
+  .dispatch-row:last-child { border-bottom: none; }
+  .dispatch-row > div { padding: 8px 13px; }
+  .dispatch-row > div:not(:last-child) { border-right: 0.5px solid var(--border); }
+  .dispatch-hdr { background: var(--bg2); font-weight: 500; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+  .dispatch-highlight { background: var(--teal50); }
+  .dispatch-highlight > div { color: var(--teal800); }
+  .dispatch-cdb { background: var(--amber50); }
+  .dispatch-cdb > div { color: var(--amber800); }
+
+  .step-list { counter-reset: steps; list-style: none; padding: 0; margin: 16px 0; }
+  .step-list li { counter-increment: steps; display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+  .step-list li::before { content: counter(steps); min-width: 24px; height: 24px; background: var(--blue600); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; margin-top: 1px; }
+  .step-list li p { margin: 0; font-size: 13.5px; }
+
+  .op-badge { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 4px; }
+  .op-alu { background: var(--blue50); color: var(--blue800); border: 0.5px solid var(--blue200); }
+  .op-br { background: var(--purple50); color: var(--purple800); border: 0.5px solid var(--purple200); }
+  .op-ld { background: var(--teal50); color: var(--teal800); border: 0.5px solid var(--teal200); }
+  .op-st { background: var(--amber50); color: var(--amber800); border: 0.5px solid var(--amber200); }
+  @media (prefers-color-scheme: dark) {
+    .op-alu { background: var(--blue50); color: var(--blue900); }
+    .op-br { background: var(--purple50); color: var(--purple900); }
+    .op-ld { background: var(--teal50); color: var(--teal900); }
+    .op-st { background: var(--amber50); color: var(--amber800); }
+  }
+
+  .wakeup-demo { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .wakeup-row { display: flex; gap: 10px; align-items: center; font-size: 13px; flex-wrap: wrap; }
+  .wakeup-tag { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 0.5px solid var(--border2); background: var(--bg); }
+  .wakeup-arrow { color: var(--text3); font-size: 16px; }
+  .wakeup-match { border-color: var(--teal600); background: var(--teal50); color: var(--teal800); }
+  .wakeup-nomatch { opacity: 0.5; }
+  .wakeup-cdb { background: var(--amber50); border-color: var(--amber600); color: var(--amber800); font-family: var(--mono); font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 0.5px solid; }
+
+  .age-demo { display: flex; gap: 6px; align-items: flex-end; margin: 16px 0; flex-wrap: wrap; }
+  .age-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .age-rect { width: 36px; border-radius: 4px 4px 0 0; background: var(--blue200); transition: height 0.4s ease; min-height: 4px; }
+  .age-label { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .age-val { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+
+  .flush-seq { display: flex; flex-direction: column; gap: 0; border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin: 16px 0; }
+  .flush-row { display: grid; grid-template-columns: 70px 90px 1fr; font-size: 12.5px; border-bottom: 0.5px solid var(--border); }
+  .flush-row:last-child { border-bottom: none; }
+  .flush-row > div { padding: 7px 12px; }
+  .flush-row > div:not(:last-child) { border-right: 0.5px solid var(--border); }
+  .flush-hdr { background: var(--bg2); font-size: 11px; color: var(--text3); text-transform: uppercase; font-weight: 500; }
+  .flush-squash { background: var(--red50); }
+  .flush-squash > div { color: var(--red800); }
+  @media (prefers-color-scheme: dark) { .flush-squash { background: var(--red50); } }
+
+  .scoreboard-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; margin: 8px 0; }
+  .sb-cell { height: 26px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; font-weight: 500; transition: all 0.25s; border: 0.5px solid transparent; cursor: default; }
+  .sb-ready { background: var(--teal50); color: var(--teal600); border-color: var(--teal100); }
+  .sb-busy { background: var(--coral50); color: var(--coral600); border-color: var(--coral200); }
+  .sb-shadow { background: var(--gray50); color: var(--gray600); border-color: var(--gray200); }
+  .sb-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; }
+  .sb-legend span { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+  .sb-legend .dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
+  .interview-q { border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin: 14px 0; overflow: hidden; }
+  .iq-q { background: var(--bg2); padding: 12px 16px; font-weight: 500; font-size: 14px; color: var(--text); border-bottom: 0.5px solid var(--border); cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+  .iq-q::after { content: '▸'; color: var(--text3); font-size: 12px; transition: transform 0.2s; }
+  .iq-q.open::after { transform: rotate(90deg); }
+  .iq-a { padding: 14px 16px; font-size: 13.5px; color: var(--text2); display: none; }
+  .iq-a.open { display: block; }
+  .iq-a p { margin-bottom: 10px; }
+  .iq-a p:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-label">Superscalar LEGv8 &nbsp;·&nbsp; Episode 4</div>
+  <h1>Reservation Station & Dispatch</h1>
+  <p class="cover-sub">A deep dive into the dispatch pipeline, the RS entry structure, the five-step sequential algorithm, wakeup via CDB broadcast, oldest-first selection, and the scoreboard — all traced against real simulation output from hello_uart.</p>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#s1">What dispatch does and why it exists</a></li>
+    <li><a href="#s2">The RS entry structure</a></li>
+    <li><a href="#s3">Dispatch: scoreboard, PRF read, operand readiness</a></li>
+    <li><a href="#s4">The five-step sequential algorithm</a></li>
+    <li><a href="#s5">Issue selection: oldest-first, 2-wide</a></li>
+    <li><a href="#s6">CDB wakeup and value capture</a></li>
+    <li><a href="#s7">RS table: cycle-by-cycle interactive trace</a></li>
+    <li><a href="#s8">Flush and recovery</a></li>
+    <li><a href="#s9">SystemVerilog notes</a></li>
+    <li><a href="#s10">Interview cheatsheet</a></li>
+  </ol>
+</div>
+
+<!-- §1 WHAT DISPATCH DOES -->
+<h2 id="s1">§1 — What Dispatch Does and Why It Exists</h2>
+<p>Dispatch sits between rename and the execution units. Its job is to take physically-renamed instructions and hand them off to the correct execution resource — either the Reservation Station (for ALU/branch work) or the Load-Store Unit — along with operand values and readiness information. It also maintains the scoreboard, a fast lookup of which physical registers are currently "in-flight" (written but not yet produced).</p>
+
+<div class="two-col">
+  <div class="sv-note">
+    <div class="sv-note-title">What dispatch sends to RS</div>
+    <p style="font-size:13px;margin:0;">Each allocated RS entry gets: physical destination tag, two physical source tags, current values of those sources (from PRF), readiness bits for each source, the opcode, the ROB tag, PC, and immediate. The RS is a holding buffer — it keeps the instruction until both operands are ready.</p>
+  </div>
+  <div class="sv-note">
+    <div class="sv-note-title">What dispatch sends to LSU</div>
+    <p style="font-size:13px;margin:0;">Load/store instructions bypass the RS entirely and go directly to the LSU queue. They still get the same operand readiness treatment (scoreboard + CDB bypass + PRF read), but they have their own dedicated hardware path.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <p><strong>The pipeline position:</strong> Rename → Dispatch → [RS / LSU] → Execute → CDB → RS wakeup → Issue → Execute again (no, that's not a loop — issue <em>from</em> RS to execute, then result on CDB wakes up any RS entries waiting for it).</p>
+</div>
+
+<!-- PIPELINE POSITION SVG -->
+<div class="viz-wrap">
+  <div class="viz-title">Where dispatch and the RS sit in the full pipeline</div>
+  <svg width="100%" viewBox="0 0 680 130">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <!-- Rename -->
+    <rect x="8" y="28" width="88" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="52" y="50" text-anchor="middle" font-size="11" fill="var(--gray600)" font-family="sans-serif">Rename</text>
+    <text x="52" y="64" text-anchor="middle" font-size="10" fill="var(--gray200)" font-family="sans-serif">prs1/prs2/prd</text>
+    <!-- arrow -->
+    <line x1="96" y1="50" x2="110" y2="50" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- Dispatch highlight -->
+    <rect x="110" y="22" width="100" height="56" rx="8" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="1"/>
+    <text x="160" y="46" text-anchor="middle" font-size="12" font-weight="500" fill="var(--purple800)" font-family="sans-serif">Dispatch</text>
+    <text x="160" y="62" text-anchor="middle" font-size="10" fill="var(--purple600)" font-family="sans-serif">scoreboard · PRF read</text>
+    <text x="160" y="73" text-anchor="middle" font-size="10" fill="var(--purple600)" font-family="sans-serif">readiness · ROB alloc</text>
+    <!-- arrows out -->
+    <line x1="210" y1="44" x2="228" y2="34" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="210" y1="56" x2="228" y2="66" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- RS -->
+    <rect x="228" y="14" width="90" height="40" rx="8" fill="var(--blue50)" stroke="var(--blue200)" stroke-width="1"/>
+    <text x="273" y="34" text-anchor="middle" font-size="12" font-weight="500" fill="var(--blue800)" font-family="sans-serif">RS</text>
+    <text x="273" y="46" text-anchor="middle" font-size="10" fill="var(--blue600)" font-family="sans-serif">ALU · Branch</text>
+    <!-- LSU -->
+    <rect x="228" y="62" width="90" height="40" rx="8" fill="var(--amber50)" stroke="var(--amber200)" stroke-width="1"/>
+    <text x="273" y="82" text-anchor="middle" font-size="12" font-weight="500" fill="var(--amber800)" font-family="sans-serif">LSU Queue</text>
+    <text x="273" y="94" text-anchor="middle" font-size="10" fill="var(--amber600)" font-family="sans-serif">Load · Store</text>
+    <!-- arrows to execute -->
+    <line x1="318" y1="34" x2="336" y2="34" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="318" y1="82" x2="336" y2="82" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- Execute -->
+    <rect x="336" y="18" width="88" height="80" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="380" y="54" text-anchor="middle" font-size="11" fill="var(--gray600)" font-family="sans-serif">Execute</text>
+    <text x="380" y="67" text-anchor="middle" font-size="10" fill="var(--gray200)" font-family="sans-serif">ALU0·ALU1·LSU·BR</text>
+    <line x1="424" y1="58" x2="442" y2="58" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- CDB -->
+    <rect x="442" y="36" width="72" height="44" rx="8" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="1"/>
+    <text x="478" y="56" text-anchor="middle" font-size="11" font-weight="500" fill="var(--teal800)" font-family="sans-serif">CDB</text>
+    <text x="478" y="70" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">broadcast</text>
+    <!-- CDB back to RS -->
+    <path d="M478 36 Q478 10 273 10 Q273 14 273 14" fill="none" stroke="var(--teal200)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="360" y="9" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">wakeup + value capture</text>
+    <!-- ROB -->
+    <line x1="514" y1="58" x2="532" y2="58" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="532" y="36" width="72" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="568" y="56" text-anchor="middle" font-size="11" fill="var(--gray600)" font-family="sans-serif">ROB</text>
+    <text x="568" y="70" text-anchor="middle" font-size="10" fill="var(--gray200)" font-family="sans-serif">commit</text>
+    <!-- CDB back to scoreboard label -->
+    <path d="M478 80 Q478 116 160 116 Q160 78 160 78" fill="none" stroke="var(--teal100)" stroke-width="1" stroke-dasharray="3 3" marker-end="url(#arr)"/>
+    <text x="310" y="126" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">scoreboard mark ready</text>
+  </svg>
+</div>
+
+<!-- §2 RS ENTRY STRUCTURE -->
+<h2 id="s2">§2 — The RS Entry Structure</h2>
+<p>Each of the 32 RS entries is a packed struct. Understanding what each field does is essential before the algorithms make sense.</p>
+
+<div class="algo-block">
+  <div class="algo-header">rs_entry_t struct <span class="algo-tag tag-struct">packed struct</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">typedef struct packed</span> {
+    logic          valid;       <span class="cm">// 1 = this slot is occupied</span>
+    logic [5:0]    dst_tag;     <span class="cm">// physical destination register</span>
+    logic [5:0]    src1_tag;    <span class="cm">// physical source 1 tag (for CDB matching)</span>
+    logic [5:0]    src2_tag;    <span class="cm">// physical source 2 tag</span>
+    logic [31:0]   src1_val;    <span class="cm">// value of src1 (valid when src1_ready)</span>
+    logic [31:0]   src2_val;    <span class="cm">// value of src2 (valid when src2_ready)</span>
+    logic          src1_ready;  <span class="cm">// 1 = src1_val is the correct final value</span>
+    logic          src2_ready;  <span class="cm">// 1 = src2_val is the correct final value</span>
+    logic [11:0]   opcode;      <span class="cm">// {rename_opcode[5:0], alu_func[5:0]}</span>
+    logic [5:0]    rob_tag;     <span class="cm">// ROB index — used for clearing after issue</span>
+    logic [4:0]    age;         <span class="cm">// cycles spent in RS, drives oldest-first select</span>
+    logic [31:0]   pc;          <span class="cm">// PC for branch resolution</span>
+    logic [31:0]   imm;         <span class="cm">// immediate value</span>
+} rs_entry_t;</code></pre>
+    <p>The <code>age</code> field starts at 0 when the entry is allocated and increments every cycle the entry stays in the RS. The issue selector picks the oldest ready entry — highest age wins. This prevents starvation and respects program order among independent ready instructions.</p>
+  </div>
+</div>
+
+<table class="data">
+  <tr><th>Field</th><th>Bits</th><th>Set by</th><th>Used by</th></tr>
+  <tr><td><code>valid</code></td><td>1</td><td>Allocation (step 4)</td><td>Issue scan, wakeup scan, age increment</td></tr>
+  <tr><td><code>dst_tag</code></td><td>6</td><td>Dispatch (<code>rename_prd</code>)</td><td>CDB broadcast (which reg got produced)</td></tr>
+  <tr><td><code>src1/2_tag</code></td><td>6 each</td><td>Dispatch (<code>rename_prs1/2</code>)</td><td>CDB wakeup matching (§6)</td></tr>
+  <tr><td><code>src1/2_val</code></td><td>32 each</td><td>Dispatch (PRF read) or CDB capture</td><td>Issue output → ALU inputs</td></tr>
+  <tr><td><code>src1/2_ready</code></td><td>1 each</td><td>Dispatch scoreboard or CDB wakeup</td><td>Issue eligibility gate</td></tr>
+  <tr><td><code>opcode</code></td><td>12</td><td>Dispatch (<code>{opcode,alu_func}</code>)</td><td>Issue output → execution unit</td></tr>
+  <tr><td><code>rob_tag</code></td><td>6</td><td>ROB allocator index</td><td>Step 2: find and clear entry after issue</td></tr>
+  <tr><td><code>age</code></td><td>5</td><td>Step 5 (increment each cycle)</td><td>Issue selection: highest age = oldest = priority</td></tr>
+</table>
+
+<!-- §3 DISPATCH: SCOREBOARD + PRF + READINESS -->
+<h2 id="s3">§3 — Dispatch: Scoreboard, PRF Read, and Operand Readiness</h2>
+
+<h3>The scoreboard</h3>
+<p>The scoreboard is a 64-bit register (<code>preg_ready</code>) — one bit per physical register. Bit <em>i</em> = 1 means p<em>i</em>'s value is valid and can be read directly from the PRF. Bit <em>i</em> = 0 means an in-flight instruction will write p<em>i</em> and its value is not yet available.</p>
+
+<div class="two-col">
+  <div class="algo-block">
+    <div class="algo-header">Mark busy on alloc <span class="algo-tag tag-seq">always_ff</span></div>
+    <div class="algo-body">
+<pre style="margin:0"><code><span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; FETCH_W; i++) <span class="kw">begin</span>
+  <span class="kw">if</span> (rob_alloc_en[i] && rob_alloc_ok
+      && rename_rd_valid[i]) <span class="kw">begin</span>
+    preg_ready[rename_prd[i]] &lt;= <span class="nm">1</span>'b0;
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+      <p>When a new instruction is dispatched and has a destination register, that register is immediately marked busy — even before the instruction executes.</p>
+    </div>
+  </div>
+  <div class="algo-block">
+    <div class="algo-header">Mark ready on CDB <span class="algo-tag tag-seq">always_ff</span></div>
+    <div class="algo-body">
+<pre style="margin:0"><code><span class="kw">for</span> (int j = <span class="nm">0</span>; j &lt; <span class="nm">2</span>; j++) <span class="kw">begin</span>
+  <span class="kw">if</span> (cdb_valid[j]) <span class="kw">begin</span>
+    preg_ready[cdb_tag[j]] &lt;= <span class="nm">1</span>'b1;
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+      <p>When an execution unit broadcasts its result on the CDB, the scoreboard marks that register ready. Future dispatches can read it directly from the PRF.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SCOREBOARD VIZ -->
+<div class="viz-wrap">
+  <div class="viz-title">Scoreboard state — preg_ready bits (64 physical registers)</div>
+  <div class="scoreboard-grid" id="sb-grid"></div>
+  <div class="sb-legend">
+    <span><span class="dot" style="background:var(--teal50);border:0.5px solid var(--teal100);"></span>Ready (can read from PRF)</span>
+    <span><span class="dot" style="background:var(--coral50);border:0.5px solid var(--coral200);"></span>Busy (in-flight, waiting for CDB)</span>
+    <span><span class="dot" style="background:var(--gray50);border:0.5px solid var(--gray200);"></span>Shadow (p0–p31)</span>
+  </div>
+  <div class="viz-controls">
+    <button class="viz-btn active" onclick="setSBState(0,this)">Reset</button>
+    <button class="viz-btn" onclick="setSBState(1,this)">Cycle 4 (p32,p33 busy)</button>
+    <button class="viz-btn" onclick="setSBState(2,this)">Cycle 6 (p32–p39 busy)</button>
+    <button class="viz-btn" onclick="setSBState(3,this)">Cycle 9 (CDB clears p32,p33,p36,p37)</button>
+    <button class="viz-btn" onclick="setSBState(4,this)">Cycle 14 steady (p39–p47 busy)</button>
+  </div>
+</div>
+
+<h3>PRF read ports and operand readiness check</h3>
+<p>Dispatch has four PRF read ports: instruction 0 uses ports 0 and 1, instruction 1 uses ports 2 and 3. For each source operand, readiness is determined in priority order:</p>
+
+<ol class="step-list">
+  <li><p><strong>No source needed</strong> (<code>rs_valid=0</code>): source is trivially ready, value is 0 or the immediate.</p></li>
+  <li><p><strong>Source is p0 (XZR)</strong>: always ready, always 0.</p></li>
+  <li><p><strong>CDB bypass</strong>: if a CDB broadcast is happening this cycle with a matching tag, use that value — the PRF hasn't been written yet but the result is available on the wire.</p></li>
+  <li><p><strong>Scoreboard check</strong>: <code>preg_ready[prs]</code> — if set, read the value from the PRF. If not set, mark source as not ready and store only the tag (the RS will wait for the CDB to supply the value later).</p></li>
+  <li><p><strong>Same-cycle dependency</strong>: if slot 0 writes a register that slot 1 reads, the scoreboard hasn't been updated yet. Force <code>src_ready=0</code> for slot 1 regardless of scoreboard state.</p></li>
+</ol>
+
+<div class="callout warn">
+  <p><strong>Same-cycle dependency vs intra-group forwarding:</strong> In the rename stage, forwarding ensures slot 1 gets the <em>correct physical register tag</em> when slot 0 renames a register. In dispatch, the same-cycle dependency check forces <code>src_ready=0</code> because the PRF has not yet been written. The RS entry will be woken up when the CDB fires. They solve different parts of the same problem — rename fixes <em>which</em> physical register; dispatch fixes <em>whether</em> the value is available yet.</p>
+</div>
+
+<!-- §4 FIVE-STEP SEQUENTIAL ALGORITHM -->
+<h2 id="s4">§4 — The Five-Step Sequential Algorithm</h2>
+<p>The RS's <code>always_ff</code> block executes five ordered steps every cycle. The ordering matters: later steps can see the effects of earlier steps within the same clock edge (because they all operate on the same local variables before the final <code>&lt;=</code> assignments commit).</p>
+
+<div class="algo-block">
+  <div class="algo-header">Five-step RS sequential logic overview <span class="algo-tag tag-seq">always_ff</span></div>
+  <div class="algo-body">
+    <ol class="step-list">
+      <li><p><strong>Register issue outputs.</strong> Latch the combinational issue selection (<code>issue_valid_comb</code>, etc.) into the registered output ports. These are what the execution units read next cycle.</p></li>
+      <li><p><strong>Clear entries issued last cycle.</strong> Look at <code>issue_valid</code> (last cycle's registered value) and <code>issued_rob_tag_reg</code> (captured ROB tags). Find matching RS entries by ROB tag and set their <code>valid=0</code>. This frees the slot one cycle after issue.</p></li>
+      <li><p><strong>Compute free slots.</strong> Build <code>free_slots</code> bitmask: a slot is free if <code>!valid</code> or if it was just cleared in step 2.</p></li>
+      <li><p><strong>Allocate new entries.</strong> Walk through incoming <code>alloc_en[]</code> lanes and assign each to the next available free slot, filling in all struct fields. <code>age</code> starts at 0.</p></li>
+      <li><p><strong>CDB wakeup + age increment.</strong> For every valid, non-cleared entry: check both CDB ports for tag matches on src1 and src2. If matched, capture the CDB value and set the ready bit. Increment <code>age</code> unconditionally for all valid entries.</p></li>
+    </ol>
+  </div>
+</div>
+
+<div class="callout">
+  <p><strong>Why step 2 uses last cycle's issue output, not this cycle's combinational selection:</strong> The combinational selection (<code>issue_valid_comb</code>) picks the entries to issue <em>this</em> cycle. But those entries can't be cleared until the execution unit has actually consumed them — and the execution unit reads the registered outputs (step 1). So the slot is cleared one cycle after the combinational select fires. The <code>issued_rob_tag_reg</code> register captures which ROB tag was selected so step 2 can find the right entry to clear.</p>
+</div>
+
+<div class="two-col">
+  <div class="sv-note" style="border-top:3px solid var(--purple600);">
+    <div class="sv-note-title" style="color:var(--purple600);">Combinational (always_comb)</div>
+    <ul style="font-size:13px;color:var(--text2);padding-left:18px;margin:0;">
+      <li>Issue selection scan (oldest ready)</li>
+      <li>Operand readiness check</li>
+      <li>PRF read port mux</li>
+      <li>RS dispatch field assembly</li>
+    </ul>
+  </div>
+  <div class="sv-note" style="border-top:3px solid var(--teal600);">
+    <div class="sv-note-title" style="color:var(--teal600);">Sequential (always_ff)</div>
+    <ul style="font-size:13px;color:var(--text2);padding-left:18px;margin:0;">
+      <li>rs_mem array (all 32 entries)</li>
+      <li>issue_valid/op/tag/val outputs</li>
+      <li>issued_rob_tag_reg capture</li>
+      <li>preg_ready scoreboard</li>
+    </ul>
+  </div>
+</div>
+
+<!-- §5 ISSUE SELECTION -->
+<h2 id="s5">§5 — Issue Selection: Oldest-First, 2-Wide</h2>
+
+<p>Every cycle, the combinational block scans all 32 RS entries and selects up to 2 that are ready to issue — both source operands ready — choosing the oldest (highest <code>age</code>) among eligible entries. The two ports are selected independently with a <code>considered_entries</code> bitmask preventing double-selection.</p>
+
+<div class="algo-block">
+  <div class="algo-header">Oldest-first issue selection <span class="algo-tag tag-comb">always_comb</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">for</span> (int p = <span class="nm">0</span>; p &lt; ISSUE_W; p++) <span class="kw">begin</span>
+  <span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; RS_ENTRIES; i++) <span class="kw">begin</span>
+    <span class="kw">if</span> (rs_mem[i].valid
+        && rs_mem[i].src1_ready
+        && rs_mem[i].src2_ready
+        && !considered_entries[i]) <span class="kw">begin</span>
+
+      <span class="kw">if</span> (!issue_valid_comb[p]
+          || rs_mem[i].age > oldest[p].age) <span class="kw">begin</span>
+        oldest[p] = rs_mem[i];     <span class="cm">// new best candidate</span>
+        oldest_idx[p] = i;
+        issue_valid_comb[p] = <span class="nm">1</span>'b1;
+      <span class="kw">end</span>
+    <span class="kw">end</span>
+  <span class="kw">end</span>
+  <span class="kw">if</span> (issue_valid_comb[p] && oldest_idx[p] != -<span class="nm">1</span>)
+    considered_entries[oldest_idx[p]] = <span class="nm">1</span>'b1; <span class="cm">// block from port 1</span>
+<span class="kw">end</span></code></pre>
+    <p>Port 0 always gets the oldest ready entry. Port 1 gets the oldest ready entry <em>excluding</em> whichever entry port 0 selected. Both operate on the pre-wakeup state — CDB values applied this cycle are visible to next cycle's issue scan.</p>
+  </div>
+</div>
+
+<!-- AGE DEMO -->
+<div class="viz-wrap">
+  <div class="viz-title">Age counter simulation — cycle 10 RS snapshot</div>
+  <div id="age-demo" class="age-demo"></div>
+  <p style="font-size:12px;color:var(--text3);margin-top:8px;margin-bottom:0;">Bar height = age value. All five entries at cycle 10 have both sources ready. The issue selector picks the two with the highest age: entry 3 (age=5) and entry 0 (age=2) win in that cycle.</p>
+</div>
+
+<div class="callout warn">
+  <p><strong>Why oldest-first?</strong> Age-based selection approximates program order among ready instructions. Without it, a younger instruction could issue repeatedly while an older one starves, violating the assumption that the ROB can commit in order. Age doesn't guarantee in-order execution — the OOO core deliberately violates that — but it prevents pathological starvation.</p>
+</div>
+
+<!-- §6 CDB WAKEUP -->
+<h2 id="s6">§6 — CDB Wakeup and Value Capture</h2>
+
+<p>When an execution unit completes, it broadcasts a <code>(tag, value)</code> pair on the Common Data Bus. Step 5 of the sequential algorithm scans every valid RS entry and checks both source tags against both CDB ports. A match causes two simultaneous writes: the value is captured into <code>src_val</code> and the ready bit is set to 1. The entry can then be selected by the combinational issue logic in the very next cycle.</p>
+
+<!-- WAKEUP DEMO -->
+<div class="viz-wrap">
+  <div class="viz-title">Cycle 7 CDB wakeup — CDB0: p32=0x1, CDB1: p33=0x10</div>
+  <div class="wakeup-demo">
+    <div class="wakeup-row">
+      <span style="font-size:12px;color:var(--text3);min-width:70px;">CDB0 fires:</span>
+      <span class="wakeup-cdb">tag=p32 &nbsp; value=0x00000001</span>
+    </div>
+    <div class="wakeup-row">
+      <span style="font-size:12px;color:var(--text3);min-width:70px;">CDB1 fires:</span>
+      <span class="wakeup-cdb">tag=p33 &nbsp; value=0x00000010</span>
+    </div>
+    <div style="height:1px;background:var(--border);margin:6px 0;"></div>
+    <div class="wakeup-row">
+      <span style="font-size:12px;color:var(--text3);min-width:70px;">Entry 2</span>
+      <span class="wakeup-tag">dst=p34</span>
+      <span class="wakeup-tag wakeup-match">src1=p32 ✓ match CDB0 → ready, val=1</span>
+      <span class="wakeup-tag wakeup-match">src2=p33 ✓ match CDB1 → ready, val=16</span>
+      <span style="font-size:12px;color:var(--teal600);font-weight:500;">→ both ready! eligible next cycle</span>
+    </div>
+    <div class="wakeup-row">
+      <span style="font-size:12px;color:var(--text3);min-width:70px;">Entry 3</span>
+      <span class="wakeup-tag">dst=p35</span>
+      <span class="wakeup-tag wakeup-nomatch">src1=p34 — no match</span>
+      <span class="wakeup-tag">src2=p0(ready)</span>
+      <span style="font-size:12px;color:var(--coral600);">→ still waiting for p34</span>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--text3);margin-top:10px;margin-bottom:0;">Confirmed by log: <code>[CDB0] tag=p32 value=00000001</code> and <code>[CDB1] tag=p33 value=00000010</code> at cycle 6, and entry 2 issues at cycle 8.</p>
+</div>
+
+<div class="callout success">
+  <p><strong>CDB vs PRF:</strong> The CDB is a broadcast wire — every RS entry listens simultaneously. The PRF is a register file — it can only be read with a limited number of read ports. Capturing values from the CDB into RS entries avoids adding more PRF read ports and keeps the operand path latency-free: by the time an entry is selected for issue, its values are already sitting inside the RS entry itself.</p>
+</div>
+
+<!-- §7 RS TABLE INTERACTIVE -->
+<h2 id="s7">§7 — RS Table: Cycle-by-Cycle Interactive Trace</h2>
+<p>The table below shows the exact RS state from the simulation log. Select a cycle to inspect. <span style="color:var(--teal600);">Green rows</span> are fully ready (both sources ready). <span style="color:var(--blue600);">Blue rows</span> are newly allocated this cycle. Issued entries disappear the cycle after they fire.</p>
+
+<div class="viz-wrap" style="padding:20px;">
+  <div id="rs-cycle-info" class="cycle-info"></div>
+  <div class="rs-table-container">
+    <table class="rs-table" id="rs-table">
+      <thead>
+        <tr>
+          <th>Entry</th><th>V</th><th>Dst</th>
+          <th>Src1 tag</th><th>Src1 R</th>
+          <th>Src2 tag</th><th>Src2 R</th>
+          <th>Op</th><th>ROB</th><th>Age</th><th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="rs-tbody"></tbody>
+    </table>
+  </div>
+  <div class="rs-legend" style="margin-top:12px;">
+    <span><span class="dot" style="background:var(--teal50);border:0.5px solid var(--teal100);"></span>Both sources ready — eligible to issue</span>
+    <span><span class="dot" style="background:var(--blue50);border:0.5px solid var(--blue100);"></span>Newly allocated this cycle</span>
+    <span><span class="dot" style="background:var(--amber50);border:0.5px solid var(--amber100);"></span>Issued this cycle (cleared next)</span>
+  </div>
+  <div class="viz-controls" style="margin-top:14px;">
+    <button class="viz-btn active" onclick="setRSCycle(0,this)">Cycle 4</button>
+    <button class="viz-btn" onclick="setRSCycle(1,this)">Cycle 5</button>
+    <button class="viz-btn" onclick="setRSCycle(2,this)">Cycle 6</button>
+    <button class="viz-btn" onclick="setRSCycle(3,this)">Cycle 7</button>
+    <button class="viz-btn" onclick="setRSCycle(4,this)">Cycle 8</button>
+    <button class="viz-btn" onclick="setRSCycle(5,this)">Cycle 9</button>
+    <button class="viz-btn" onclick="setRSCycle(6,this)">Cycle 10</button>
+    <button class="viz-btn" onclick="setRSCycle(7,this)">Cycle 11</button>
+    <button class="viz-btn" onclick="setRSCycle(8,this)">Cycle 12</button>
+    <button class="viz-btn" onclick="setRSCycle(9,this)">Cycle 13</button>
+    <button class="viz-btn" onclick="setRSCycle(10,this)">Cycle 26</button>
+    <button class="viz-btn" onclick="setRSCycle(11,this)">Cycle 32</button>
+  </div>
+</div>
+
+<!-- §8 FLUSH -->
+<h2 id="s8">§8 — Flush and Recovery</h2>
+<p>On <code>flush_pipeline</code> assertion (branch mispredict), the RS takes a single-cycle action: all 32 entries are invalidated and the registered issue outputs are cleared. The RS is fully empty one cycle after flush — no drain, no partial squash.</p>
+
+<div class="flush-seq">
+  <div class="flush-row">
+    <div class="flush-hdr">Cycle</div><div class="flush-hdr">Signal</div><div class="flush-hdr">What happens in RS / Dispatch</div>
+  </div>
+  <div class="flush-row">
+    <div>30</div><div><code>flush=1</code></div><div>Branch mispredict detected. <code>flush_pipeline</code> asserted.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30</div><div>RS all_ff</div><div>All 32 entries: <code>rs_mem[i].valid &lt;= 0</code>, <code>age &lt;= 0</code>. Registered <code>issue_valid &lt;= 0</code>. Done in one clock edge.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30</div><div>Dispatch</div><div><code>dispatch_stall = flush_pipeline</code> — no new instructions dispatched. <code>rob_alloc_en</code> blocked. LSU alloc blocked.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30</div><div>Scoreboard</div><div>Dispatch is stalled so no new busy marks. Existing busy bits remain until the in-flight (pre-flush) instructions that are still in execute drain to CDB and mark those regs ready again.</div>
+  </div>
+  <div class="flush-row">
+    <div>31</div><div>RS empty</div><div>All entries clear. New instructions from correct path begin arriving at dispatch.</div>
+  </div>
+  <div class="flush-row">
+    <div>31+</div><div>Normal</div><div>The simulation log confirms: RS entries 0, 2, 5 (which held speculative-path instructions) are still present at cycle 31–33 because they were allocated before the flush resolved, but no new allocations enter the RS during flush.</div>
+  </div>
+</div>
+
+<div class="callout">
+  <p><strong>Why entries linger after flush (cycles 31–40):</strong> The log shows entries p59, p0 (ROB 10), p0 (ROB 13) sitting in the RS with age growing to 14+ and never issuing. These are the <em>load</em> and <em>branch</em> instructions that were waiting for p57 (the loaded value from scratchpad) and p58 (SUB result). Their operand p57 was never produced — the load at ROB 9 was waiting for the LSU to resolve. This is the long-latency load stall visible in the simulation. The RS doesn't flush these because they were allocated before the mispredict but haven't issued yet — they represent real work on the correct path that must eventually complete.</p>
+</div>
+
+<!-- §9 SV NOTES -->
+<h2 id="s9">§9 — SystemVerilog Notes</h2>
+
+<h3>The 1-cycle issue latency: why outputs are registered</h3>
+<p>The issue outputs (<code>issue_valid</code>, <code>issue_src1_val</code>, etc.) are registered — they go through an <code>always_ff</code> in step 1. The combinational selection happens <em>this</em> cycle; the execution unit reads the registered value <em>next</em> cycle. This adds one cycle of latency to issue but makes timing closure easier — the wide 32-entry scan doesn't have to meet the same clock as the execution unit's input setup time.</p>
+
+<pre><code><span class="cm">// Step 1: register combinational selection → execution unit reads next cycle</span>
+issue_valid     &lt;= issue_valid_comb;
+issue_src1_val  &lt;= issue_src1_val_comb;
+<span class="cm">// ... all other issue fields ...</span>
+
+<span class="cm">// Capture ROB tag so step 2 knows what to clear NEXT cycle</span>
+<span class="kw">for</span> (int p = <span class="nm">0</span>; p &lt; ISSUE_W; p++) <span class="kw">begin</span>
+  <span class="kw">if</span> (issue_valid_comb[p])
+    issued_rob_tag_reg[p] &lt;= issue_rob_tag_comb[p];
+<span class="kw">end</span></code></pre>
+
+<h3>Clear-mask before free-slot calculation</h3>
+<p>Steps 2 and 3 must be ordered carefully. Step 2 builds <code>clear_mask</code> — the set of entries being freed this cycle. Step 3 then computes <code>free_slots = !valid || clear_mask</code>. This allows step 4 (allocation) to immediately reuse the slots that were just cleared in the same clock edge — one cycle reuse rather than two. If step 3 used only <code>!valid</code>, a cleared slot would appear occupied for one extra cycle.</p>
+
+<pre><code><span class="cm">// Step 2: build clear mask from LAST cycle's issued rob tags</span>
+<span class="kw">for</span> (int p = <span class="nm">0</span>; p &lt; ISSUE_W; p++) <span class="kw">begin</span>
+  <span class="kw">if</span> (issue_valid[p]) <span class="kw">begin</span>  <span class="cm">// registered = last cycle</span>
+    <span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; RS_ENTRIES; i++) <span class="kw">begin</span>
+      <span class="kw">if</span> (rs_mem[i].valid
+          && rs_mem[i].rob_tag == issued_rob_tag_reg[p])
+        clear_mask[i] = <span class="nm">1</span>'b1;
+    <span class="kw">end</span>
+  <span class="kw">end</span>
+<span class="kw">end</span>
+
+<span class="cm">// Step 3: free_slots includes just-cleared entries</span>
+<span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; RS_ENTRIES; i++)
+  free_slots[i] = !rs_mem[i].valid || clear_mask[i];</code></pre>
+
+<h3>automatic variables in always_ff</h3>
+<p>The RS sequential block uses <code>automatic</code> local variables (<code>free_slots</code>, <code>clear_mask</code>, <code>current_slot</code>) even though it's an <code>always_ff</code>. This is necessary because these locals are used as scratch variables within the block — they should not retain values between clock edges. Without <code>automatic</code>, a simulator would treat them as static, carrying over stale values and causing incorrect slot allocation.</p>
+
+<h3>dispatch_stall composition</h3>
+<pre><code>dispatch_stall = rs_full || !rob_alloc_ok || flush_pipeline || memory_op_stall;
+
+<span class="cm">// memory_op_stall: can only dispatch 1 memory op per cycle (LSU is 1-wide)</span>
+<span class="cm">// if both rename lanes have a load/store, stall the second one</span>
+<span class="kw">automatic</span> int mem_op_count = <span class="nm">0</span>;
+<span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; FETCH_W; i++) <span class="kw">begin</span>
+  <span class="kw">if</span> (rename_valid[i] && (rename_is_load[i] || rename_is_store[i]))
+    mem_op_count++;
+<span class="kw">end</span>
+memory_op_stall = (mem_op_count > <span class="nm">1</span>);</code></pre>
+
+<h3>LSU base address caching</h3>
+<p>The dispatch module caches the last-dispatched LSU base tag and value (<code>cached_base_tag</code>, <code>cached_base_value</code>). In hello_uart's store loop, every <code>STR X6, [X9, #N]</code> uses X9 as the base — and X9 maps to p39 for the entire string section. Rather than re-reading the PRF every cycle for the same tag, the cache detects the repeated tag and supplies the stored value directly. This saves a PRF read port conflict on hot loops.</p>
+
+<!-- §10 INTERVIEW -->
+<h2 id="s10">§10 — Interview Cheatsheet</h2>
+
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">What is a Reservation Station and why do we need it?</div>
+  <div class="iq-a"><p>A Reservation Station is a buffer that holds instructions after they have been renamed but before their source operands are ready. In an in-order machine, an instruction with a not-yet-produced operand would stall the whole pipeline. The RS instead parks the instruction, continues accepting newer instructions, and wakes up the parked instruction the moment the CDB broadcasts the missing value. This decouples the issue rate from data dependencies — the processor can keep issuing independent instructions while a long-latency operation (like a cache miss) is in flight.</p></div>
+</div>
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">What are the five steps in the RS's sequential block and why are they ordered that way?</div>
+  <div class="iq-a"><p>Step 1 registers the combinational issue outputs so execution units see stable inputs. Step 2 clears the entries that were issued <em>last</em> cycle (using the captured ROB tags) — not this cycle's selection, because the execution unit only just received those outputs. Step 3 computes free slots including just-cleared ones, allowing immediate reuse. Step 4 allocates new entries from dispatch into those free slots. Step 5 applies CDB wakeup values and increments age counters. The ordering ensures no slot is double-allocated, clearing always precedes filling, and wakeup happens on fresh entries too.</p></div>
+</div>
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">Why oldest-first selection? Couldn't you just pick any ready entry?</div>
+  <div class="iq-a"><p>You could, and the machine would still be correct — the ROB enforces in-order commit regardless of issue order. But picking any ready entry risks starvation: an entry that has been waiting a long time could be bypassed indefinitely by younger entries that happen to always be ready. Oldest-first selection (maximum age) guarantees bounded waiting time and approximates program order among independent instructions, which tends to reduce ROB occupancy by committing early instructions sooner.</p></div>
+</div>
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">What is the scoreboard in dispatch, and how does it differ from the RS readiness bits?</div>
+  <div class="iq-a"><p>The scoreboard in dispatch is a per-physical-register ready bit maintained in the dispatch stage. It answers "has this register's value been committed to the PRF?" If yes, dispatch can read the value from the PRF and mark the RS entry's source as immediately ready. If no, dispatch stores only the tag and marks the source not ready — the RS will wait for the CDB. The RS readiness bits are <em>per-entry</em> state that gets updated by CDB wakeup. They're different levels of the same concept: the scoreboard is the global view; the RS readiness bit is the per-entry local view captured at allocation time and updated on CDB match.</p></div>
+</div>
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">Why does dispatch check for same-cycle dependencies separately from the scoreboard?</div>
+  <div class="iq-a"><p>The scoreboard is a registered value — it reflects state committed at the previous clock edge. When two instructions are dispatched in the same cycle (2-wide) and slot 0 writes a register that slot 1 reads, that new busy mark hasn't propagated to the scoreboard yet (it will on the <em>next</em> clock edge). Without the explicit same-cycle check, slot 1 would read the scoreboard as "ready" and dispatch with <code>src_ready=1</code> — but the value doesn't exist yet. The same-cycle check forces <code>src_ready=0</code> in this case, ensuring the RS entry waits for the CDB broadcast from slot 0's execution.</p></div>
+</div>
+<div class="interview-q">
+  <div class="iq-q" onclick="toggleIQ(this)">Why do some RS entries in cycles 31–40 have age=10+ but never issue?</div>
+  <div class="iq-a"><p>These entries are waiting for p57 — the result of a load instruction (ROB 9, PC 0xa4: <code>LDR X4, [X3, #0]</code>). The load reads from scratchpad address 0x00002000 and is the critical-path operation that feeds the branch condition and the ADD+CBNZ send loop. The load itself depends on p56 (the result of <code>ADDI X3, X9, #0</code>) and p38 (<code>0x0000000c</code>, the UART status mask). Once p57 is produced, entries p59 (the AND), p0/ROB10 (the CBZ), and p0/ROB13 (the CBNZ) all become eligible. The long wait reflects the realistic latency of the load-use chain in the send loop — this is the structural reason why the UART output stalls for several cycles between characters.</p></div>
+</div>
+
+</div><!-- end .page -->
+
+<script>
+// SCOREBOARD STATES
+const SB_STATES = [
+  { busy: [] },
+  { busy: [32,33] },
+  { busy: [32,33,34,35,36,37,38,39] },
+  { busy: [34,35,38,39,40,41] },
+  { busy: [39,40,41,42,43,44,45,46,47] },
+];
+function renderSB(n) {
+  const g = document.getElementById('sb-grid');
+  g.innerHTML = '';
+  const s = SB_STATES[n];
+  for (let i = 0; i < 64; i++) {
+    const c = document.createElement('div');
+    c.className = 'sb-cell';
+    c.textContent = 'p'+i;
+    if (i < 32) { c.className += ' sb-shadow'; c.title = 'Shadow reg'; }
+    else if (s.busy.includes(i)) { c.className += ' sb-busy'; c.title = 'Busy — in-flight'; }
+    else { c.className += ' sb-ready'; c.title = 'Ready'; }
+    g.appendChild(c);
+  }
+}
+function setSBState(n, btn) {
+  btn.parentElement.querySelectorAll('.viz-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSB(n);
+}
+renderSB(0);
+
+// AGE DEMO
+const AGE_DATA = [
+  { entry: 'E0 p43', age: 2, ready: true },
+  { entry: 'E1 p41', age: 3, ready: true },
+  { entry: 'E2 p42', age: 1, ready: true },
+  { entry: 'E3 p35', age: 5, ready: true },
+  { entry: 'E5 p39', age: 3, ready: true },
+];
+function renderAge() {
+  const d = document.getElementById('age-demo');
+  d.innerHTML = '';
+  const maxAge = Math.max(...AGE_DATA.map(e=>e.age));
+  AGE_DATA.forEach((e, idx) => {
+    const bar = document.createElement('div');
+    bar.className = 'age-bar';
+    const isWinner = idx === 3 || idx === 4; // age 5 and 3 win
+    const h = Math.round((e.age / maxAge) * 80) + 20;
+    bar.innerHTML = `
+      <div class="age-val" style="color:${isWinner?'var(--teal600)':'var(--text3)'}">${isWinner?'✓':''}</div>
+      <div class="age-rect" style="height:${h}px;background:${isWinner?'var(--teal200)':'var(--blue200)'};"></div>
+      <div class="age-label">${e.entry}</div>
+      <div class="age-val" style="font-weight:${isWinner?'500':'400'};color:${isWinner?'var(--teal600)':'var(--text2)'}">age=${e.age}</div>`;
+    d.appendChild(bar);
+  });
+}
+renderAge();
+
+// RS TABLE DATA — extracted directly from simulation log
+const RS_CYCLES = [
+  {
+    cycle: 4, newly: [0,1],
+    issued_note: 'First two ADDI instructions just allocated — p32 (X1=1) and p33 (X5=16). Both have p0 as sources which are always ready.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p32', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:0, age:0, note:'ADDI X1,X0,#1 — both ready' },
+      { idx: 1, dst:'p33', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:1, age:0, note:'ADDI X5,X0,#16 — both ready' },
+    ]
+  },
+  {
+    cycle: 5, newly: [2,3], issued: [0,1],
+    issued_note: 'Entries 0 and 1 (p32, p33) selected for issue this cycle — both fully ready since allocation.',
+    issue_this: [0,1],
+    entries: [
+      { idx: 0, dst:'p32', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:0, age:1, note:'→ ISSUED this cycle' },
+      { idx: 1, dst:'p33', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:1, age:1, note:'→ ISSUED this cycle' },
+      { idx: 2, dst:'p34', s1:'p32', s1r:0, s2:'p33', s2r:0, op:'000', rob:2, age:0, note:'LSL X1,X1,X5 — waiting for p32 and p33' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:0, s2:'p0', s2r:1, op:'200', rob:3, age:0, note:'ADDI X2,X1,#4 — waiting for p34' },
+    ]
+  },
+  {
+    cycle: 6, newly: [0,1],
+    issued_note: 'CDB broadcast p32=1, p33=0x10. Entry 2 wakes up (both sources now ready). Two new entries allocated.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p36', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:4, age:0, note:'ADDI X6,X0,#1 (TX_BUSY mask)' },
+      { idx: 1, dst:'p37', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:5, age:0, note:'ADDI X9,X0,#2 (base>>12)' },
+      { idx: 2, dst:'p34', s1:'p32', s1r:0, s2:'p33', s2r:0, op:'000', rob:2, age:1, note:'Wakes up after this cycle via CDB' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:0, s2:'p0', s2r:1, op:'200', rob:3, age:1, note:'Still waiting for p34' },
+    ]
+  },
+  {
+    cycle: 7, newly: [4,5],
+    issued_note: 'Entries 0 (p36) and 1 (p37) issued. Entry 2 (p34) now has p32(1) and p33(1) ready — CDB woke it up last cycle.',
+    issue_this: [0,1],
+    entries: [
+      { idx: 0, dst:'p36', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:4, age:1, note:'→ ISSUED this cycle' },
+      { idx: 1, dst:'p37', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:5, age:1, note:'→ ISSUED this cycle' },
+      { idx: 2, dst:'p34', s1:'p32', s1r:1, s2:'p33', s2r:1, op:'000', rob:2, age:2, note:'Ready! CDB woke both srcs last cycle' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:0, s2:'p0', s2r:1, op:'200', rob:3, age:2, note:'Still waiting for p34 (not produced yet)' },
+      { idx: 4, dst:'p38', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:6, age:0, note:'ADDI X5,X0,#12' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:0, s2:'p38', s2r:0, op:'000', rob:7, age:0, note:'LSL X9,X9,X5 — waiting for p37,p38' },
+    ]
+  },
+  {
+    cycle: 8, newly: [0],
+    issued_note: 'Entry 2 (p34=0x10000) and entry 0 (p36=1) issued. Entry 3 (p35) finally gets p34 on CDB this cycle → wakes up.',
+    issue_this: [2,0],
+    entries: [
+      { idx: 0, dst:'p40', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:8, age:0, note:'ADDI X6,X0,72 — ASCII H' },
+      { idx: 2, dst:'p34', s1:'p32', s1r:1, s2:'p33', s2r:1, op:'000', rob:2, age:3, note:'→ ISSUED this cycle (oldest ready)' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:0, s2:'p0', s2r:1, op:'200', rob:3, age:3, note:'p34 will be on CDB this cycle → wakes up' },
+      { idx: 4, dst:'p38', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:6, age:1, note:'Ready — ADDI X5,X0,#12' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:0, s2:'p38', s2r:0, op:'000', rob:7, age:1, note:'p37 now ready from CDB; p38 still waiting' },
+    ]
+  },
+  {
+    cycle: 9, newly: [2],
+    issued_note: 'Entry 2 cleared (was issued). Entry 3 p35 now ready. Entries 0 (p40) and 1 (p41) both ready. Entry 5 (p39) gets p37 on CDB.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p40', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:8, age:1, note:'Ready — H char' },
+      { idx: 1, dst:'p41', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:10, age:0, note:'Ready — l char (just allocated)' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:0, s2:'p0', s2r:1, op:'200', rob:3, age:4, note:'p34=0x10000 arrives on CDB → wakes up' },
+      { idx: 4, dst:'p38', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:6, age:2, note:'Ready — ADDI X5 scratchpad step' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:1, s2:'p38', s2r:0, op:'000', rob:7, age:2, note:'p37 ready; p38 still waiting' },
+    ]
+  },
+  {
+    cycle: 10, newly: [2],
+    issued_note: 'Issue selects p38 (age=3, oldest ready) and p40 (age=2). Entry 3 (p35) now ready for X2=scratchpad+4.',
+    issue_this: [3,0],
+    entries: [
+      { idx: 0, dst:'p40', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:8, age:2, note:'→ ISSUED this cycle (age=2)' },
+      { idx: 1, dst:'p41', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:10, age:1, note:'Ready — e char' },
+      { idx: 2, dst:'p42', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:12, age:0, note:'Ready — l char (just allocated)' },
+      { idx: 3, dst:'p35', s1:'p34', s1r:1, s2:'p0', s2r:1, op:'200', rob:3, age:5, note:'→ ISSUED this cycle (oldest, age=5)' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:1, s2:'p38', s2r:0, op:'000', rob:7, age:3, note:'p37 ready; p38 still waiting for CDB' },
+    ]
+  },
+  {
+    cycle: 11, newly: [0],
+    issued_note: 'p35 cleared (issued last cycle). p38 wakes up on CDB (=0x0c). p39 now has both sources ready.',
+    issue_this: [4],
+    entries: [
+      { idx: 0, dst:'p43', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:14, age:0, note:'Ready — l char' },
+      { idx: 1, dst:'p41', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:10, age:2, note:'Ready' },
+      { idx: 2, dst:'p42', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:12, age:1, note:'Ready' },
+      { idx: 3, dst:'p44', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:16, age:0, note:'Ready — , char (just alloc)' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:1, s2:'p38', s2r:1, op:'000', rob:7, age:4, note:'→ ISSUED this cycle (oldest, age=4) — X9=0x2000' },
+    ]
+  },
+  {
+    cycle: 12,  newly: [3],
+    issued_note: 'p39 cleared. Entries 1 (p41, age=3) and 0 (p43, age=1) issued. p39=0x2000 is the scratchpad base used by all stores.',
+    issue_this: [1,2],
+    entries: [
+      { idx: 0, dst:'p43', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:14, age:1, note:'→ ISSUED this cycle' },
+      { idx: 1, dst:'p41', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:10, age:3, note:'→ ISSUED this cycle (oldest)' },
+      { idx: 2, dst:'p42', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:12, age:2, note:'Ready' },
+      { idx: 3, dst:'p44', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:16, age:0, note:'Ready (just allocated)' },
+      { idx: 5, dst:'p39', s1:'p37', s1r:1, s2:'p38', s2r:1, op:'000', rob:7, age:5, note:'Cleared — was issued' },
+    ]
+  },
+  {
+    cycle: 13, newly: [4],
+    issued_note: 'Steady-state ADDI X6 rename loop. All 5 entries have p0 sources — immediately ready. Age spread 0–3.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p43', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:14, age:2, note:'l char' },
+      { idx: 1, dst:'p46', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:20, age:0, note:'L char (just alloc)' },
+      { idx: 2, dst:'p42', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:12, age:3, note:'l char' },
+      { idx: 3, dst:'p44', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:16, age:1, note:', char' },
+      { idx: 4, dst:'p45', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:18, age:0, note:'space char' },
+    ]
+  },
+  {
+    cycle: 26, newly: [0,5],
+    issued_note: 'Branch mispredict approaching. Entry 0 (p59 = ADD X6,X6,X5 for UART loop) waiting for p58 (load result). CBNZ at entry 5 waiting for p59.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p59', s1:'p58', s1r:0, s2:'p38', s2r:1, op:'024', rob:12, age:0, note:'ADD X6,X6,X5 for send loop — waiting for LDR p58' },
+      { idx: 1, dst:'p56', s1:'p39', s1r:1, s2:'p0', s2r:1, op:'200', rob:8, age:2, note:'ADDI X3=scratchpad ptr' },
+      { idx: 2, dst:'p0', s1:'p57', s1r:0, s2:'p0', s2r:1, op:'600', rob:10, age:1, note:'CBZ X4 — waiting for LDR result p57' },
+      { idx: 3, dst:'p54', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:4, age:4, note:'ADDI X6,X0,#10' },
+      { idx: 4, dst:'p55', s1:'p0', s1r:1, s2:'p0', s2r:1, op:'200', rob:6, age:3, note:'ADDI X6,X0,#0' },
+      { idx: 5, dst:'p0', s1:'p59', s1r:0, s2:'p0', s2r:1, op:'640', rob:13, age:0, note:'CBNZ X3 — waiting for AND result p59' },
+    ]
+  },
+  {
+    cycle: 32, newly: [],
+    issued_note: 'Post-mispredict. Only 3 entries remain — all on the correct path. p59 waiting for p58 (load from scratchpad), p0/ROB10 waiting for p57. Branch was resolved at cycle 30.',
+    issue_this: [],
+    entries: [
+      { idx: 0, dst:'p59', s1:'p58', s1r:0, s2:'p38', s2r:1, op:'024', rob:12, age:6, note:'AND X6,X6,X5 — age 6, stuck on load p58' },
+      { idx: 2, dst:'p0', s1:'p57', s1r:0, s2:'p0', s2r:1, op:'600', rob:10, age:7, note:'CBZ X4 — age 7, stuck on load p57' },
+      { idx: 5, dst:'p0', s1:'p59', s1r:0, s2:'p0', s2r:1, op:'640', rob:13, age:6, note:'CBNZ — age 6, chained wait: p59 needs p58' },
+    ]
+  },
+];
+
+function opLabel(op) {
+  const n = parseInt(op, 16);
+  const top6 = (n >> 6) & 0x3f;
+  if (top6 === 0x08) return '<span class="op-badge op-alu">ADDI</span>';
+  if (top6 === 0x00) return '<span class="op-badge op-alu">ALU-R</span>';
+  if (top6 === 0x11) return '<span class="op-badge op-st">STR</span>';
+  if (top6 === 0x10) return '<span class="op-badge op-ld">LDR</span>';
+  if (top6 === 0x18) return '<span class="op-badge op-br">CBZ</span>';
+  if (top6 === 0x19) return '<span class="op-badge op-br">CBNZ</span>';
+  if (top6 === 0x20) return '<span class="op-badge op-br">B</span>';
+  if (op === '024') return '<span class="op-badge op-alu">AND</span>';
+  if (op === '600') return '<span class="op-badge op-br">CBZ</span>';
+  if (op === '640') return '<span class="op-badge op-br">CBNZ</span>';
+  if (op === '800') return '<span class="op-badge op-br">B</span>';
+  return `<span class="op-badge op-alu">${op}</span>`;
+}
+
+function setRSCycle(n, btn) {
+  btn.parentElement.querySelectorAll('.viz-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const c = RS_CYCLES[n];
+  document.getElementById('rs-cycle-info').innerHTML =
+    `<strong>Cycle ${c.cycle}</strong> — ${c.issued_note}`;
+  const tbody = document.getElementById('rs-tbody');
+  tbody.innerHTML = '';
+  c.entries.forEach(e => {
+    const isReady = e.s1r && e.s2r;
+    const isNew = c.newly && c.newly.includes(e.idx);
+    const isIssued = c.issue_this && c.issue_this.includes(e.idx);
+    const tr = document.createElement('tr');
+    if (isIssued) tr.className = 'row-issued';
+    else if (isNew) tr.className = 'row-new';
+    else if (isReady) tr.className = 'row-ready';
+    tr.innerHTML = `
+      <td class="entry-idx">${e.idx}</td>
+      <td>1</td>
+      <td><code>${e.dst}</code></td>
+      <td><code>${e.s1}</code></td>
+      <td class="${e.s1r?'tag-ready':'tag-waiting'}">${e.s1r?'✓':'✗'}</td>
+      <td><code>${e.s2}</code></td>
+      <td class="${e.s2r?'tag-ready':'tag-waiting'}">${e.s2r?'✓':'✗'}</td>
+      <td>${opLabel(e.op)}</td>
+      <td><code>${e.rob}</code></td>
+      <td style="font-weight:${e.age>=4?'500':'400'};color:${e.age>=4?'var(--amber600)':'inherit'}">${e.age}</td>
+      <td style="font-size:11.5px;color:var(--text3);">${e.note}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+setRSCycle(0, document.querySelector('.viz-btn.active'));
+
+// INTERVIEW TOGGLE
+function toggleIQ(el) {
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
+}
+</script>
+</body>
+</html>

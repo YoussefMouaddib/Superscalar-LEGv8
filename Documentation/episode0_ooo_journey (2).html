@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Episode 0: From Pipelined to Superscalar Out-of-Order</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg2: #f7f6f2; --bg3: #f0ede6;
+    --text: #1a1a18; --text2: #5c5b56; --text3: #8c8b85;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --blue50: #E6F1FB; --blue100: #B5D4F4; --blue200: #85B7EB; --blue600: #185FA5; --blue800: #0C447C; --blue900: #042C53;
+    --teal50: #E1F5EE; --teal100: #9FE1CB; --teal200: #5DCAA5; --teal600: #0F6E56; --teal800: #085041; --teal900: #04342C;
+    --purple50: #EEEDFE; --purple200: #AFA9EC; --purple600: #534AB7; --purple800: #3C3489; --purple900: #26215C;
+    --amber50: #FAEEDA; --amber100: #FAC775; --amber200: #EF9F27; --amber600: #854F0B; --amber800: #633806;
+    --coral50: #FAECE7; --coral200: #F0997B; --coral600: #993C1D; --coral800: #712B13;
+    --green50: #EAF3DE; --green200: #97C459; --green600: #3B6D11; --green800: #27500A;
+    --gray50: #F1EFE8; --gray200: #B4B2A9; --gray600: #5F5E5A; --gray800: #444441;
+    --red50: #FCEBEB; --red200: #F09595; --red600: #A32D2D; --red800: #791F1F;
+    --pink50: #FBEAF0; --pink200: #ED93B1; --pink600: #993556; --pink800: #72243E;
+    --mono: 'Courier New', monospace;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252522; --bg3: #2e2e2b;
+      --text: #e8e6de; --text2: #a8a69e; --text3: #6e6c66;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --blue50: #042C53; --blue100: #0C447C; --blue200: #185FA5; --blue600: #378ADD; --blue800: #85B7EB; --blue900: #B5D4F4;
+      --teal50: #04342C; --teal100: #085041; --teal200: #0F6E56; --teal600: #1D9E75; --teal800: #5DCAA5; --teal900: #9FE1CB;
+      --purple50: #26215C; --purple200: #3C3489; --purple600: #7F77DD; --purple800: #AFA9EC; --purple900: #CECBF6;
+      --amber50: #412402; --amber100: #633806; --amber200: #854F0B; --amber600: #EF9F27; --amber800: #FAC775;
+      --coral50: #4A1B0C; --coral200: #993C1D; --coral600: #D85A30; --coral800: #F0997B;
+      --green50: #173404; --green200: #3B6D11; --green600: #639922; --green800: #97C459;
+      --gray50: #2C2C2A; --gray200: #5F5E5A; --gray600: #888780; --gray800: #B4B2A9;
+      --red50: #501313; --red200: #A32D2D; --red600: #E24B4A; --red800: #F09595;
+      --pink50: #4B1528; --pink200: #993556; --pink600: #D4537E; --pink800: #ED93B1;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.7; }
+  .page { max-width: 900px; margin: 0 auto; padding: 48px 32px 80px; }
+
+  .cover { border-bottom: 0.5px solid var(--border2); padding-bottom: 40px; margin-bottom: 48px; }
+  .cover-label { font-size: 12px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  h1 { font-size: 32px; font-weight: 500; line-height: 1.2; margin-bottom: 10px; }
+  .cover-sub { font-size: 16px; color: var(--text2); max-width: 600px; }
+  h2 { font-size: 22px; font-weight: 500; margin: 56px 0 16px; color: var(--text); border-top: 0.5px solid var(--border); padding-top: 32px; }
+  h3 { font-size: 17px; font-weight: 500; margin: 32px 0 10px; color: var(--text); }
+  p { margin-bottom: 14px; color: var(--text2); }
+  strong { color: var(--text); font-weight: 500; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--bg2); padding: 2px 6px; border-radius: 4px; color: var(--text); border: 0.5px solid var(--border); }
+  ul, ol { padding-left: 22px; margin-bottom: 14px; color: var(--text2); }
+  li { margin-bottom: 4px; }
+
+  .callout { background: var(--blue50); border-left: 3px solid var(--blue600); border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 18px; margin: 20px 0; }
+  .callout p { color: var(--blue800); margin: 0; }
+  .callout.warn { background: var(--amber50); border-color: var(--amber600); }
+  .callout.warn p { color: var(--amber800); }
+  .callout.danger { background: var(--red50); border-color: var(--red600); }
+  .callout.danger p { color: var(--red800); }
+  .callout.success { background: var(--teal50); border-color: var(--teal600); }
+  .callout.success p { color: var(--teal800); }
+  .callout.purple { background: var(--purple50); border-color: var(--purple600); }
+  .callout.purple p { color: var(--purple800); }
+
+  pre { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 18px 0; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  pre .kw { color: var(--purple600); font-weight: 500; }
+  pre .cm { color: var(--text3); font-style: italic; }
+  pre .nm { color: var(--blue600); }
+  pre .st { color: var(--teal600); }
+  @media (prefers-color-scheme: dark) {
+    pre .kw { color: var(--purple800); }
+    pre .nm { color: var(--blue800); }
+    pre .st { color: var(--teal800); }
+    pre .cm { color: var(--gray600); }
+  }
+
+  table.data { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13.5px; }
+  table.data th { background: var(--bg2); color: var(--text); font-weight: 500; text-align: left; padding: 9px 14px; border: 0.5px solid var(--border); }
+  table.data td { padding: 8px 14px; border: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
+  table.data tr:nth-child(even) td { background: var(--bg2); }
+
+  .toc { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 32px 0; }
+  .toc-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 12px; font-weight: 500; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; color: var(--text2); font-size: 14px; }
+  .toc a { color: var(--blue600); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  @media (prefers-color-scheme: dark) { .toc a { color: var(--blue800); } }
+
+  .bug-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 20px 0; }
+  .bug-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+  .bug-title { font-size: 16px; font-weight: 500; color: var(--text); }
+  .bug-hours { font-size: 12px; color: var(--red600); background: var(--red50); padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
+  .bug-section { margin: 12px 0; }
+  .bug-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 6px; font-weight: 500; }
+  .bug-content { font-size: 13.5px; color: var(--text2); }
+  .bug-content code { font-size: 12px; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 24px 0; }
+  .metric-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
+  .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 6px; }
+  .metric-value { font-size: 28px; font-weight: 500; color: var(--text); font-family: var(--mono); }
+  .metric-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  .timeline { margin: 24px 0; }
+  .timeline-item { display: flex; gap: 16px; margin-bottom: 20px; }
+  .timeline-marker { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--blue600); margin-top: 6px; }
+  .timeline-content { flex-grow: 1; }
+  .timeline-week { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .timeline-desc { font-size: 14px; color: var(--text2); }
+  .timeline-item.success .timeline-marker { background: var(--teal600); }
+  .timeline-item.warn .timeline-marker { background: var(--amber600); }
+
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
+  .comparison-col { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+  .comparison-title { font-size: 14px; font-weight: 500; margin-bottom: 14px; color: var(--text); }
+  .comparison-item { margin: 8px 0; font-size: 13.5px; color: var(--text2); }
+  .comparison-item strong { font-size: 14px; }
+  @media (max-width: 620px) { .comparison { grid-template-columns: 1fr; } }
+
+  .phase-grid { display: grid; gap: 16px; margin: 24px 0; }
+  .phase-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; border-left: 3px solid var(--blue600); }
+  .phase-card.done { border-left-color: var(--teal600); }
+  .phase-card.progress { border-left-color: var(--amber600); }
+  .phase-card.planned { border-left-color: var(--gray600); }
+  .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .phase-name { font-size: 15px; font-weight: 500; color: var(--text); }
+  .phase-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .status-done { background: var(--teal50); color: var(--teal600); }
+  .status-progress { background: var(--amber50); color: var(--amber600); }
+  .status-planned { background: var(--gray50); color: var(--gray600); }
+  @media (prefers-color-scheme: dark) {
+    .status-done { background: var(--teal200); color: var(--teal900); }
+    .status-progress { background: var(--amber200); color: var(--amber800); }
+  }
+  .phase-desc { font-size: 13px; color: var(--text2); margin-bottom: 8px; }
+  .phase-items { margin-top: 10px; }
+  .phase-items li { font-size: 12.5px; margin-bottom: 3px; }
+
+  .sv-note { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin: 14px 0; }
+  .sv-note-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="cover">
+  <div class="cover-label">LEGv8 2-Wide Superscalar OOO Processor</div>
+  <h1>Episode 0: The Complete Journey</h1>
+  <p class="cover-sub">From classic 5-stage pipeline to working 2-wide superscalar out-of-order processor — 73 hours of debugging, every bug earned, "Hello, LEGv8!" successfully printed.</p>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <ol>
+    <li><a href="#baseline">The Baseline: 5-Stage Pipeline</a></li>
+    <li><a href="#concept">The OOO Concept</a></li>
+    <li><a href="#improvements">Measurable Improvements</a></li>
+    <li><a href="#architecture">Complete Architecture</a></li>
+    <li><a href="#debugging">73 Hours of Debugging</a></li>
+    <li><a href="#project-scope">The Full Project Scope</a></li>
+    <li><a href="#lessons">Lessons from the Trenches</a></li>
+  </ol>
+</div>
+
+<h2 id="baseline">§1 — The Baseline: Classic 5-Stage Pipeline</h2>
+
+<p>Every computer architecture course teaches the canonical RISC pipeline. It's simple, elegant, and <strong>painfully sequential</strong>.</p>
+
+<pre><span class="cm">// Classic 5-stage in-order pipeline</span>
+┌───────┐  ┌────────┐  ┌─────────┐  ┌─────────┐  ┌──────────┐
+│Fetch  │→ │Decode  │→ │Execute  │→ │Memory   │→ │Writeback │
+│(IF)   │  │(ID)    │  │(EX)     │  │(MEM)    │  │(WB)      │
+└───────┘  └────────┘  └─────────┘  └─────────┘  └──────────┘
+    ↑                                                    ↓
+    └──────────────── Branch Target ────────────────────┘</pre>
+
+<div class="callout warn">
+  <p><strong>The Fundamental Problem:</strong> Instructions execute in strict program order. If instruction N stalls (cache miss, data hazard, slow multiply), everything behind it stalls too. A single 10-cycle multiply creates 9 cycles of bubbles. Pipeline efficiency collapses.</p>
+</div>
+
+<h3>Performance Characteristics (Baseline 5-Stage)</h3>
+
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="metric-label">Max IPC</div>
+    <div class="metric-value">1.0</div>
+    <div class="metric-sub">One instruction per cycle</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Clock Frequency</div>
+    <div class="metric-value">~120</div>
+    <div class="metric-sub">MHz (estimated synthesis)</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">RAW Penalty</div>
+    <div class="metric-value">2-3</div>
+    <div class="metric-sub">cycles per hazard</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Branch Penalty</div>
+    <div class="metric-value">3</div>
+    <div class="metric-sub">cycles (no predictor)</div>
+  </div>
+</div>
+
+<h3>Example: String Copy Loop (In-Order)</h3>
+
+<pre><span class="kw">loop</span>:
+    LDR  X4, [X3, #<span class="nm">0</span>]   <span class="cm">; Load takes 2 cycles</span>
+    STR  X4, [X5, #<span class="nm">0</span>]   <span class="cm">; Stalls until LDR completes</span>
+    ADDI X3, X3, #<span class="nm">4</span>     <span class="cm">; Stalls behind STR</span>
+    ADDI X5, X5, #<span class="nm">4</span>     <span class="cm">; Stalls behind ADDI</span>
+    SUBI X6, X6, #<span class="nm">1</span>     <span class="cm">; Stalls behind ADDI</span>
+    CBNZ X6, <span class="kw">loop</span>       <span class="cm">; Stalls behind SUBI</span>
+
+<span class="cm">// Execution Timeline (Cycles)</span>
+<span class="cm">// LDR:  IF  ID  EX  M1  M2  WB</span>
+<span class="cm">// STR:      IF [STALL---] ID  EX  M   WB</span>
+<span class="cm">// ADDI:         [STALL-------] IF  ID  EX  M   WB</span>
+<span class="cm">// Throughput: ~12 cycles per iteration</span></pre>
+
+<div class="callout">
+  <p><strong>Key Observation:</strong> The pointer arithmetic (<code>ADDI X3, X3, #4</code>) is completely independent of the memory operation (<code>LDR X4, [X3, #0]</code>), but the in-order pipeline forces them to execute sequentially. This is wasted parallelism.</p>
+</div>
+
+<h2 id="concept">§2 — The Out-of-Order Concept</h2>
+
+<p>Out-of-order execution asks a simple question: <strong>why wait for instructions that aren't ready when other instructions are?</strong></p>
+
+<h3>The Three Pillars</h3>
+
+<div class="comparison">
+  <div class="comparison-col">
+    <div class="comparison-title">Register Renaming</div>
+    <div class="comparison-item"><strong>Problem:</strong> <code>ADDI X6, X0, #72</code> followed by <code>ADDI X6, X0, #101</code> looks like a dependency (both write X6)</div>
+    <div class="comparison-item"><strong>Solution:</strong> Map each write to a different <em>physical</em> register: X6→p40, then X6→p41</div>
+    <div class="comparison-item"><strong>Result:</strong> False dependencies (WAW/WAR) disappear. Both execute in parallel.</div>
+  </div>
+  <div class="comparison-col">
+    <div class="comparison-title">Dynamic Scheduling</div>
+    <div class="comparison-item"><strong>Problem:</strong> How does hardware know which instructions are ready?</div>
+    <div class="comparison-item"><strong>Solution:</strong> Issue Queue tracks operand readiness. Wakes instructions when results broadcast.</div>
+    <div class="comparison-item"><strong>Result:</strong> Instructions issue as soon as operands ready, not in program order.</div>
+  </div>
+</div>
+
+<div class="comparison">
+  <div class="comparison-col">
+    <div class="comparison-title">Reorder Buffer (ROB)</div>
+    <div class="comparison-item"><strong>Problem:</strong> If instructions finish out-of-order, how do we handle exceptions correctly?</div>
+    <div class="comparison-item"><strong>Solution:</strong> Buffer results. Commit to architectural state in program order.</div>
+    <div class="comparison-item"><strong>Result:</strong> Precise exceptions. Memory writes happen in order. Speculation is safe.</div>
+  </div>
+  <div class="comparison-col">
+    <div class="comparison-title">Superscalar (2-Wide)</div>
+    <div class="comparison-item"><strong>Problem:</strong> Even OOO execution is bottlenecked if we only fetch 1 instruction/cycle</div>
+    <div class="comparison-item"><strong>Solution:</strong> Fetch, decode, rename, and commit 2 instructions per cycle</div>
+    <div class="comparison-item"><strong>Result:</strong> Theoretical 2.0 IPC (actual: ~1.7 IPC steady-state)</div>
+  </div>
+</div>
+
+<h3>Pipeline Architecture (2-Wide Superscalar OOO)</h3>
+
+<pre><span class="cm">// 7-stage OOO pipeline with 2-wide fetch/commit</span>
+┌─────────┐  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌───────┐  ┌─────────┐  ┌────────┐
+│ Fetch   │→ │ Decode  │→ │ Rename  │→ │ Dispatch │→ │ Issue │→ │ Execute │→ │ Commit │
+│ (F0,F1) │  │ (D0,D1) │  │ (R0,R1) │  │ (Di0,Di1)│  │  (IQ) │  │ (FUs)   │  │ (ROB)  │
+└─────────┘  └─────────┘  └─────────┘  └──────────┘  └───────┘  └─────────┘  └────────┘
+     ↑            ↑                                       ↓           ↓            ↓
+     │            └────── Branch Predictor ───────────────┘           │            │
+     └───────────────────── Mispredict Flush ─────────────────────────┴────────────┘</pre>
+
+<h2 id="improvements">§3 — Measurable Improvements Over Baseline</h2>
+
+<div class="callout success">
+  <p><strong>Methodology:</strong> These metrics compare the final OOO superscalar implementation against a hypothetical 5-stage in-order baseline synthesized for the same FPGA (Arty A7-35T). Actual synthesis comparison will be performed to validate these estimates.</p>
+</div>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th>Metric</th>
+      <th>Baseline (5-Stage)</th>
+      <th>OOO Superscalar</th>
+      <th>Improvement</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>IPC (Average)</strong></td>
+      <td>0.7 - 0.9</td>
+      <td>1.5 - 1.7</td>
+      <td><strong>1.9× throughput</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Clock Frequency</strong></td>
+      <td>~120 MHz</td>
+      <td>~50 MHz</td>
+      <td><strong>-58% (complexity penalty)</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Effective Performance</strong></td>
+      <td>84-108 MIPS</td>
+      <td>75-85 MIPS</td>
+      <td><strong>~0.9× (lower clock hurts)</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Branch Penalty</strong></td>
+      <td>3 cycles (fixed)</td>
+      <td>1-4 cycles (predicted)</td>
+      <td><strong>2× better on average</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Load Latency Hiding</strong></td>
+      <td>None (full stall)</td>
+      <td>Executes independent ops</td>
+      <td><strong>3-5 cycles saved per load</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Resource Utilization</strong></td>
+      <td>~3,000 LUTs</td>
+      <td>~18,000 LUTs</td>
+      <td><strong>6× larger (OOO overhead)</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p><strong>Reality Check:</strong> The OOO design sacrifices clock frequency for higher IPC. On the Arty A7 FPGA, the complex combinational paths (CDB arbitration, wakeup logic) fail timing at 100 MHz. The design runs at ~50 MHz but sustains higher IPC, resulting in comparable effective performance with better latency tolerance.</p>
+</div>
+
+<h3>Where OOO Wins</h3>
+
+<ul>
+  <li><strong>Memory-heavy code:</strong> Loads execute early while ALU ops fill bubbles (up to 2.5× speedup)</li>
+  <li><strong>Independent operations:</strong> Pointer arithmetic, loop counters, and data processing overlap perfectly</li>
+  <li><strong>Branch-heavy code:</strong> 2-bit predictor + BTB reduces mispredicts from 100% to ~20%</li>
+</ul>
+
+<h3>Where Baseline Competes</h3>
+
+<ul>
+  <li><strong>Straight-line ALU code:</strong> Simple adds/shifts benefit from higher clock (1.4× faster)</li>
+  <li><strong>Multiply-accumulate loops:</strong> Serialized by true dependencies, OOO can't parallelize</li>
+  <li><strong>FPGA resource constraints:</strong> 6× smaller means more complex SoC fits alongside baseline</li>
+</ul>
+
+<h2 id="architecture">§4 — Complete Architecture Overview</h2>
+
+<h3>Key Parameters</h3>
+
+<pre><span class="kw">parameter</span> XLEN = <span class="nm">32</span>;              <span class="cm">// 32-bit datapath</span>
+<span class="kw">parameter</span> ISSUE_WIDTH = <span class="nm">2</span>;        <span class="cm">// 2-wide superscalar</span>
+<span class="kw">parameter</span> PREGS = <span class="nm">64</span>;             <span class="cm">// 32 arch + 32 rename</span>
+<span class="kw">parameter</span> ROB_ENTRIES = <span class="nm">32</span>;       <span class="cm">// Reorder buffer depth</span>
+<span class="kw">parameter</span> IQ_ENTRIES = <span class="nm">32</span>;        <span class="cm">// Issue queue depth</span>
+<span class="kw">parameter</span> LQ_ENTRIES = <span class="nm">16</span>;        <span class="cm">// Load queue</span>
+<span class="kw">parameter</span> SQ_ENTRIES = <span class="nm">16</span>;        <span class="cm">// Store queue</span></pre>
+
+<h3>Major Components</h3>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Function</th>
+      <th>Key Feature</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Fetch (F0, F1)</strong></td>
+      <td>Reads 2 instructions from ROM per cycle</td>
+      <td>Branch prediction with 64-entry BTB</td>
+    </tr>
+    <tr>
+      <td><strong>Decode (D0, D1)</strong></td>
+      <td>Parallel instruction cracking</td>
+      <td>Extracts opcode, registers, immediates</td>
+    </tr>
+    <tr>
+      <td><strong>Rename (R0, R1)</strong></td>
+      <td>Maps architectural → physical registers</td>
+      <td>Intra-group forwarding for slot 0→1</td>
+    </tr>
+    <tr>
+      <td><strong>Dispatch (Di0, Di1)</strong></td>
+      <td>Allocates ROB entries, sends to IQ/LSU</td>
+      <td>2-wide allocation with tail pointer</td>
+    </tr>
+    <tr>
+      <td><strong>Issue Queue</strong></td>
+      <td>Tracks operand readiness, issues when ready</td>
+      <td>Age-based priority (oldest first)</td>
+    </tr>
+    <tr>
+      <td><strong>Execution Units</strong></td>
+      <td>2× ALU, 1× Branch, 1× LSU</td>
+      <td>Results broadcast on 2-port CDB</td>
+    </tr>
+    <tr>
+      <td><strong>ROB</strong></td>
+      <td>Buffers results, commits in-order</td>
+      <td>2-wide commit (C0, C1)</td>
+    </tr>
+    <tr>
+      <td><strong>Free List</strong></td>
+      <td>Tracks available physical registers</td>
+      <td>Round-robin allocation prevents reuse</td>
+    </tr>
+    <tr>
+      <td><strong>LSU</strong></td>
+      <td>Executes loads/stores with memory ordering</td>
+      <td>Sequence numbers enforce dependencies</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Memory Map</h3>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th>Address Range</th>
+      <th>Size</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>0x0000 - 0x1FFF</code></td>
+      <td>8 KB</td>
+      <td>Instruction ROM (program storage)</td>
+    </tr>
+    <tr>
+      <td><code>0x2000 - 0x2FFF</code></td>
+      <td>4 KB</td>
+      <td>Scratchpad RAM (stack, variables)</td>
+    </tr>
+    <tr>
+      <td><code>0x10000 - 0x1000F</code></td>
+      <td>16 B</td>
+      <td>UART (TX_DATA, STATUS, RX_DATA)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="debugging">§5 — The 73-Hour Debugging Journey</h2>
+
+<div class="callout danger">
+  <p><strong>Total Time Investment:</strong> 60 hours design + 73 hours debugging = 133 hours from concept to working "Hello, LEGv8!" program. Every bug was a lesson. Every fix was hard-won.</p>
+</div>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-marker"></div>
+    <div class="timeline-content">
+      <div class="timeline-week">Week 1</div>
+      <div class="timeline-desc">Basic pipeline working — single-cycle ALU, simple fetch/decode</div>
+    </div>
+  </div>
+  <div class="timeline-item warn">
+    <div class="timeline-marker"></div>
+    <div class="timeline-content">
+      <div class="timeline-week">Week 2</div>
+      <div class="timeline-desc">ROB occupancy bug discovered — 15 hours debugging multi-driver conflicts</div>
+    </div>
+  </div>
+  <div class="timeline-item warn">
+    <div class="timeline-marker"></div>
+    <div class="timeline-content">
+      <div class="timeline-week">Week 3</div>
+      <div class="timeline-desc">Free list corruption — 8 hours tracing register reuse causing value corruption</div>
+    </div>
+  </div>
+  <div class="timeline-item warn">
+    <div class="timeline-marker"></div>
+    <div class="timeline-content">
+      <div class="timeline-week">Week 4</div>
+      <div class="timeline-desc">LSU load broadcast failure — 12 hours finding index truncation bug</div>
+    </div>
+  </div>
+  <div class="timeline-item success">
+    <div class="timeline-marker"></div>
+    <div class="timeline-content">
+      <div class="timeline-week">Week 5</div>
+      <div class="timeline-desc"><strong>VICTORY:</strong> "Hello, LEGv8!" successfully printed to UART after 73 cycles</div>
+    </div>
+  </div>
+</div>
+
+<h3>Bug #1: Free List Always Allocated p32</h3>
+
+<div class="bug-card">
+  <div class="bug-header">
+    <div class="bug-title">Register Reuse Corruption</div>
+    <div class="bug-hours">8 hours wasted</div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Symptom</div>
+    <div class="bug-content">
+      <code>p32</code> allocated to X6 three times in 20 cycles. String characters corrupted — 'H' became 'e', 'l' became garbage.
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Root Cause</div>
+    <div class="bug-content">
+<pre><span class="cm">// WRONG (old code):</span>
+<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nm">0</span>; i &lt; <span class="nm">32</span>; i++) {
+    <span class="kw">if</span> (free_mask[<span class="nm">32</span>+i]) {
+        alloc_phys = <span class="nm">32</span> + i;
+        <span class="kw">break</span>;  <span class="cm">// ← Always picks LOWEST free register!</span>
+    }
+}</pre>
+      Always searched from p32 upward, always picked first available. After p32 committed and freed, it immediately became "first available" again → immediate reuse → corruption.
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Fix</div>
+    <div class="bug-content">
+<pre><span class="cm">// CORRECT (round-robin):</span>
+<span class="kw">logic</span> [<span class="nm">5</span>:<span class="nm">0</span>] alloc_ptr;  <span class="cm">// Rotating pointer</span>
+
+<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nm">0</span>; i &lt; <span class="nm">32</span>; i++) {
+    <span class="kw">int</span> idx = <span class="nm">32</span> + ((alloc_ptr - <span class="nm">32</span> + i) % <span class="nm">32</span>);
+    <span class="kw">if</span> (free_mask[idx]) {
+        alloc_phys = idx;
+        alloc_ptr = idx + <span class="nm">1</span>;  <span class="cm">// Advance for next alloc</span>
+        <span class="kw">break</span>;
+    }
+}</pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Lesson Learned</div>
+    <div class="bug-content">
+      "First available" algorithms create <strong>hot spots</strong>. Round-robin spreads allocations evenly, ensuring minimum 32-cycle gap before reuse.
+    </div>
+  </div>
+</div>
+
+<h3>Bug #2: ROB Occupancy Frozen at 1</h3>
+
+<div class="bug-card">
+  <div class="bug-header">
+    <div class="bug-title">Multi-Driver Conflict + Hardcoded Value</div>
+    <div class="bug-hours">15 hours wasted</div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Symptom</div>
+    <div class="bug-content">
+<pre>[ROB_ALLOC] occ=<span class="nm">1</span>→<span class="nm">1</span> (stuck!)
+[ROB_ALLOC] occ=<span class="nm">1</span>→<span class="nm">1</span> (still stuck!)
+Pipeline stalls after <span class="nm">2</span> instructions</pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Root Causes</div>
+    <div class="bug-content">
+<pre><span class="cm">// WRONG #1: Multi-driver conflict</span>
+<span class="kw">always_comb</span> <span class="kw">begin</span>
+    alloc_ok = (occupancy &lt; ROB_SIZE);  <span class="cm">// ← Driver 1</span>
+<span class="kw">end</span>
+
+<span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk) <span class="kw">begin</span>
+    <span class="kw">if</span> (reset)
+        alloc_ok &lt;= <span class="nm">1</span>'b1;  <span class="cm">// ← Driver 2 (CONFLICT!)</span>
+<span class="kw">end</span>
+
+<span class="cm">// WRONG #2: Hardcoded hack</span>
+<span class="kw">if</span> (reset)
+    occupancy &lt;= '<span class="nm">0</span>;
+<span class="kw">else</span>
+    occupancy &lt;= <span class="nm">1</span>;  <span class="cm">// ← "Temporary" hack that stayed!</span>
+
+<span class="cm">// WRONG #3: Update only when committing</span>
+<span class="kw">if</span> (commit_slots &gt; <span class="nm">0</span>) <span class="kw">begin</span>
+    head &lt;= (head + commit_slots) % ROB_SIZE;
+    occupancy &lt;= occupancy + alloc_count - commit_slots;  <span class="cm">// ← Only here!</span>
+<span class="kw">end</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Fix</div>
+    <div class="bug-content">
+<pre><span class="cm">// CORRECT:</span>
+<span class="kw">if</span> (commit_slots &gt; <span class="nm">0</span>) <span class="kw">begin</span>
+    head &lt;= (head + commit_slots) % ROB_SIZE;
+<span class="kw">end</span>
+<span class="cm">// ALWAYS update occupancy (outside commit conditional):</span>
+occupancy &lt;= occupancy + alloc_count - commit_slots;</pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Lessons Learned</div>
+    <div class="bug-content">
+      <ul>
+        <li><strong>Never drive a signal from multiple always blocks</strong> (even if one is reset-only)</li>
+        <li><strong>Occupancy = allocations - deallocations</strong> must update EVERY cycle</li>
+        <li><strong>"Temporary" hacks become permanent bugs</strong></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h3>Bug #3: LSU Load Index Truncation</h3>
+
+<div class="bug-card">
+  <div class="bug-header">
+    <div class="bug-title">Silent Index Truncation</div>
+    <div class="bug-hours">12 hours wasted</div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Symptom</div>
+    <div class="bug-content">
+<pre>Cycle <span class="nm">34</span>: Load from lq[<span class="nm">9</span>] completes, reads <span class="st">'H'</span> (<span class="nm">0x48</span>)
+Cycle <span class="nm">35</span>: CDB broadcasts tag=p0, value=<span class="nm">0x00</span> (WRONG!)
+Expected: tag=p57, value=<span class="nm">0x48</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Root Cause</div>
+    <div class="bug-content">
+<pre><span class="cm">// WRONG:</span>
+<span class="kw">logic</span> [<span class="nm">3</span>:<span class="nm">0</span>] load_in_flight_idx;  <span class="cm">// ← Correct width (16 entries)</span>
+
+<span class="cm">// But assignment truncates:</span>
+load_in_flight_idx &lt;= lq_search_idx[<span class="nm">2</span>:<span class="nm">0</span>];  <span class="cm">// ← TRUNCATES to 3 bits!</span>
+
+<span class="cm">// What happened:</span>
+<span class="cm">// lq[9] completes</span>
+<span class="cm">// lq_search_idx = 9 (0b1001)</span>
+<span class="cm">// Truncate to [2:0] = 0b001 = 1</span>
+<span class="cm">// LSU broadcasts lq[1].dest_tag instead of lq[9].dest_tag</span>
+<span class="cm">// lq[1] is stale, has tag=p0</span>
+<span class="cm">// CDB broadcasts p0=0x00 instead of p57=0x48</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Fix</div>
+    <div class="bug-content">
+<pre><span class="cm">// CORRECT:</span>
+load_in_flight_idx &lt;= lq_search_idx;  <span class="cm">// No truncation!</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Lessons Learned</div>
+    <div class="bug-content">
+      <ul>
+        <li><strong>Array indices MUST match array size</strong> (16 entries = 4-bit index, not 3!)</li>
+        <li><strong>Truncation bugs are silent</strong> (no compiler error, just wrong behavior)</li>
+        <li><strong>Always check index width</strong> when debugging "value not broadcasting"</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h3>Bug #4: UART Not Receiving Characters</h3>
+
+<div class="bug-card">
+  <div class="bug-header">
+    <div class="bug-title">Overcomplicated Address Decoding</div>
+    <div class="bug-hours">2 hours (solved by human frustration)</div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">The AI Solution (Wrong)</div>
+    <div class="bug-content">
+<pre><span class="cm">// AI's overcomplicated version with address checking:</span>
+<span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk) <span class="kw">begin</span>
+    <span class="kw">if</span> (reset)
+        tx_data_reg &lt;= <span class="nm">8</span>'h00;
+    <span class="kw">else</span> <span class="kw">if</span> (write_en &amp;&amp; (addr == ADDR_TX_DATA))
+        tx_data_reg &lt;= write_data[<span class="nm">7</span>:<span class="nm">0</span>];
+<span class="kw">end</span>
+
+<span class="cm">// Tried 2 versions with different address decoding. Both failed.</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">The Human Solution (5 minutes)</div>
+    <div class="bug-content">
+<pre><span class="cm">// Human: "write_data has the characters, just display them."</span>
+<span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk) <span class="kw">begin</span>
+    <span class="kw">if</span> (reset)
+        tx_data_reg &lt;= <span class="nm">8</span>'h00;
+    <span class="kw">else</span>
+        tx_data_reg &lt;= write_data[<span class="nm">7</span>:<span class="nm">0</span>];  <span class="cm">// No conditions!</span>
+<span class="kw">end</span></pre>
+    </div>
+  </div>
+  
+  <div class="bug-section">
+    <div class="bug-label">Lesson Learned</div>
+    <div class="bug-content">
+      AI overcomplicated with address checking and conditionals. Human recognized: "write_data has the characters, just display them." <strong>Direct signal probing beats complex logic.</strong> Sometimes the simplest solution is the right one.
+    </div>
+  </div>
+</div>
+
+<div class="callout purple">
+  <p><strong>Meta-Lesson:</strong> These bugs consumed 37 hours combined (8 + 15 + 12 + 2). The remaining 36 hours were spread across smaller issues: CDB arbitration conflicts, branch predictor not updating, intra-group forwarding edge cases, and waveform archaeology. <strong>Debugging is the real work of hardware design.</strong></p>
+</div>
+
+<h2 id="project-scope">§6 — The Full Project Scope</h2>
+
+<p>The OOO CPU is just <strong>Phase 1</strong> of a complete computer system. The vision: build everything from transistors to terminal.</p>
+
+<div class="phase-grid">
+  <div class="phase-card done">
+    <div class="phase-header">
+      <div class="phase-name">Phase 1: Hardware (RTL Design)</div>
+      <div class="phase-status status-done">✅ Complete</div>
+    </div>
+    <div class="phase-desc">Design and verify a working 2-wide superscalar OOO processor in SystemVerilog.</div>
+    <div class="phase-items">
+      <ul>
+        <li>✅ 2-wide fetch, decode, rename, dispatch</li>
+        <li>✅ 32-entry ROB, 32-entry IQ, 16-entry LQ/SQ</li>
+        <li>✅ Register renaming with 64 physical registers</li>
+        <li>✅ Free list with round-robin allocation</li>
+        <li>✅ CDB arbitration (2 ports, 4 sources)</li>
+        <li>✅ Branch predictor (2-bit, 64-entry BTB)</li>
+        <li>✅ Memory-mapped UART, scratchpad RAM</li>
+        <li>✅ "Hello, LEGv8!" successfully printed</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-card done">
+    <div class="phase-header">
+      <div class="phase-name">Phase 2: Toolchain (Assembler & Compiler)</div>
+      <div class="phase-status status-progress">🔄 In Progress</div>
+    </div>
+    <div class="phase-desc">Build a complete cross-compilation toolchain for custom LEGv8 ISA.</div>
+    <div class="phase-items">
+      <ul>
+        <li>✅ Assembler (legv8-as) — lexer, parser, encoder</li>
+        <li>✅ Binary output (.bin, .coe, .hex)</li>
+        <li>✅ Two-pass symbol resolution</li>
+        <li>🔄 Compiler (C → LEGv8 backend)</li>
+        <li>🔄 Standard library stubs (printf, memcpy)</li>
+        <li>🔄 ABI definition (calling convention)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-card progress">
+    <div class="phase-header">
+      <div class="phase-name">Phase 3: Baremetal OS</div>
+      <div class="phase-status status-progress">🔄 In Progress</div>
+    </div>
+    <div class="phase-desc">Minimal operating system running on bare metal (no external OS).</div>
+    <div class="phase-items">
+      <ul>
+        <li>✅ Bootloader (UART-based program upload)</li>
+        <li>🔄 Interrupt handling (timer, UART RX)</li>
+        <li>🔄 System calls (SVC instruction)</li>
+        <li>🔄 Scheduler (round-robin, preemptive)</li>
+        <li>🔄 UART driver (interrupt-driven)</li>
+        <li>🔄 Shell (command interpreter)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-card planned">
+    <div class="phase-header">
+      <div class="phase-name">Phase 4: Graphics & Display</div>
+      <div class="phase-status status-planned">📋 Planned</div>
+    </div>
+    <div class="phase-desc">Get pixels on a screen — framebuffer with VGA output.</div>
+    <div class="phase-items">
+      <ul>
+        <li>Framebuffer module (VGA timing, 640×480)</li>
+        <li>Dual-port RAM (CPU writes, VGA reads)</li>
+        <li>Graphics driver (pixel write, line draw)</li>
+        <li>Test programs (bouncing ball, text console)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phase-card planned">
+    <div class="phase-header">
+      <div class="phase-name">Phase 5: Optimization & Tapeout</div>
+      <div class="phase-status status-planned">📋 Planned (Q2 2025)</div>
+    </div>
+    <div class="phase-desc">Shrink design to fit ≤3 TinyTapeout tiles, then tape out silicon.</div>
+    <div class="phase-items">
+      <ul>
+        <li>Target: ~3000 standard cells (3 tiles)</li>
+        <li>16-bit datapath (vs 32-bit FPGA version)</li>
+        <li>Single-issue OOO (vs 2-wide)</li>
+        <li>8-entry ROB, 16 physical registers</li>
+        <li>No branch predictor (predict-not-taken)</li>
+        <li><strong>Goal: First individually-designed OOO CPU ever taped out</strong></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="callout">
+  <p><strong>The Vision:</strong> A complete computer system — from custom silicon to running OS with graphics — designed, debugged, and built by one person. Not a tutorial. Not a GitHub clone. Built from first principles, every bug earned, every decision understood.</p>
+</div>
+
+<h2 id="lessons">§7 — Lessons from the Trenches</h2>
+
+<h3>Technical Insights</h3>
+
+<table class="data">
+  <thead>
+    <tr>
+      <th>Insight</th>
+      <th>Why It Matters</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Timing is everything</strong></td>
+      <td>Sequential logic must update in correct order. ROB occupancy updated inside commit conditional → never incremented during allocation → frozen at 1.</td>
+    </tr>
+    <tr>
+      <td><strong>Index width matters</strong></td>
+      <td>Truncated indices cause silent corruption. 3-bit index for 16-entry array wraps at 8, broadcasting wrong tags.</td>
+    </tr>
+    <tr>
+      <td><strong>Context is king</strong></td>
+      <td>LLMs give generic solutions; humans understand system state. AI suggested complex address decoding; human just probed the signal.</td>
+    </tr>
+    <tr>
+      <td><strong>Test early, test often</strong></td>
+      <td>Bugs compound. Fix immediately or spend hours untangling cascading failures.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Design Patterns That Work</h3>
+
+<ul>
+  <li><strong>Round-robin allocation</strong> prevents starvation (free list, CDB arbiter)</li>
+  <li><strong>Sequence numbers</strong> enforce ordering without stalling (LSU)</li>
+  <li><strong>Separate allocation/commit</strong> enables speculation (ROB)</li>
+  <li><strong>Tag broadcasting</strong> implements Tomasulo efficiently (CDB)</li>
+</ul>
+
+<h3>Debugging Skills</h3>
+
+<ul>
+  <li><strong>Read waveforms, not code:</strong> State machines fail in subtle ways only visible in traces</li>
+  <li><strong>Isolate components:</strong> Test ROB alone before integrating with rename/dispatch</li>
+  <li><strong>Print queue state:</strong> Dump LQ/SQ/IQ contents at critical cycles</li>
+  <li><strong>Trust nothing:</strong> Even "working" modules may have latent bugs</li>
+</ul>
+
+<div class="callout success">
+  <p><strong>The Real Achievement:</strong> Not just building an OOO CPU, but understanding it deeply enough to debug 73 hours of corner cases, explain every decision, and teach it to others. That's the difference between following a tutorial and actually knowing what you built.</p>
+</div>
+
+<h3>What's Next</h3>
+
+<p>With the hardware working, the focus shifts to software. The compiler will unlock C programs. The OS will bring multitasking. Graphics will make it real. And eventually, three tiny squares of silicon will prove that everything learned here works in the physical world.</p>
+
+<p><strong>Every bug was a lesson. Every fix was progress. And "Hello, LEGv8!" was just the beginning.</strong></p>
+
+<div class="sv-note">
+  <div class="sv-note-title">End of Episode 0</div>
+  <p style="color: var(--text2); margin: 0; font-size: 13px;">Next: Episode 1 covers the assembler and toolchain. Episode 2 dives into register renaming. Episode 3 explores the ROB and commit logic. Episode 4 details the reservation station and dispatch.</p>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Episode 3: Rename Stage Deep Dive</title>
+<style>
+  :root {
+    --bg: #ffffff; --bg2: #f7f6f2; --bg3: #f0ede6;
+    --text: #1a1a18; --text2: #5c5b56; --text3: #8c8b85;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --blue50: #E6F1FB; --blue200: #85B7EB; --blue600: #185FA5; --blue800: #0C447C; --blue900: #042C53;
+    --teal50: #E1F5EE; --teal200: #5DCAA5; --teal600: #0F6E56; --teal800: #085041; --teal900: #04342C;
+    --purple50: #EEEDFE; --purple200: #AFA9EC; --purple600: #534AB7; --purple800: #3C3489; --purple900: #26215C;
+    --amber50: #FAEEDA; --amber200: #EF9F27; --amber600: #854F0B; --amber800: #633806;
+    --coral50: #FAECE7; --coral200: #F0997B; --coral600: #993C1D; --coral800: #712B13;
+    --green50: #EAF3DE; --green200: #97C459; --green600: #3B6D11; --green800: #27500A;
+    --gray50: #F1EFE8; --gray200: #B4B2A9; --gray600: #5F5E5A; --gray800: #444441;
+    --red50: #FCEBEB; --red200: #F09595; --red600: #A32D2D; --red800: #791F1F;
+    --mono: 'Courier New', monospace;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252522; --bg3: #2e2e2b;
+      --text: #e8e6de; --text2: #a8a69e; --text3: #6e6c66;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --blue50: #042C53; --blue200: #0C447C; --blue600: #378ADD; --blue800: #85B7EB; --blue900: #B5D4F4;
+      --teal50: #04342C; --teal200: #085041; --teal600: #1D9E75; --teal800: #5DCAA5; --teal900: #9FE1CB;
+      --purple50: #26215C; --purple200: #3C3489; --purple600: #7F77DD; --purple800: #AFA9EC; --purple900: #CECBF6;
+      --amber50: #412402; --amber200: #854F0B; --amber600: #EF9F27; --amber800: #FAC775;
+      --coral50: #4A1B0C; --coral200: #993C1D; --coral600: #D85A30; --coral800: #F0997B;
+      --green50: #173404; --green200: #3B6D11; --green600: #639922; --green800: #97C459;
+      --gray50: #2C2C2A; --gray200: #5F5E5A; --gray600: #888780; --gray800: #B4B2A9;
+      --red50: #501313; --red200: #A32D2D; --red600: #E24B4A; --red800: #F09595;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.7; }
+  .page { max-width: 860px; margin: 0 auto; padding: 48px 32px 80px; }
+  .cover { border-bottom: 0.5px solid var(--border2); padding-bottom: 40px; margin-bottom: 48px; }
+  .cover-label { font-size: 12px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  h1 { font-size: 32px; font-weight: 500; line-height: 1.2; margin-bottom: 10px; color: var(--text); }
+  .cover-sub { font-size: 16px; color: var(--text2); max-width: 580px; }
+  h2 { font-size: 22px; font-weight: 500; margin: 56px 0 16px; color: var(--text); border-top: 0.5px solid var(--border); padding-top: 32px; }
+  h3 { font-size: 17px; font-weight: 500; margin: 32px 0 10px; color: var(--text); }
+  p { margin-bottom: 14px; color: var(--text2); }
+  strong { color: var(--text); font-weight: 500; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--bg2); padding: 2px 6px; border-radius: 4px; color: var(--text); border: 0.5px solid var(--border); }
+
+  .callout { background: var(--blue50); border-left: 3px solid var(--blue600); border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 18px; margin: 20px 0; }
+  .callout p { color: var(--blue800); margin: 0; }
+  .callout.warn { background: var(--amber50); border-color: var(--amber600); }
+  .callout.warn p { color: var(--amber800); }
+  .callout.danger { background: var(--red50); border-color: var(--red600); }
+  .callout.danger p { color: var(--red800); }
+  .callout.success { background: var(--teal50); border-color: var(--teal600); }
+  .callout.success p { color: var(--teal800); }
+
+  pre { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 18px 0; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  pre .kw { color: var(--purple600); font-weight: 500; }
+  pre .cm { color: var(--text3); font-style: italic; }
+  pre .st { color: var(--teal600); }
+  pre .nm { color: var(--blue600); }
+  pre .op { color: var(--coral600); }
+  @media (prefers-color-scheme: dark) {
+    pre .kw { color: var(--purple800); }
+    pre .cm { color: var(--gray600); }
+    pre .st { color: var(--teal800); }
+    pre .nm { color: var(--blue800); }
+    pre .op { color: var(--coral800); }
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13.5px; }
+  th { background: var(--bg2); color: var(--text); font-weight: 500; text-align: left; padding: 9px 14px; border: 0.5px solid var(--border); }
+  td { padding: 8px 14px; border: 0.5px solid var(--border); color: var(--text2); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--bg2); }
+
+  .toc { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin: 32px 0; }
+  .toc-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 12px; font-weight: 500; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; color: var(--text2); font-size: 14px; }
+  .toc a { color: var(--blue600); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  @media (prefers-color-scheme: dark) { .toc a { color: var(--blue800); } }
+
+  .viz-wrap { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 24px; margin: 24px 0; }
+  .viz-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-bottom: 16px; font-weight: 500; }
+  .viz-controls { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .viz-btn { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 6px 14px; font-size: 13px; cursor: pointer; color: var(--text); transition: background 0.15s; }
+  .viz-btn:hover { background: var(--bg3); }
+  .viz-btn.active { background: var(--blue600); color: white; border-color: var(--blue600); }
+
+  .reg-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; margin: 8px 0; }
+  .reg-cell { height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; font-weight: 500; transition: background 0.3s, color 0.3s; cursor: default; border: 0.5px solid transparent; }
+  .reg-shadow { background: var(--gray50); color: var(--gray600); border-color: var(--gray200); }
+  .reg-free { background: var(--teal50); color: var(--teal600); border-color: var(--teal200); }
+  .reg-alloc { background: var(--blue50); color: var(--blue800); border-color: var(--blue200); }
+  .reg-commit { background: var(--amber50); color: var(--amber600); border-color: var(--amber200); }
+  .reg-freed { background: var(--coral50); color: var(--coral600); border-color: var(--coral200); }
+  .reg-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
+  .reg-legend span { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+  .reg-legend .dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
+  .map-table-vis { width: 100%; border-radius: var(--radius); overflow: hidden; border: 0.5px solid var(--border); font-family: var(--mono); font-size: 12px; }
+  .map-row { display: grid; grid-template-columns: 60px 1fr 1fr 1fr; gap: 0; }
+  .map-row > div { padding: 5px 10px; border-bottom: 0.5px solid var(--border); }
+  .map-hdr { background: var(--bg3); font-weight: 500; font-family: -apple-system, sans-serif; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .map-arch { color: var(--text2); }
+  .map-spec { color: var(--blue800); background: var(--blue50); }
+  .map-cmt { color: var(--teal800); background: var(--teal50); }
+  .map-init { color: var(--gray600); }
+  .map-changed { animation: flash-spec 0.8s ease; }
+  @keyframes flash-spec { 0%,100%{} 30%{ background: var(--amber50); } }
+
+  .algo-block { border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin: 20px 0; overflow: hidden; }
+  .algo-header { background: var(--bg2); padding: 12px 18px; font-weight: 500; font-size: 14px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .algo-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 400; }
+  .tag-comb { background: var(--purple50); color: var(--purple600); }
+  .tag-seq { background: var(--teal50); color: var(--teal600); }
+  .algo-body { padding: 18px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } .reg-grid { grid-template-columns: repeat(8,1fr); } }
+
+  .phase-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; margin-right: 6px; }
+  .phase-comb { background: var(--purple50); color: var(--purple600); }
+  .phase-seq { background: var(--teal50); color: var(--teal600); }
+  @media (prefers-color-scheme: dark) {
+    .phase-comb { background: var(--purple200); color: var(--purple900); }
+    .phase-seq { background: var(--teal200); color: var(--teal900); }
+    .tag-comb { background: var(--purple200); color: var(--purple900); }
+    .tag-seq { background: var(--teal200); color: var(--teal900); }
+    .viz-btn.active { background: var(--blue600); }
+    .reg-spec { background: var(--blue200); color: var(--blue900); }
+    .map-spec { color: var(--blue900); background: var(--blue200); }
+    .map-cmt { color: var(--teal900); background: var(--teal200); }
+  }
+
+  .fwd-demo { background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius-lg); padding: 0; overflow: hidden; margin: 20px 0; }
+  .fwd-header { display: grid; grid-template-columns: 1fr 1fr; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+  .fwd-header > div { padding: 8px 16px; background: var(--bg2); border-bottom: 0.5px solid var(--border); }
+  .fwd-header > div:first-child { border-right: 0.5px solid var(--border); }
+  .fwd-body { display: grid; grid-template-columns: 1fr 1fr; }
+  .fwd-body > div { padding: 14px 16px; font-size: 13px; }
+  .fwd-body > div:first-child { border-right: 0.5px solid var(--border); }
+  .fwd-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+  .fwd-val { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+  .fwd-arrow { text-align: center; padding: 8px; color: var(--text3); font-size: 18px; }
+  .good { color: var(--teal600); }
+  .bad { color: var(--red600); }
+  .highlight-row { background: var(--amber50) !important; }
+  @media (prefers-color-scheme: dark) { .highlight-row { background: var(--amber50) !important; } .good { color: var(--teal800); } .bad { color: var(--red800); } }
+
+  .rr-demo { display: flex; flex-direction: column; gap: 10px; }
+  .rr-ring { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .rr-cell { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10px; font-weight: 500; border: 0.5px solid var(--border); transition: all 0.3s; }
+  .rr-ptr { background: var(--amber200); color: var(--amber600); border-color: var(--amber600); font-size: 8px; }
+  .rr-used { background: var(--blue50); color: var(--blue800); border-color: var(--blue200); }
+  .rr-avail { background: var(--teal50); color: var(--teal600); border-color: var(--teal200); }
+
+  .flush-trace { display: flex; flex-direction: column; gap: 0; border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin: 16px 0; }
+  .flush-row { display: grid; grid-template-columns: 80px 100px 1fr; font-size: 12.5px; border-bottom: 0.5px solid var(--border); }
+  .flush-row:last-child { border-bottom: none; }
+  .flush-row > div { padding: 7px 12px; }
+  .flush-row > div:not(:last-child) { border-right: 0.5px solid var(--border); }
+  .flush-hdr { background: var(--bg2); font-weight: 500; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+  .flush-squash { background: var(--red50); }
+  .flush-squash > div { color: var(--red800); }
+  @media (prefers-color-scheme: dark) { .flush-squash { background: var(--red50); } }
+
+  .sv-note { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin: 14px 0; }
+  .sv-note-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-label">Superscalar LEGv8 &nbsp;·&nbsp; Episode 3</div>
+  <h1>Rename Stage: Structures, Algorithms & RTL</h1>
+  <p class="cover-sub">A deep dive into the three core hardware structures inside the rename stage, the algorithms that govern their behavior, and the SystemVerilog patterns that implement them — with interactive visualizations tied to actual simulation output.</p>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#s1">The three core structures</a></li>
+    <li><a href="#s2">Free list: the bitmask allocator</a></li>
+    <li><a href="#s3">Rename table: speculative & committed maps</a></li>
+    <li><a href="#s4">Intra-group forwarding</a></li>
+    <li><a href="#s5">Combinational vs sequential: the key split</a></li>
+    <li><a href="#s6">Flush and recovery</a></li>
+    <li><a href="#s7">SystemVerilog notes</a></li>
+    <li><a href="#s8">Interview cheatsheet</a></li>
+  </ol>
+</div>
+
+<!-- §1 THREE STRUCTURES -->
+<h2 id="s1">§1 — The Three Core Structures</h2>
+<p>The rename stage wraps three distinct hardware structures. Each has a completely different job and a different timing model. Confusing them is the most common source of rename bugs.</p>
+
+<div class="two-col">
+  <div class="sv-note">
+    <div class="sv-note-title">free_list</div>
+    <p style="margin:0;font-size:13px;">A 64-bit bitmask. Tracks which physical registers in the rename pool (p32–p63) are available. Consulted every cycle to allocate fresh physical registers. Returns a physical register number per requesting lane.</p>
+  </div>
+  <div class="sv-note">
+    <div class="sv-note-title">rename_table</div>
+    <p style="margin:0;font-size:13px;">An array of 32 entries indexed by architectural register number. Each entry holds the physical register number of the most recent <em>speculative</em> write to that architectural register. Updated every cycle instructions are renamed.</p>
+  </div>
+</div>
+<div class="sv-note" style="margin-top:0;">
+  <div class="sv-note-title">committed_table (inside rename_table)</div>
+  <p style="margin:0;font-size:13px;">A shadow copy of the rename table that only moves forward when the ROB commits an instruction in order. On a flush, the speculative <code>map_table</code> reverts to <code>committed_table</code>. This is what makes precise exceptions possible.</p>
+</div>
+
+<div class="callout">
+  <p><strong>The one-sentence mental model:</strong> the free list answers "which physical register can I use?", the rename table answers "which physical register holds the current value of architectural register Xn?", and the committed table answers "what is the last definitely-committed answer to that question?"</p>
+</div>
+
+<!-- PIPELINE POSITION DIAGRAM -->
+<div class="viz-wrap">
+  <div class="viz-title">Rename stage position in the pipeline</div>
+  <svg width="100%" viewBox="0 0 680 90">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <g>
+      <rect x="10" y="20" width="100" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+      <text x="60" y="47" text-anchor="middle" font-size="12" fill="var(--gray600)" font-family="sans-serif">Fetch</text>
+    </g>
+    <line x1="110" y1="42" x2="132" y2="42" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <g>
+      <rect x="132" y="20" width="100" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+      <text x="182" y="47" text-anchor="middle" font-size="12" fill="var(--gray600)" font-family="sans-serif">Decode</text>
+    </g>
+    <line x1="232" y1="42" x2="254" y2="42" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <g>
+      <rect x="254" y="14" width="112" height="58" rx="8" fill="var(--blue50)" stroke="var(--blue200)" stroke-width="1"/>
+      <text x="310" y="40" text-anchor="middle" font-size="12" font-weight="500" fill="var(--blue800)" font-family="sans-serif">Rename</text>
+      <text x="310" y="57" text-anchor="middle" font-size="10" fill="var(--blue600)" font-family="sans-serif">free_list · map · fwd</text>
+    </g>
+    <line x1="366" y1="42" x2="388" y2="42" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <g>
+      <rect x="388" y="20" width="100" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+      <text x="438" y="41" text-anchor="middle" font-size="12" fill="var(--gray600)" font-family="sans-serif">Issue Queue</text>
+      <text x="438" y="57" text-anchor="middle" font-size="10" fill="var(--gray200)" font-family="sans-serif">/ ROB</text>
+    </g>
+    <line x1="488" y1="42" x2="510" y2="42" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <g>
+      <rect x="510" y="20" width="100" height="44" rx="8" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+      <text x="560" y="42" text-anchor="middle" font-size="12" fill="var(--gray600)" font-family="sans-serif">Execute</text>
+      <text x="560" y="57" text-anchor="middle" font-size="10" fill="var(--gray200)" font-family="sans-serif">→ Commit</text>
+    </g>
+    <path d="M560 64 Q560 82 310 82 Q150 82 135 64" fill="none" stroke="var(--teal200)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="300" y="79" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">commit_en · commit_arch_rd · commit_phys_rd</text>
+  </svg>
+</div>
+
+<!-- §2 FREE LIST -->
+<h2 id="s2">§2 — Free List: The Bitmask Allocator</h2>
+
+<h3>The bitmask</h3>
+<p>The free list is a 64-bit register (<code>free_mask</code>). Bit <em>i</em> = 1 means physical register p<em>i</em> is available. Bit <em>i</em> = 0 means it is in use by an in-flight instruction.</p>
+<p>On reset, bits 0–31 are cleared (these are the shadow registers — not allocatable) and bits 32–63 are set (the rename pool is fully empty). The allocation pointer <code>alloc_ptr</code> starts at 32 and walks round-robin through p32–p63 so that allocations spread across the pool and recently freed registers are not immediately reused.</p>
+
+<!-- FREE MASK VISUALIZER -->
+<div class="viz-wrap">
+  <div class="viz-title">Free mask visualizer — cycle-by-cycle state</div>
+  <div class="reg-grid" id="freemask-grid"></div>
+  <div class="reg-legend">
+    <span><span class="dot" style="background:var(--gray50);border:0.5px solid var(--gray200);"></span>Shadow (p0–p31, never allocatable)</span>
+    <span><span class="dot" style="background:var(--teal50);border:0.5px solid var(--teal200);"></span>Free (available)</span>
+    <span><span class="dot" style="background:var(--blue50);border:0.5px solid var(--blue200);"></span>Allocated (in-flight)</span>
+    <span><span class="dot" style="background:var(--amber50);border:0.5px solid var(--amber200);"></span>Ptr</span>
+    <span><span class="dot" style="background:var(--coral50);border:0.5px solid var(--coral200);"></span>Just freed (commit)</span>
+  </div>
+  <div class="viz-controls">
+    <button class="viz-btn active" onclick="setFMState(0,this)">Reset</button>
+    <button class="viz-btn" onclick="setFMState(1,this)">Cycle 3 (alloc p32,p33)</button>
+    <button class="viz-btn" onclick="setFMState(2,this)">Cycle 4 (alloc p34,p35)</button>
+    <button class="viz-btn" onclick="setFMState(3,this)">Cycle 8 (commit → free p32,p33)</button>
+    <button class="viz-btn" onclick="setFMState(4,this)">Cycle 14 (steady, p32–p47 used)</button>
+  </div>
+</div>
+
+<h3>Round-robin allocation algorithm</h3>
+<p>The allocator does not just take the first free bit from bit 32 — it walks from the last allocation pointer forward, wrapping within p32–p63. This prevents thrashing where the same registers cycle in and out immediately, giving freed registers time to "rest" before reuse.</p>
+
+<div class="algo-block">
+  <div class="algo-header">Round-robin scan — combinational <span class="algo-tag tag-comb">always_comb</span></div>
+  <div class="algo-body">
+<pre><code><span class="cm">// Always-comb: result must be available in the SAME cycle as alloc_en</span>
+<span class="kw">always_comb begin</span>
+  <span class="kw">automatic</span> logic [<span class="nm">63</span>:<span class="nm">0</span>] temp_mask = free_mask;
+
+  <span class="cm">// Apply frees first (commit arrives same cycle, see note below)</span>
+  <span class="kw">for</span> (int j = <span class="nm">0</span>; j &lt; FREE_PORTS; j++) <span class="kw">begin</span>
+    <span class="kw">if</span> (free_en[j]) temp_mask[free_phys[j]] = <span class="nm">1</span>'b1;
+  <span class="kw">end</span>
+
+  search_ptr = alloc_ptr; <span class="cm">// start from last pointer</span>
+
+  <span class="kw">for</span> (int a = <span class="nm">0</span>; a &lt; ALLOC_PORTS; a++) <span class="kw">begin</span>
+    alloc_valid[a] = <span class="nm">1</span>'b0; alloc_phys[a] = <span class="nm">'0</span>;
+    <span class="kw">if</span> (alloc_en[a]) <span class="kw">begin</span>
+      searches = <span class="nm">0</span>;
+      <span class="kw">while</span> (searches &lt; <span class="nm">32</span>) <span class="kw">begin</span>
+        <span class="kw">automatic</span> int idx = <span class="nm">32</span> + ((search_ptr - <span class="nm">32</span>) % <span class="nm">32</span>);
+        <span class="kw">if</span> (temp_mask[idx]) <span class="kw">begin</span>
+          alloc_phys[a]  = idx;
+          alloc_valid[a] = <span class="nm">1</span>'b1;
+          temp_mask[idx] = <span class="nm">1</span>'b0; <span class="cm">// mark tentatively used for port a+1</span>
+          search_ptr     = (idx + <span class="nm">1</span>) % <span class="nm">64</span>;
+          <span class="kw">break</span>;
+        <span class="kw">end</span>
+        search_ptr = <span class="nm">32</span> + ((search_ptr - <span class="nm">32</span> + <span class="nm">1</span>) % <span class="nm">32</span>);
+        searches++;
+      <span class="kw">end</span>
+    <span class="kw">end</span>
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+    <p style="font-size:13px;margin-top:8px;margin-bottom:0;"><strong>Key subtlety:</strong> <code>temp_mask</code> is a local variable declared with <code>automatic</code>. Port 0's allocation clears its bit in <code>temp_mask</code> before port 1 searches, so two ports never claim the same register even when searching in the same cycle.</p>
+  </div>
+</div>
+
+<!-- ROUND ROBIN VIZ -->
+<div class="viz-wrap">
+  <div class="viz-title">Round-robin pointer animation (p32–p63 pool)</div>
+  <div class="rr-demo">
+    <div id="rr-ring" class="rr-ring"></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+      <button class="viz-btn" onclick="rrAlloc()">Allocate one</button>
+      <button class="viz-btn" onclick="rrFree()">Free oldest</button>
+      <button class="viz-btn" onclick="rrReset()">Reset</button>
+      <span style="font-size:13px;color:var(--text2);">Ptr: <strong id="rr-ptr-label">p32</strong> &nbsp; Free: <strong id="rr-free-count">32</strong>/32</span>
+    </div>
+    <div style="display:flex;gap:12px;font-size:12px;color:var(--text2);">
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:var(--teal50);border:0.5px solid var(--teal200);border-radius:3px;display:inline-block;"></span>Free</span>
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:var(--blue50);border:0.5px solid var(--blue200);border-radius:3px;display:inline-block;"></span>Allocated</span>
+      <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:var(--amber50);border:0.5px solid var(--amber600);border-radius:3px;display:inline-block;"></span>Pointer</span>
+    </div>
+  </div>
+</div>
+
+<h3>Sequential update</h3>
+<p>After the combinational block computes <code>alloc_phys[]</code> and <code>alloc_valid[]</code>, the sequential block commits those choices on the clock edge: it writes the updated mask back to <code>free_mask</code> and advances <code>alloc_ptr</code> to the position just past the last successful allocation. The combinational block reads the <em>registered</em> <code>alloc_ptr</code>, not the just-computed next value — this is the normal read-registered-write pattern for any state machine in synchronous RTL.</p>
+
+<!-- §3 RENAME TABLE -->
+<h2 id="s3">§3 — Rename Table: Speculative & Committed Maps</h2>
+
+<h3>Two tables, one module</h3>
+<p>Inside <code>rename_table.sv</code> there are two 32-entry arrays: <code>map_table</code> (speculative) and <code>committed_table</code> (architectural ground truth). They start identical — both hold an identity mapping where arch register <em>i</em> maps to physical register p<em>i</em>. They diverge as instructions are renamed, and they re-sync at commit.</p>
+
+<!-- MAP TABLE VISUALIZER -->
+<div class="viz-wrap">
+  <div class="viz-title">Map table state — select a cycle to inspect</div>
+  <div class="map-table-vis" id="mt-vis">
+    <div class="map-row">
+      <div class="map-hdr">Arch</div>
+      <div class="map-hdr">init (both)</div>
+      <div class="map-hdr">map_table (spec)</div>
+      <div class="map-hdr">committed_table</div>
+    </div>
+  </div>
+  <div class="viz-controls" style="margin-top:16px;">
+    <button class="viz-btn active" onclick="setMTState(0,this)">Reset</button>
+    <button class="viz-btn" onclick="setMTState(1,this)">After cycle 3</button>
+    <button class="viz-btn" onclick="setMTState(2,this)">After cycle 6</button>
+    <button class="viz-btn" onclick="setMTState(3,this)">After cycle 8 (commit)</button>
+    <button class="viz-btn" onclick="setMTState(4,this)">After cycle 16</button>
+  </div>
+  <p style="font-size:12px;color:var(--text3);margin-top:10px;margin-bottom:0;">Only registers x1,x2,x5,x6,x9 shown. Others remain at identity mapping throughout.</p>
+</div>
+
+<h3>The update rules</h3>
+
+<div class="two-col">
+  <div class="algo-block">
+    <div class="algo-header"><code>map_table</code> update <span class="algo-tag tag-seq">always_ff</span></div>
+    <div class="algo-body">
+<pre style="margin:0;"><code><span class="cm">// On clock edge, apply speculative renames</span>
+<span class="kw">for</span> (int j = <span class="nm">0</span>; j &lt; RENAME_PORTS; j++) <span class="kw">begin</span>
+  <span class="kw">if</span> (rename_en[j] && arch_rd[j] != <span class="nm">5</span>'d0) <span class="kw">begin</span>
+    map_table[arch_rd[j]] &lt;= new_phys_rd[j];
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+      <p style="font-size:12px;margin-top:8px;margin-bottom:0;color:var(--text2);">Written every rename cycle. Reverts to <code>committed_table</code> on flush.</p>
+    </div>
+  </div>
+  <div class="algo-block">
+    <div class="algo-header"><code>committed_table</code> update <span class="algo-tag tag-seq">always_ff</span></div>
+    <div class="algo-body">
+<pre style="margin:0;"><code><span class="cm">// On clock edge, advance committed state</span>
+<span class="kw">for</span> (int j = <span class="nm">0</span>; j &lt; COMMIT_PORTS; j++) <span class="kw">begin</span>
+  <span class="kw">if</span> (commit_en[j] && commit_arch_rd[j] != <span class="nm">5</span>'d0)
+    <span class="kw">begin</span>
+    committed_table[commit_arch_rd[j]]
+      &lt;= commit_phys_rd[j];
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+      <p style="font-size:12px;margin-top:8px;margin-bottom:0;color:var(--text2);">Only moves on ROB commit. Never rolls back.</p>
+    </div>
+  </div>
+</div>
+
+<div class="callout warn">
+  <p><strong>The critical invariant:</strong> <code>committed_table[i]</code> always holds the physical register that a program running in strict sequential order would have for arch register <em>i</em>. It is the "last known good" state. <code>map_table[i]</code> may be arbitrarily ahead of it — it reflects every unretired speculative write.</p>
+</div>
+
+<h3>What commit does to the free list</h3>
+<p>When the ROB commits an instruction that wrote physical register p<em>new</em> to architectural register <em>Xn</em>, the hardware must reclaim the physical register that <em>previously</em> held <em>Xn</em>'s committed value. That old register is now dead — no instruction will ever read it again. The commit stage passes <code>commit_phys_rd</code> to the free list's <code>free_en</code>/<code>free_phys</code> ports. This is why the pool stays healthy: every commit allocates one slot and frees one slot in steady state.</p>
+
+<!-- §4 FORWARDING -->
+<h2 id="s4">§4 — Intra-Group Forwarding</h2>
+
+<p>The rename table is a sequential element — it only updates on the clock edge. But two instructions are renamed combinationally in the same cycle. If slot 0 writes X6 and slot 1 reads X6, the table still holds the <em>old</em> physical mapping for X6 when slot 1 does its lookup.</p>
+
+<p>Without forwarding, slot 1 would be handed the wrong physical register. It would sit in the reservation station waiting for that register to become ready — but it never will, because the ADDI in slot 0 wrote a different physical register. The ROB deadlocks.</p>
+
+<!-- FORWARDING DEMO -->
+<div class="viz-wrap">
+  <div class="viz-title">Cycle 6 — intra-group forward case (ADDI X6 → STR X6)</div>
+  <div class="fwd-demo">
+    <div class="fwd-header">
+      <div>Slot 0 — ADDI X6, X0, #72</div>
+      <div>Slot 1 — STR X6, [X9, #0]</div>
+    </div>
+    <div class="fwd-body">
+      <div>
+        <div class="fwd-label">Arch destination</div>
+        <div class="fwd-val">x6</div>
+        <div style="margin-top:10px;" class="fwd-label">Free list allocates</div>
+        <div class="fwd-val" style="color:var(--blue800);">p40 ← new physical for X6</div>
+        <div style="margin-top:10px;" class="fwd-label">map_table[x6] after this cycle</div>
+        <div class="fwd-val">p40 (written on clock edge)</div>
+      </div>
+      <div>
+        <div class="fwd-label">Arch source (rs2)</div>
+        <div class="fwd-val">x6</div>
+        <div style="margin-top:10px;" class="fwd-label">map_table[x6] right now (stale)</div>
+        <div class="fwd-val bad">p36 ← WRONG, this is old X6</div>
+        <div style="margin-top:10px;" class="fwd-label">After forwarding check (j=0 &lt; i=1)</div>
+        <div class="fwd-val good">p40 ← CORRECT, forwarded from slot 0</div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:13px;margin-top:12px;margin-bottom:0;color:var(--text2);">The log confirms: <code>[RENAME0] ard=x6-&gt;p40</code> and <code>[RS_ALLOC1] dst=p39 src2=p40</code> — slot 1 correctly receives p40, not p36.</p>
+</div>
+
+<div class="algo-block">
+  <div class="algo-header">Forwarding logic — combinational override inside rename_table <span class="algo-tag tag-comb">always_comb</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">always_comb begin</span>
+  <span class="kw">for</span> (int i = <span class="nm">0</span>; i &lt; LOOKUP_PORTS; i++) <span class="kw">begin</span>
+    <span class="cm">// Default: read from speculative map table</span>
+    phys_rs1[i] = (arch_rs1[i] == <span class="nm">5</span>'d0) ? <span class="nm">6</span>'d0 : map_table[arch_rs1[i]];
+    phys_rs2[i] = (arch_rs2[i] == <span class="nm">5</span>'d0) ? <span class="nm">6</span>'d0 : map_table[arch_rs2[i]];
+
+    <span class="cm">// FORWARDING: check all earlier rename ports in same cycle</span>
+    <span class="kw">for</span> (int j = <span class="nm">0</span>; j &lt; RENAME_PORTS; j++) <span class="kw">begin</span>
+      <span class="kw">if</span> (j &lt; i && rename_en[j] && arch_rd[j] != <span class="nm">5</span>'d0) <span class="kw">begin</span>
+        <span class="kw">if</span> (arch_rs1[i] == arch_rd[j])
+          phys_rs1[i] = new_phys_rd[j]; <span class="cm">// forward just-allocated phys</span>
+        <span class="kw">if</span> (arch_rs2[i] == arch_rd[j])
+          phys_rs2[i] = new_phys_rd[j];
+      <span class="kw">end</span>
+    <span class="kw">end</span>
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+    <p style="font-size:13px;margin-top:8px;margin-bottom:0;"><strong>Why <code>j &lt; i</code>?</strong> Only earlier slots can be producers for later slots within the same cycle. Slot 0 has no predecessor to forward from. Slot 1 checks slot 0. In a 4-wide design, slot 3 would check slots 0, 1, and 2.</p>
+  </div>
+</div>
+
+<h3>How often does forwarding fire in hello_uart?</h3>
+<p>Every ADDI-STR pair in the string-building section triggers a forward. That is 16 consecutive cycles (cycles 6–22) where slot 0 writes X6 and slot 1 reads X6. The forwarding logic fires on every single one. Without it, the processor deadlocks on the very first STR in the program.</p>
+
+<!-- §5 COMB VS SEQ -->
+<h2 id="s5">§5 — Combinational vs Sequential: The Key Split</h2>
+
+<p>This is the most important structural concept in the rename stage. Every operation falls into one of two categories and the rules are strict.</p>
+
+<div class="two-col">
+  <div class="sv-note" style="border-top:3px solid var(--purple600);">
+    <div class="sv-note-title" style="color:var(--purple600);">Combinational (always_comb)</div>
+    <p style="font-size:13px;margin-bottom:8px;">Must produce its output in the <strong>same cycle</strong> as its inputs arrive. Results are available immediately to the pipeline stage that follows.</p>
+    <ul style="font-size:13px;color:var(--text2);padding-left:18px;">
+      <li>Free list search &amp; allocation</li>
+      <li>Rename table read (rs1, rs2 lookup)</li>
+      <li>Intra-group forwarding override</li>
+      <li>alloc_en generation</li>
+    </ul>
+  </div>
+  <div class="sv-note" style="border-top:3px solid var(--teal600);">
+    <div class="sv-note-title" style="color:var(--teal600);">Sequential (always_ff)</div>
+    <p style="font-size:13px;margin-bottom:8px;">State elements. Updated on the rising clock edge. The new value is visible to combinational logic starting in the <strong>next</strong> cycle.</p>
+    <ul style="font-size:13px;color:var(--text2);padding-left:18px;">
+      <li>free_mask register</li>
+      <li>alloc_ptr register</li>
+      <li>map_table array</li>
+      <li>committed_table array</li>
+      <li>Pipeline output registers</li>
+    </ul>
+  </div>
+</div>
+
+<!-- TIMING DIAGRAM -->
+<div class="viz-wrap">
+  <div class="viz-title">Clock-cycle timing: what happens when, during cycle N</div>
+  <svg width="100%" viewBox="0 0 680 320">
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <!-- Clock -->
+    <text x="30" y="30" font-size="11" fill="var(--text3)" font-family="sans-serif">clk</text>
+    <polyline points="60,38 60,20 120,20 120,38 180,38 180,20 240,20 240,38 300,38 300,20 360,20 360,38" fill="none" stroke="var(--gray600)" stroke-width="1.5"/>
+    <text x="100" y="14" font-size="10" text-anchor="middle" fill="var(--text3)" font-family="sans-serif">Cycle N-1</text>
+    <text x="220" y="14" font-size="10" text-anchor="middle" fill="var(--text3)" font-family="sans-serif">Cycle N</text>
+    <text x="340" y="14" font-size="10" text-anchor="middle" fill="var(--text3)" font-family="sans-serif">Cycle N+1</text>
+    <!-- Edge markers -->
+    <line x1="180" y1="50" x2="180" y2="300" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>
+    <line x1="360" y1="50" x2="360" y2="300" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="182" y="55" font-size="10" fill="var(--text3)" font-family="sans-serif">↑ rising edge</text>
+    <text x="362" y="55" font-size="10" fill="var(--text3)" font-family="sans-serif">↑ rising edge</text>
+
+    <!-- Row: decode arrives -->
+    <rect x="30" y="65" width="120" height="28" rx="4" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="90" y="83" text-anchor="middle" font-size="11" fill="var(--gray600)" font-family="sans-serif">dec_valid, dec_rd…</text>
+    <rect x="180" y="65" width="180" height="28" rx="4" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="0.5"/>
+    <text x="270" y="83" text-anchor="middle" font-size="11" fill="var(--purple800)" font-family="sans-serif">Decode outputs stable (comb)</text>
+
+    <!-- Row: free list search -->
+    <rect x="180" y="103" width="180" height="28" rx="4" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="0.5"/>
+    <text x="270" y="121" text-anchor="middle" font-size="11" fill="var(--purple800)" font-family="sans-serif">alloc search: alloc_phys valid</text>
+    <text x="20" y="121" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">free_list</text>
+    <line x1="70" y1="117" x2="178" y2="117" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr2)"/>
+
+    <!-- Row: rename table read + fwd -->
+    <rect x="180" y="141" width="180" height="28" rx="4" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="0.5"/>
+    <text x="270" y="159" text-anchor="middle" font-size="11" fill="var(--purple800)" font-family="sans-serif">phys_rs1/rs2 resolved + fwd</text>
+    <text x="20" y="159" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">rename_table</text>
+    <line x1="78" y1="155" x2="178" y2="155" stroke="var(--text3)" stroke-width="0.5" marker-end="url(#arr2)"/>
+
+    <!-- Row: pipeline reg latch -->
+    <rect x="360" y="65" width="180" height="28" rx="4" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.5"/>
+    <text x="450" y="83" text-anchor="middle" font-size="11" fill="var(--teal800)" font-family="sans-serif">rename_prs1/prs2/prd latched</text>
+    <text x="20" y="83" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">pipe regs</text>
+    <line x1="60" y1="79" x2="178" y2="79" stroke="var(--text3)" stroke-width="0.5" stroke-dasharray="2 2"/>
+    <line x1="60" y1="79" x2="60" y2="65" stroke="var(--text3)" stroke-width="0.5"/>
+
+    <!-- Row: free_mask update -->
+    <rect x="360" y="103" width="180" height="28" rx="4" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.5"/>
+    <text x="450" y="121" text-anchor="middle" font-size="11" fill="var(--teal800)" font-family="sans-serif">free_mask &amp; alloc_ptr updated</text>
+    <text x="20" y="121" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">free_mask</text>
+
+    <!-- Row: map_table update -->
+    <rect x="360" y="141" width="180" height="28" rx="4" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.5"/>
+    <text x="450" y="159" text-anchor="middle" font-size="11" fill="var(--teal800)" font-family="sans-serif">map_table[arch_rd] &lt;= new_phys</text>
+    <text x="20" y="159" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">map_table</text>
+
+    <!-- Row: committed update (from commit) -->
+    <rect x="360" y="179" width="180" height="28" rx="4" fill="var(--amber50)" stroke="var(--amber200)" stroke-width="0.5"/>
+    <text x="450" y="197" text-anchor="middle" font-size="11" fill="var(--amber800)" font-family="sans-serif">committed_table &lt;= if commit</text>
+    <text x="20" y="197" font-size="11" fill="var(--text3)" font-family="sans-serif" text-anchor="start">committed</text>
+
+    <!-- Legend -->
+    <rect x="30" y="240" width="14" height="14" rx="3" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="0.5"/>
+    <text x="50" y="251" font-size="11" fill="var(--text2)" font-family="sans-serif">Combinational — result available within same cycle</text>
+    <rect x="30" y="264" width="14" height="14" rx="3" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.5"/>
+    <text x="50" y="275" font-size="11" fill="var(--text2)" font-family="sans-serif">Sequential — state written on clock edge, visible next cycle</text>
+    <rect x="30" y="288" width="14" height="14" rx="3" fill="var(--amber50)" stroke="var(--amber200)" stroke-width="0.5"/>
+    <text x="50" y="299" font-size="11" fill="var(--text2)" font-family="sans-serif">Sequential — from commit path (ROB, not rename stage)</text>
+  </svg>
+</div>
+
+<div class="callout danger">
+  <p><strong>Classic bug:</strong> reading <code>map_table</code> in a sequential block. If you put the lookup inside <code>always_ff</code>, the result is delayed one cycle — slot 1 reads a mapping that is one cycle stale relative to when the decode inputs arrived. Everything processes with a one-cycle offset and your simulation shows garbage physical register assignments.</p>
+</div>
+
+<p>The separation also explains why forwarding must live in the combinational block. The forwarding logic reads <code>new_phys_rd[j]</code> — a value that was computed by the combinational free list search in the same cycle. Putting it in <code>always_ff</code> would mean "check if slot 0 wrote a register that slot 1 reads… in the cycle after we've already latched the wrong result." That is not forwarding, that is a bug.</p>
+
+<!-- §6 FLUSH -->
+<h2 id="s6">§6 — Flush and Recovery</h2>
+
+<p>When the branch unit resolves a branch mispredict, it asserts <code>flush_pipeline</code>. The rename stage has a specific and ordered response.</p>
+
+<div class="flush-trace">
+  <div class="flush-row">
+    <div class="flush-hdr">Cycle</div>
+    <div class="flush-hdr">Signal</div>
+    <div class="flush-hdr">What happens</div>
+  </div>
+  <div class="flush-row">
+    <div>30</div><div><code>flush_pipeline=1</code></div>
+    <div>Branch unit sets flush. Asserted combinationally.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30</div><div>Pipeline regs</div>
+    <div><code>rename_valid &lt;= '0</code> — all in-flight renamed outputs squashed. No new instructions enter the ROB this cycle.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30+</div><div><code>map_table</code></div>
+    <div>Reverts to <code>committed_table</code> snapshot. Any speculative renames since last commit are erased. This is the key recovery step — it restores the register mapping to a known-good state.</div>
+  </div>
+  <div class="flush-row flush-squash">
+    <div>30+</div><div><code>free_mask</code></div>
+    <div>Physical registers allocated to squashed instructions are returned. Because those instructions never committed, their <code>commit_phys_rd</code> was never sent to the free list — the reset logic returns them en masse.</div>
+  </div>
+  <div class="flush-row">
+    <div>31</div><div>Fetch</div>
+    <div>Redirected to correct branch target (0x00000098 = <code>send_string</code>). New instructions begin fetching.</div>
+  </div>
+  <div class="flush-row">
+    <div>33+</div><div>Normal</div>
+    <div>Rename stage processes new instructions from the correct path. <code>map_table</code> starts rebuilding from the committed snapshot.</div>
+  </div>
+</div>
+
+<div class="callout success">
+  <p><strong>Why precise exceptions work:</strong> The <code>committed_table</code> reflects only instructions that have retired in program order. Any instruction that was in-flight during the mispredict has not committed, so the committed table does not include its effects. Rolling <code>map_table</code> back to <code>committed_table</code> is equivalent to "undo every speculative write since the last in-order checkpoint" — exactly what precise exception semantics require.</p>
+</div>
+
+<!-- §7 SV NOTES -->
+<h2 id="s7">§7 — SystemVerilog Notes</h2>
+
+<h3>automatic variables in always_comb</h3>
+<p>The free list uses <code>automatic</code> variables inside its combinational block. This is required when you declare local variables inside an <code>always_comb</code> that must not retain state between evaluations.</p>
+
+<div class="algo-block">
+  <div class="algo-header">automatic vs static in always_comb</div>
+  <div class="algo-body">
+<pre><code><span class="cm">// CORRECT — temp_mask is re-initialized every time the block re-evaluates</span>
+<span class="kw">always_comb begin</span>
+  <span class="kw">automatic</span> logic [<span class="nm">63</span>:<span class="nm">0</span>] temp_mask = free_mask;
+  <span class="kw">automatic</span> logic [<span class="nm">5</span>:<span class="nm">0</span>]  search_ptr = alloc_ptr;
+  <span class="kw">automatic</span> int searches;
+  <span class="cm">// ... search logic modifying temp_mask ...</span>
+<span class="kw">end</span>
+
+<span class="cm">// WRONG — without automatic, temp_mask is a static variable.</span>
+<span class="cm">// It retains its value from the PREVIOUS time the block ran.</span>
+<span class="cm">// The allocation from last cycle bleeds into this cycle. Undefined behavior in simulation.</span>
+<span class="kw">always_comb begin</span>
+  logic [<span class="nm">63</span>:<span class="nm">0</span>] temp_mask = free_mask; <span class="cm">// BUG — static local</span>
+<span class="kw">end</span></code></pre>
+  </div>
+</div>
+
+<h3>Non-blocking vs blocking assignments</h3>
+<div class="sv-note">
+  <div class="sv-note-title">The golden rule</div>
+  <p style="font-size:13px;margin-bottom:6px;"><strong>always_ff:</strong> use <code>&lt;=</code> (non-blocking) for all state updates. Multiple <code>&lt;=</code> in the same block evaluate right-hand sides simultaneously from the current state, then all update together.</p>
+  <p style="font-size:13px;margin-bottom:0;"><strong>always_comb:</strong> use <code>=</code> (blocking) for local variable manipulation and output assignments. The result of one assignment is immediately visible to the next line in the block.</p>
+</div>
+
+<pre><code><span class="cm">// always_ff: all &lt;= evaluate before any take effect</span>
+<span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk) <span class="kw">begin</span>
+  free_mask &lt;= updated_mask; <span class="cm">// reads current free_mask, not updated_mask</span>
+  alloc_ptr &lt;= new_alloc_ptr;
+<span class="kw">end</span>
+
+<span class="cm">// always_comb: blocking = means sequential within the block</span>
+<span class="kw">always_comb begin</span>
+  <span class="kw">automatic</span> logic [<span class="nm">63</span>:<span class="nm">0</span>] tmp = free_mask;
+  tmp[alloc_phys[<span class="nm">0</span>]] = <span class="nm">1</span>'b0; <span class="cm">// immediately visible on next line</span>
+  <span class="kw">if</span> (tmp[<span class="nm">33</span>]) ...          <span class="cm">// sees the cleared bit</span>
+<span class="kw">end</span></code></pre>
+
+<h3>Parameterized widths and array ports</h3>
+
+<pre><code><span class="cm">// Multi-port arrays use packed dimensions:</span>
+<span class="kw">input</span> logic [FETCH_W-<span class="nm">1</span>:<span class="nm">0</span>][<span class="nm">4</span>:<span class="nm">0</span>] dec_rs1,  <span class="cm">// FETCH_W lanes × 5 bits each</span>
+<span class="kw">output</span> logic [FETCH_W-<span class="nm">1</span>:<span class="nm">0</span>][<span class="nm">5</span>:<span class="nm">0</span>] alloc_phys, <span class="cm">// FETCH_W lanes × 6 bits each</span>
+
+<span class="cm">// Access lane i, bit field:</span>
+arch_rs1[i]    <span class="cm">// 5-bit arch reg number for lane i</span>
+alloc_phys[i]  <span class="cm">// 6-bit phys reg for lane i (0-63 needs 6 bits)</span>
+
+<span class="cm">// The 6-bit width for physical registers: p0–p63 requires ceil(log2(64)) = 6 bits.</span>
+<span class="cm">// Arch registers only need 5 bits (0-31). Mixing them without casting is a width bug.</span>
+phys_rs1[i] = <span class="nm">6</span>'(arch_rs1[i]);  <span class="cm">// explicit zero-extend to 6 bits</span></code></pre>
+
+<h3>X0 special case</h3>
+<p>Physical register p0 is the hardwired-zero register. It maps to arch register X0 (XZR) and is never allocatable from the free list. The rename stage guards every allocation and lookup:</p>
+
+<pre><code><span class="cm">// Allocation: skip if destination is X0</span>
+alloc_en[i] = dec_valid[i] && dec_rd_valid[i]
+            && (dec_rd[i] != <span class="nm">5</span>'d0)   <span class="cm">// ← guard</span>
+            && !flush_pipeline;
+
+<span class="cm">// Lookup: X0 always maps to p0</span>
+phys_rs1[i] = (arch_rs1[i] == <span class="nm">5</span>'d0) ? <span class="nm">6</span>'d0 : map_table[arch_rs1[i]];
+
+<span class="cm">// Pipeline register: X0 destination gets p0 and rd_valid=0</span>
+<span class="kw">if</span> (dec_rd[i] == <span class="nm">5</span>'d0) <span class="kw">begin</span>
+  rename_prd[i]      &lt;= <span class="nm">6</span>'d0;
+  rename_rd_valid[i] &lt;= <span class="nm">1</span>'b0;
+<span class="kw">end</span></code></pre>
+
+<h3>Why two separate modules (free_list and rename_table)?</h3>
+<p>Separation of concerns and independent testability. The free list has no knowledge of architectural registers — it just manages a pool of IDs. The rename table has no knowledge of availability — it only maps arch to phys. This makes unit-testing each independently in a testbench straightforward. If your rename produces wrong physical registers, you can narrow it to "free_list gave the wrong phys" vs "rename_table gave the wrong lookup" with separate waveforms.</p>
+
+<!-- §8 INTERVIEW -->
+<h2 id="s8">§8 — Interview Cheatsheet</h2>
+
+<table>
+  <tr><th>Question</th><th>One-paragraph answer</th></tr>
+  <tr>
+    <td>"Explain the free list"</td>
+    <td>A 64-bit bitmask where bit <em>i</em>=1 means p<em>i</em> is available. On reset, bits 32–63 are set (rename pool), bits 0–31 clear (shadow registers, not allocatable). A round-robin pointer walks the pool starting from the last allocation so freshly freed registers cool down before reuse. The search is combinational — the result is available in the same cycle as <code>alloc_en</code>. The mask update is sequential — it commits on the clock edge. Freed registers come from the ROB commit path.</td>
+  </tr>
+  <tr>
+    <td>"What is the committed table and why is it separate?"</td>
+    <td><code>committed_table</code> is a shadow copy of the rename table that only updates when the ROB commits in order. <code>map_table</code> races ahead speculatively with every rename. On a branch mispredict or exception, rolling <code>map_table</code> back to <code>committed_table</code> restores the architectural state to the last in-order checkpoint — enabling precise exceptions without checkpointing the full register file.</td>
+  </tr>
+  <tr>
+    <td>"What is intra-group forwarding?"</td>
+    <td>In a 2-wide superscalar, both slots are renamed in the same clock cycle. If slot 0 writes arch register X and slot 1 reads arch register X, the rename table has not yet been updated (that update is clocked, not combinational). Intra-group forwarding is a combinational bypass: before completing slot 1's lookup, check if any earlier slot in the same group is simultaneously renaming that register. If yes, override the table read with the just-allocated physical register. Without it, every ADDI-STR pair in hello_uart deadlocks.</td>
+  </tr>
+  <tr>
+    <td>"Why must the free list search be combinational?"</td>
+    <td>Because the downstream pipeline stages (ROB, reservation station) need the physical register number in the same cycle the instruction passes through rename. If the search were sequential, the rename stage would need to stall for one cycle per instruction pair, halving throughput. The combinational search adds a logic path from <code>free_mask</code> and <code>alloc_ptr</code> to <code>alloc_phys</code> — this path must meet timing, which is why the search is bounded to 32 iterations (the pool size) and why the round-robin pointer avoids cold starts.</td>
+  </tr>
+  <tr>
+    <td>"What happens to the rename state on a flush?"</td>
+    <td><code>rename_valid</code> is cleared immediately (squashing in-flight outputs). On the next cycle, <code>map_table</code> is overwritten from <code>committed_table</code>. Physical registers that were allocated to squashed instructions are returned to the free list — because those instructions never committed, their <code>commit_phys_rd</code> was never asserted, so the free list must be cleaned up separately during flush recovery. Fetch redirects to the correct branch target and the pipeline restarts from a clean architectural state.</td>
+  </tr>
+  <tr>
+    <td>"How does the rename stage know it needs to stall?"</td>
+    <td>It checks <code>alloc_valid</code> for each lane that requests an allocation. If the free list cannot satisfy a request (pool exhausted, which can happen if the ROB depth approaches the rename pool size), <code>rename_ready</code> is deasserted, backpressuring the decode stage. In steady-state operation the 32-slot pool is sized to match the 32-entry ROB, so stalls due to pool exhaustion should not occur in a correctly-sized design.</td>
+  </tr>
+</table>
+
+</div>
+
+<script>
+// FREE MASK STATES
+const FM_STATES = [
+  { alloc: [], freed: [], label: "Reset — bits 32–63 all free, 0–31 shadow" },
+  { alloc: [32,33], ptr:34, freed: [], label: "After cycle 3 — p32, p33 allocated" },
+  { alloc: [32,33,34,35], ptr:36, freed: [], label: "After cycle 4 — p34, p35 also allocated" },
+  { alloc: [34,35,36,37,38,39,40,41], ptr:42, freed: [32,33], label: "After cycle 8 commit — p32,p33 freed" },
+  { alloc: [34,35,36,37,38,39,40,41,42,43,44,45,46,47], ptr:48, freed: [32,33,36,37], label: "Cycle 14 steady state — ~17 in use" },
+];
+
+function renderFreeGrid(state) {
+  const g = document.getElementById('freemask-grid');
+  g.innerHTML = '';
+  const s = FM_STATES[state];
+  for (let i = 0; i < 64; i++) {
+    const c = document.createElement('div');
+    c.className = 'reg-cell';
+    c.textContent = 'p'+i;
+    if (i < 32) { c.className += ' reg-shadow'; c.title = 'Shadow register — not allocatable'; }
+    else if (s.freed && s.freed.includes(i)) { c.className += ' reg-freed'; c.title = 'Just freed by commit'; }
+    else if (s.alloc && s.alloc.includes(i)) { c.className += ' reg-alloc'; c.title = 'Allocated (in-flight)'; }
+    else if (s.ptr === i) { c.className += ' reg-commit'; c.title = 'alloc_ptr'; }
+    else { c.className += ' reg-free'; c.title = 'Free'; }
+    g.appendChild(c);
+  }
+}
+
+function setFMState(n, btn) {
+  document.querySelectorAll('.viz-btn').forEach(b => { if (b.closest('#freemask-grid')?.parentElement || b.parentElement.id !== 'rr-ring') b.classList.remove('active'); });
+  // find sibling buttons
+  btn.parentElement.querySelectorAll('.viz-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFreeGrid(n);
+}
+renderFreeGrid(0);
+
+// MAP TABLE STATES
+const MT_REGS = [
+  {arch:'x1', init:'p1', states:['p1','p32','p34','p34','p34']},
+  {arch:'x2', init:'p2', states:['p2','p2','p2','p35','p35']},
+  {arch:'x5', init:'p5', states:['p5','p33','p38','p38','p38']},
+  {arch:'x6', init:'p6', states:['p6','p6','p40','p40','p49']},
+  {arch:'x9', init:'p9', states:['p9','p37','p39','p39','p39']},
+];
+const MT_CMT = [
+  {arch:'x1', init:'p1', states:['p1','p1','p1','p34','p34']},
+  {arch:'x2', init:'p2', states:['p2','p2','p2','p2','p35']},
+  {arch:'x5', init:'p5', states:['p5','p5','p5','p5','p38']},
+  {arch:'x6', init:'p6', states:['p6','p6','p6','p36','p40']},
+  {arch:'x9', init:'p9', states:['p9','p9','p9','p37','p39']},
+];
+const MT_LABELS = ['Reset','After cycle 3','After cycle 6','After cycle 8 commit','After cycle 16'];
+
+function renderMT(n) {
+  const vis = document.getElementById('mt-vis');
+  const hdrRow = vis.querySelector('.map-row');
+  vis.innerHTML = '';
+  vis.appendChild(hdrRow);
+  MT_REGS.forEach((r, ri) => {
+    const row = document.createElement('div');
+    row.className = 'map-row';
+    const specVal = r.states[n];
+    const cmtVal = MT_CMT[ri].states[n];
+    const specChanged = n > 0 && specVal !== r.states[n-1];
+    const cmtChanged = n > 0 && cmtVal !== MT_CMT[ri].states[n-1];
+    row.innerHTML = `
+      <div class="map-arch">${r.arch}</div>
+      <div class="map-init">${r.init}</div>
+      <div class="map-spec${specChanged?' map-changed':''}">${specVal}</div>
+      <div class="map-cmt${cmtChanged?' map-changed':''}">${cmtVal}</div>`;
+    vis.appendChild(row);
+  });
+}
+
+function setMTState(n, btn) {
+  btn.parentElement.querySelectorAll('.viz-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMT(n);
+}
+renderMT(0);
+
+// ROUND ROBIN DEMO
+let rrState = { ptr: 0, allocated: [], freeQueue: [] };
+function rrReset() {
+  rrState = { ptr: 0, allocated: [], freeQueue: [] };
+  renderRR();
+}
+function rrAlloc() {
+  let p = rrState.ptr;
+  for (let i = 0; i < 32; i++) {
+    const idx = (p + i) % 32;
+    if (!rrState.allocated.includes(idx)) {
+      rrState.allocated.push(idx);
+      rrState.ptr = (idx + 1) % 32;
+      renderRR();
+      return;
+    }
+  }
+}
+function rrFree() {
+  if (rrState.allocated.length === 0) return;
+  const freed = rrState.allocated.shift();
+  renderRR();
+}
+function renderRR() {
+  const ring = document.getElementById('rr-ring');
+  ring.innerHTML = '';
+  for (let i = 0; i < 32; i++) {
+    const c = document.createElement('div');
+    c.className = 'rr-cell';
+    c.textContent = 'p'+(i+32);
+    if (i === rrState.ptr) { c.className += ' rr-ptr'; }
+    else if (rrState.allocated.includes(i)) { c.className += ' rr-used'; }
+    else { c.className += ' rr-avail'; }
+    ring.appendChild(c);
+  }
+  document.getElementById('rr-ptr-label').textContent = 'p'+(rrState.ptr+32);
+  document.getElementById('rr-free-count').textContent = 32 - rrState.allocated.length;
+}
+renderRR();
+</script>
+</body>
+</html>

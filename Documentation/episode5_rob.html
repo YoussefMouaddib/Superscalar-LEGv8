@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Episode 5: Reorder Buffer (ROB)</title>
+<style>
+  :root{--bg:#ffffff;--bg2:#f7f6f2;--bg3:#f0ede6;--text:#1a1a18;--text2:#5c5b56;--text3:#8c8b85;--border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.22);--blue50:#E6F1FB;--blue100:#B5D4F4;--blue200:#85B7EB;--blue600:#185FA5;--blue800:#0C447C;--blue900:#042C53;--teal50:#E1F5EE;--teal100:#9FE1CB;--teal200:#5DCAA5;--teal600:#0F6E56;--teal800:#085041;--teal900:#04342C;--purple50:#EEEDFE;--purple200:#AFA9EC;--purple600:#534AB7;--purple800:#3C3489;--purple900:#26215C;--amber50:#FAEEDA;--amber100:#FAC775;--amber200:#EF9F27;--amber600:#854F0B;--amber800:#633806;--coral50:#FAECE7;--coral200:#F0997B;--coral600:#993C1D;--coral800:#712B13;--green50:#EAF3DE;--green200:#97C459;--green600:#3B6D11;--green800:#27500A;--gray50:#F1EFE8;--gray200:#B4B2A9;--gray600:#5F5E5A;--gray800:#444441;--red50:#FCEBEB;--red200:#F09595;--red600:#A32D2D;--red800:#791F1F;--mono:'Courier New',monospace;--radius:8px;--radius-lg:12px;}
+  @media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--bg2:#252522;--bg3:#2e2e2b;--text:#e8e6de;--text2:#a8a69e;--text3:#6e6c66;--border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.2);--blue50:#042C53;--blue100:#0C447C;--blue200:#185FA5;--blue600:#378ADD;--blue800:#85B7EB;--blue900:#B5D4F4;--teal50:#04342C;--teal100:#085041;--teal200:#0F6E56;--teal600:#1D9E75;--teal800:#5DCAA5;--teal900:#9FE1CB;--purple50:#26215C;--purple200:#3C3489;--purple600:#7F77DD;--purple800:#AFA9EC;--purple900:#CECBF6;--amber50:#412402;--amber100:#633806;--amber200:#854F0B;--amber600:#EF9F27;--amber800:#FAC775;--coral50:#4A1B0C;--coral200:#993C1D;--coral600:#D85A30;--coral800:#F0997B;--green50:#173404;--green200:#3B6D11;--green600:#639922;--green800:#97C459;--gray50:#2C2C2A;--gray200:#5F5E5A;--gray600:#888780;--gray800:#B4B2A9;--red50:#501313;--red200:#A32D2D;--red600:#E24B4A;--red800:#F09595;}}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.7;}
+  .page{max-width:920px;margin:0 auto;padding:48px 32px 80px;}
+  .cover{border-bottom:0.5px solid var(--border2);padding-bottom:40px;margin-bottom:48px;}
+  .cover-label{font-size:12px;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;}
+  h1{font-size:32px;font-weight:500;line-height:1.2;margin-bottom:10px;}
+  .cover-sub{font-size:16px;color:var(--text2);max-width:620px;}
+  h2{font-size:22px;font-weight:500;margin:56px 0 16px;color:var(--text);border-top:0.5px solid var(--border);padding-top:32px;}
+  h3{font-size:17px;font-weight:500;margin:32px 0 10px;color:var(--text);}
+  p{margin-bottom:14px;color:var(--text2);}
+  strong{color:var(--text);font-weight:500;}
+  code{font-family:var(--mono);font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px;color:var(--text);border:0.5px solid var(--border);}
+  ul,ol{padding-left:22px;margin-bottom:14px;color:var(--text2);}
+  li{margin-bottom:4px;}
+  .callout{background:var(--blue50);border-left:3px solid var(--blue600);border-radius:0 var(--radius) var(--radius) 0;padding:14px 18px;margin:20px 0;}
+  .callout p{color:var(--blue800);margin:0;}
+  .callout.warn{background:var(--amber50);border-color:var(--amber600);}
+  .callout.warn p{color:var(--amber800);}
+  .callout.danger{background:var(--red50);border-color:var(--red600);}
+  .callout.danger p{color:var(--red800);}
+  .callout.success{background:var(--teal50);border-color:var(--teal600);}
+  .callout.success p{color:var(--teal800);}
+  pre{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 24px;margin:18px 0;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.65;}
+  pre .kw{color:var(--purple600);font-weight:500;}
+  pre .cm{color:var(--text3);font-style:italic;}
+  pre .nm{color:var(--blue600);}
+  pre .st{color:var(--teal600);}
+  @media(prefers-color-scheme:dark){pre .kw{color:var(--purple800);}pre .nm{color:var(--blue800);}pre .st{color:var(--teal800);}pre .cm{color:var(--gray600);}}
+  table.data{width:100%;border-collapse:collapse;margin:18px 0;font-size:13.5px;}
+  table.data th{background:var(--bg2);color:var(--text);font-weight:500;text-align:left;padding:9px 14px;border:0.5px solid var(--border);}
+  table.data td{padding:8px 14px;border:0.5px solid var(--border);color:var(--text2);vertical-align:top;}
+  table.data tr:nth-child(even) td{background:var(--bg2);}
+  .toc{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 24px;margin:32px 0;}
+  .toc-title{font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:12px;font-weight:500;}
+  .toc ol{padding-left:20px;}
+  .toc li{padding:3px 0;color:var(--text2);font-size:14px;}
+  .toc a{color:var(--blue600);text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+  @media(prefers-color-scheme:dark){.toc a{color:var(--blue800);}}
+  .viz-wrap{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin:24px 0;}
+  .viz-title{font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:16px;font-weight:500;}
+  .viz-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .viz-btn{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius);padding:5px 13px;font-size:13px;cursor:pointer;color:var(--text);transition:background 0.15s;}
+  .viz-btn:hover{background:var(--bg3);}
+  .viz-btn.active{background:var(--blue600);color:white;border-color:var(--blue600);}
+  .algo-block{border:0.5px solid var(--border);border-radius:var(--radius-lg);margin:20px 0;overflow:hidden;}
+  .algo-header{background:var(--bg2);padding:12px 18px;font-weight:500;font-size:14px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .algo-tag{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:400;white-space:nowrap;}
+  .tag-comb{background:var(--purple50);color:var(--purple600);}
+  .tag-seq{background:var(--teal50);color:var(--teal600);}
+  .tag-struct{background:var(--amber50);color:var(--amber600);}
+  .algo-body{padding:18px;}
+  .algo-body p{font-size:13px;margin-top:8px;margin-bottom:0;}
+  @media(prefers-color-scheme:dark){.tag-comb{background:var(--purple200);color:var(--purple900);}.tag-seq{background:var(--teal200);color:var(--teal900);}.tag-struct{background:var(--amber200);color:var(--amber800);}}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;}
+  @media(max-width:620px){.two-col{grid-template-columns:1fr;}}
+  .sv-note{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin:14px 0;}
+  .sv-note-title{font-size:12px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:8px;font-weight:500;}
+  .fifo-wrap{overflow-x:auto;padding:4px 0;}
+  .fifo-row{display:flex;gap:3px;min-width:max-content;}
+  .fifo-cell{width:42px;height:48px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9.5px;font-family:var(--mono);gap:2px;border:0.5px solid var(--border2);transition:all 0.3s;cursor:default;}
+  .fc-empty{background:var(--bg3);color:var(--text3);}
+  .fc-flight{background:var(--blue50);border-color:var(--blue200);color:var(--blue800);}
+  .fc-ready{background:var(--teal50);border-color:var(--teal200);color:var(--teal800);}
+  .fc-head{background:var(--amber50);border-color:var(--amber600);border-width:1.5px;color:var(--amber800);}
+  .fc-store{background:var(--green50);border-color:var(--green200);color:var(--green800);}
+  .fc-branch{background:var(--coral50);border-color:var(--coral200);color:var(--coral800);}
+  .fc-tail-mark{border-color:var(--blue600) !important;border-width:1.5px !important;}
+  .fifo-idx-lbl{font-size:8px;color:var(--text3);}
+  .rob-stats{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;}
+  .rob-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;display:block;}
+  .rob-stat-val{font-family:var(--mono);font-size:15px;font-weight:500;color:var(--text);}
+  .rob-table-scroll{overflow-x:auto;}
+  .rob-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;}
+  .rob-table th{background:var(--bg3);color:var(--text3);font-family:-apple-system,sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500;padding:6px 8px;border:0.5px solid var(--border);white-space:nowrap;}
+  .rob-table td{padding:5px 8px;border:0.5px solid var(--border);color:var(--text2);white-space:nowrap;}
+  .rob-table .rh td{background:var(--amber50);color:var(--amber800);}
+  .rob-table .rr td{background:var(--teal50);color:var(--teal800);}
+  .rob-table .rs td{background:var(--green50);color:var(--green800);}
+  .rob-table .rb td{background:var(--coral50);color:var(--coral800);}
+  .rob-table .rn td{background:var(--blue50);color:var(--blue800);}
+  .rob-table .ready1{color:var(--teal600);font-weight:500;}
+  .rob-table .ready0{color:var(--coral600);}
+  .cycle-box{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);}
+  .cycle-box strong{color:var(--text);}
+  .rob-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;}
+  .rob-legend span{display:flex;align-items:center;gap:5px;color:var(--text2);}
+  .ldot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+  .commit-seq{display:flex;flex-direction:column;gap:0;border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin:16px 0;}
+  .crow{display:grid;grid-template-columns:72px 110px 70px 1fr;font-size:12.5px;border-bottom:0.5px solid var(--border);}
+  .crow:last-child{border-bottom:none;}
+  .crow > div{padding:7px 12px;}
+  .crow > div:not(:last-child){border-right:0.5px solid var(--border);}
+  .crow-hdr{background:var(--bg2);font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:500;}
+  .crow-ok > div{background:var(--teal50);color:var(--teal800);}
+  .crow-st > div{background:var(--green50);color:var(--green800);}
+  .crow-fl > div{background:var(--red50);color:var(--red800);}
+  .crow-stall > div{background:var(--amber50);color:var(--amber800);}
+  .iq{border:0.5px solid var(--border);border-radius:var(--radius-lg);margin:14px 0;overflow:hidden;}
+  .iq-q{background:var(--bg2);padding:12px 16px;font-weight:500;font-size:14px;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;color:var(--text);}
+  .iq-q::after{content:'▸';color:var(--text3);font-size:12px;transition:transform 0.2s;}
+  .iq-q.open::after{transform:rotate(90deg);}
+  .iq-a{padding:14px 16px;font-size:13.5px;color:var(--text2);display:none;}
+  .iq-a.open{display:block;}
+  .iq-a p{margin-bottom:10px;}
+  .iq-a p:last-child{margin-bottom:0;}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="cover">
+  <div class="cover-label">Superscalar LEGv8 &nbsp;·&nbsp; Episode 5</div>
+  <h1>Reorder Buffer (ROB)</h1>
+  <p class="cover-sub">The structure that makes out-of-order execution safe. A deep dive into the circular FIFO design, the three-phase instruction lifecycle, in-order commit, precise exceptions, stores ready-at-alloc, and branch mispredict flush — traced against real hello_uart simulation output.</p>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#s1">Why the ROB exists</a></li>
+    <li><a href="#s2">The ROB entry structure</a></li>
+    <li><a href="#s3">Phase 1: Allocation — tail advances</a></li>
+    <li><a href="#s4">Phase 2: Mark ready — CDB arrives</a></li>
+    <li><a href="#s5">Phase 3: In-order commit — head advances</a></li>
+    <li><a href="#s6">The circular FIFO: head, tail, occupancy</a></li>
+    <li><a href="#s7">ROB table: cycle-by-cycle interactive trace</a></li>
+    <li><a href="#s8">Branch misprediction and partial flush</a></li>
+    <li><a href="#s9">Stores, loads, and ready=1 at allocation</a></li>
+    <li><a href="#s10">SystemVerilog notes</a></li>
+    <li><a href="#s11">Interview cheatsheet</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">§1 — Why the ROB Exists</h2>
+<p>An out-of-order processor executes instructions in whatever order their operands become available. That is where the performance comes from. But the programmer and the ISA expect results to appear as if everything ran in order. The ROB is the bridge between those two worlds.</p>
+
+<div class="callout">
+  <p><strong>The fundamental contract:</strong> Instructions may execute in any order. They must <em>retire</em> — become visible to the architectural state — in program order. The ROB enforces this contract.</p>
+</div>
+
+<p>Think of the ROB as a <strong>conveyor belt at airport security</strong>. You place your bag at one end (allocation). Your bag goes through the scanner in whatever order the machine processes it (out-of-order execution). But you can only collect your bag from the exit in the order it was placed on the belt (in-order commit). The belt does not care which bags finish first. The exit rule is strict.</p>
+
+<p>Without the ROB, there is no way to answer: "If an exception occurs at instruction 7, what is the correct architectural state?" With the ROB, the answer is always: "Everything up through instruction 6 has committed. Nothing after that has touched the architectural register file."</p>
+
+<div class="two-col">
+  <div class="sv-note">
+    <div class="sv-note-title">What the ROB tracks</div>
+    <p style="font-size:13px;margin:0;">Every in-flight instruction from rename to commit — its architectural destination, physical register, PC, instruction type, and whether execution has completed (the ready bit).</p>
+  </div>
+  <div class="sv-note">
+    <div class="sv-note-title">What the ROB guarantees</div>
+    <p style="font-size:13px;margin:0;">Instructions write to the architectural register file only at commit time, in program order. Speculative results live only in physical registers. A flush can always undo any uncommitted work.</p>
+  </div>
+</div>
+
+<div class="viz-wrap">
+  <div class="viz-title">ROB position in the full pipeline</div>
+  <svg width="100%" viewBox="0 0 680 108">
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+    <rect x="8" y="30" width="70" height="40" rx="7" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="43" y="53" text-anchor="middle" font-size="11" fill="var(--gray600)" font-family="sans-serif">Rename</text>
+    <line x1="78" y1="50" x2="94" y2="50" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="94" y="22" width="82" height="56" rx="7" fill="var(--purple50)" stroke="var(--purple200)" stroke-width="0.8"/>
+    <text x="135" y="46" text-anchor="middle" font-size="11" font-weight="500" fill="var(--purple800)" font-family="sans-serif">Dispatch</text>
+    <text x="135" y="60" text-anchor="middle" font-size="10" fill="var(--purple600)" font-family="sans-serif">alloc_en →</text>
+    <text x="135" y="71" text-anchor="middle" font-size="10" fill="var(--purple600)" font-family="sans-serif">alloc_idx ←</text>
+    <line x1="176" y1="50" x2="192" y2="50" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="192" y="14" width="108" height="72" rx="7" fill="var(--amber50)" stroke="var(--amber600)" stroke-width="1.2"/>
+    <text x="246" y="44" text-anchor="middle" font-size="13" font-weight="500" fill="var(--amber800)" font-family="sans-serif">ROB</text>
+    <text x="246" y="58" text-anchor="middle" font-size="10" fill="var(--amber600)" font-family="sans-serif">FIFO · 32 entries</text>
+    <text x="246" y="71" text-anchor="middle" font-size="10" fill="var(--amber600)" font-family="sans-serif">head · tail · occ</text>
+    <line x1="300" y1="34" x2="316" y2="34" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="300" y1="66" x2="316" y2="66" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="316" y="14" width="80" height="36" rx="7" fill="var(--blue50)" stroke="var(--blue200)" stroke-width="0.5"/>
+    <text x="356" y="36" text-anchor="middle" font-size="11" fill="var(--blue800)" font-family="sans-serif">RS / Execute</text>
+    <rect x="316" y="58" width="80" height="36" rx="7" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.5"/>
+    <text x="356" y="80" text-anchor="middle" font-size="11" fill="var(--teal800)" font-family="sans-serif">LSU</text>
+    <line x1="396" y1="30" x2="412" y2="50" stroke="var(--gray200)" stroke-width="1" marker-end="url(#arr)"/>
+    <line x1="396" y1="76" x2="412" y2="56" stroke="var(--gray200)" stroke-width="1" marker-end="url(#arr)"/>
+    <rect x="412" y="30" width="76" height="40" rx="7" fill="var(--teal50)" stroke="var(--teal200)" stroke-width="0.8"/>
+    <text x="450" y="49" text-anchor="middle" font-size="11" font-weight="500" fill="var(--teal800)" font-family="sans-serif">CDB</text>
+    <text x="450" y="62" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">mark_ready</text>
+    <path d="M450 30 Q450 8 246 8 Q246 14 246 14" fill="none" stroke="var(--teal200)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="348" y="6" text-anchor="middle" font-size="10" fill="var(--teal600)" font-family="sans-serif">mark_ready_en → ROB ready bit</text>
+    <line x1="488" y1="50" x2="504" y2="50" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="504" y="22" width="96" height="56" rx="7" fill="var(--amber50)" stroke="var(--amber200)" stroke-width="0.8"/>
+    <text x="552" y="45" text-anchor="middle" font-size="11" font-weight="500" fill="var(--amber800)" font-family="sans-serif">Commit</text>
+    <text x="552" y="58" text-anchor="middle" font-size="10" fill="var(--amber600)" font-family="sans-serif">ARF write</text>
+    <text x="552" y="70" text-anchor="middle" font-size="10" fill="var(--amber600)" font-family="sans-serif">free_list ← old phys</text>
+    <line x1="600" y1="50" x2="616" y2="50" stroke="var(--gray200)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <rect x="616" y="34" width="58" height="32" rx="7" fill="var(--gray50)" stroke="var(--gray200)" stroke-width="0.5"/>
+    <text x="645" y="53" text-anchor="middle" font-size="10" fill="var(--gray600)" font-family="sans-serif">Rename free</text>
+  </svg>
+</div>
+
+<h2 id="s2">§2 — The ROB Entry Structure</h2>
+<p>Every instruction that passes through rename gets one ROB slot. The entry carries just enough information to know when the instruction is done, perform the architectural commit, support precise exceptions, and undo speculative work on a flush.</p>
+
+<div class="algo-block">
+  <div class="algo-header">rob_entry_t packed struct <span class="algo-tag tag-struct">packed struct</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">typedef struct packed</span> {
+  logic          valid;           <span class="cm">// slot is occupied</span>
+  logic          ready;           <span class="cm">// execution complete — eligible to commit</span>
+  logic [<span class="nm">4</span>:<span class="nm">0</span>]    arch_rd;          <span class="cm">// architectural destination register (x0–x31)</span>
+  preg_tag_t     phys_rd;         <span class="cm">// physical register holding the result</span>
+  logic          exception;       <span class="cm">// execution raised a fault</span>
+  logic          is_store;        <span class="cm">// store: commit triggers LSU retire to memory</span>
+  logic          is_load;         <span class="cm">// load: set ready=1 at alloc</span>
+  logic          is_branch;       <span class="cm">// branch: commit triggers predictor update</span>
+  logic [<span class="nm">31</span>:<span class="nm">0</span>]   pc;               <span class="cm">// program counter (exceptions + predictor)</span>
+  logic          branch_taken;    <span class="cm">// resolved outcome from branch execution unit</span>
+  logic [<span class="nm">31</span>:<span class="nm">0</span>]   branch_target;    <span class="cm">// resolved target address</span>
+  logic          branch_is_call;  <span class="cm">// BL — wrote X30</span>
+  logic          branch_is_return;<span class="cm">// RET — consumed X30</span>
+} rob_entry_t;</code></pre>
+    <p>The two fields that drive the entire commit engine are <code>valid</code> and <code>ready</code>. An entry is valid from the moment it is allocated. It becomes ready when an execution unit writes back via the CDB.</p>
+  </div>
+</div>
+
+<table class="data">
+  <tr><th>Field</th><th>Set by</th><th>Purpose at commit</th></tr>
+  <tr><td><code>valid</code></td><td>Allocation</td><td>Guards commit scan — only process valid entries</td></tr>
+  <tr><td><code>ready</code></td><td>CDB mark_ready (or alloc for stores)</td><td>Gate: head entry commits only if ready=1</td></tr>
+  <tr><td><code>arch_rd / phys_rd</code></td><td>Rename</td><td>Commit writes PRF[phys_rd] → ARF[arch_rd]; old phys freed</td></tr>
+  <tr><td><code>is_store</code></td><td>Dispatch</td><td>Triggers LSU store buffer drain to memory at commit</td></tr>
+  <tr><td><code>is_branch</code></td><td>Dispatch</td><td>Triggers branch predictor update at commit time</td></tr>
+  <tr><td><code>branch_taken / target</code></td><td>Branch execution unit</td><td>Predictor training; mispredict detection</td></tr>
+  <tr><td><code>exception</code></td><td>Any execution unit</td><td>Precise exception: halt commit, raise fault vector</td></tr>
+  <tr><td><code>pc</code></td><td>Rename</td><td>Exception vector; branch predictor training; debug</td></tr>
+</table>
+
+<h2 id="s3">§3 — Phase 1: Allocation — Tail Advances</h2>
+<p>Every cycle, dispatch sends up to two instructions to the ROB via <code>alloc_en</code>. The ROB checks if there are enough free slots, assigns consecutive entries starting at the current tail, and returns the allocated indices. Those indices become the ROB tags that travel with each instruction through the RS and execution units.</p>
+
+<div class="algo-block">
+  <div class="algo-header">Allocation — combinational index calculation <span class="algo-tag tag-comb">always_comb</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">always_comb begin</span>
+  alloc_ok = <span class="nm">1</span>'b0;
+  free_slots = ROB_SIZE - occupancy;
+  reqs = <span class="nm">0</span>;
+  <span class="kw">for</span> (k = <span class="nm">0</span>; k &lt; ISSUE_W; k++) <span class="kw">if</span> (alloc_en[k]) reqs++;
+  <span class="kw">if</span> (reqs &lt;= free_slots) <span class="kw">begin</span>
+    alloc_ok = <span class="nm">1</span>'b1;
+    cur_tail = tail;              <span class="cm">// read registered tail</span>
+    <span class="kw">for</span> (k = <span class="nm">0</span>; k &lt; ISSUE_W; k++) <span class="kw">begin</span>
+      <span class="kw">if</span> (alloc_en[k]) <span class="kw">begin</span>
+        alloc_idx[k] = cur_tail;  <span class="cm">// return to dispatch same cycle</span>
+        cur_tail = (cur_tail + <span class="nm">1</span>) % ROB_SIZE;
+      <span class="kw">end</span>
+    <span class="kw">end</span>
+  <span class="kw">end</span>
+<span class="kw">end</span></code></pre>
+    <p>The actual <code>tail</code> register and <code>rob_mem[]</code> entries are written in the sequential block. The combinational block only computes what the indices <em>will be</em>, so dispatch can forward them to the RS in the same cycle — the same comb/seq split as the rename stage's free list.</p>
+  </div>
+</div>
+
+<div class="callout warn">
+  <p><strong>Why combinational index assignment?</strong> Dispatch needs to know the ROB tag before the sequential block fires, so it can write that tag into the RS entry in the same clock edge. A registered output would require an extra cycle, breaking the allocation handshake and stalling dispatch every single cycle.</p>
+</div>
+
+<h2 id="s4">§4 — Phase 2: Mark Ready — CDB Arrives</h2>
+<p>When an execution unit completes and broadcasts on the CDB, two things happen simultaneously: the RS wakes up dependent entries (Episode 4), and the ROB marks the relevant entry ready. There are two <code>mark_ready</code> ports — one per CDB lane — so both can fire in the same cycle.</p>
+
+<div class="algo-block">
+  <div class="algo-header">Mark ready — sequential <span class="algo-tag tag-seq">always_ff</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">if</span> (mark_ready_en) <span class="kw">begin</span>
+  <span class="kw">if</span> (rob_mem[mark_ready_idx].valid) <span class="kw">begin</span>   <span class="cm">// guard: valid check</span>
+    <span class="kw">if</span> (mark_ready_val)  rob_mem[mark_ready_idx].ready     &lt;= <span class="nm">1</span>'b1;
+    <span class="kw">if</span> (mark_exception)  rob_mem[mark_ready_idx].exception  &lt;= <span class="nm">1</span>'b1;
+  <span class="kw">end</span>
+<span class="kw">end</span>
+<span class="cm">// Port 1 — symmetric, same logic</span></code></pre>
+    <p>The <code>valid</code> guard prevents a stale CDB signal (from an entry flushed during a mispredict) from corrupting a freshly reallocated slot at the same index.</p>
+  </div>
+</div>
+
+<div class="viz-wrap">
+  <div class="viz-title">CDB → ROB mark_ready timeline (cycles 6–10)</div>
+  <div class="commit-seq">
+    <div class="crow crow-hdr"><div>Cycle</div><div>CDB fires</div><div>ROB idx</div><div>Effect on ready bits</div></div>
+    <div class="crow crow-ok"><div>6</div><div><code>p32=1, p33=16</code></div><div>0, 1</div><div>ROB[0].ready=1 (ADDI X1) &nbsp;·&nbsp; ROB[1].ready=1 (ADDI X5). Two ADDI instructions done.</div></div>
+    <div class="crow crow-ok"><div>7</div><div><code>p33, p32</code></div><div>1, 0</div><div>Redundant — both already ready. Valid guard passes, no-op write. Harmless.</div></div>
+    <div class="crow crow-ok"><div>8</div><div><code>p36=1, p37=2</code></div><div>4, 5</div><div>ROB[4].ready=1 (ADDI X6=TX mask) &nbsp;·&nbsp; ROB[5].ready=1 (ADDI X9=2).</div></div>
+    <div class="crow crow-ok"><div>9</div><div><code>p34=0x10000, p36</code></div><div>2, 4</div><div>ROB[2].ready=1 (LSL X1 shift result 0x10000). ROB[4] already ready, no-op.</div></div>
+    <div class="crow crow-ok"><div>10</div><div><code>p34, p38=0x0c</code></div><div>2, 6</div><div>ROB[2] again (no-op). ROB[6].ready=1 (ADDI X5,X0,#12 = scratchpad step).</div></div>
+  </div>
+</div>
+
+<h2 id="s5">§5 — Phase 3: In-Order Commit — Head Advances</h2>
+<p>Commit is the most constrained phase. Every cycle, the ROB scans from the head forward and commits up to two entries — but only consecutive ready entries starting from the head. If the head entry is not ready, nothing commits. The head can never skip a not-ready entry.</p>
+
+<div class="algo-block">
+  <div class="algo-header">Commit scan — sequential <span class="algo-tag tag-seq">always_ff</span></div>
+  <div class="algo-body">
+<pre><code>commit_slots = <span class="nm">0</span>;
+look_idx = head;
+<span class="kw">for</span> (j = <span class="nm">0</span>; j &lt; ISSUE_W; j++) <span class="kw">begin</span>
+  <span class="kw">if</span> (occupancy > <span class="nm">0</span>
+      && rob_mem[look_idx].valid
+      && rob_mem[look_idx].ready) <span class="kw">begin</span>
+    commit_valid[j]   &lt;= <span class="nm">1</span>'b1;
+    commit_arch_rd[j] &lt;= rob_mem[look_idx].arch_rd;
+    commit_phys_rd[j] &lt;= rob_mem[look_idx].phys_rd;
+    <span class="cm">// ... store / branch / load metadata ...</span>
+    rob_mem[look_idx].valid &lt;= <span class="nm">1</span>'b0;  <span class="cm">// free the slot</span>
+    rob_mem[look_idx].ready &lt;= <span class="nm">1</span>'b0;
+    look_idx = (look_idx + <span class="nm">1</span>) % ROB_SIZE;
+    commit_slots++;
+  <span class="kw">end else begin</span>
+    <span class="kw">break</span>;  <span class="cm">// stop at first non-ready — enforces in-order retirement</span>
+  <span class="kw">end</span>
+<span class="kw">end</span>
+<span class="kw">if</span> (commit_slots > <span class="nm">0</span>)
+  head &lt;= (head + commit_slots) % ROB_SIZE;
+occupancy &lt;= occupancy + alloc_count - commit_slots;</code></pre>
+    <p>The <code>break</code> enforces in-order retirement. Without it, the loop would skip not-ready entries and commit out of order, violating precise exception semantics and corrupting the branch predictor update sequence.</p>
+  </div>
+</div>
+
+<div class="viz-wrap">
+  <div class="viz-title">First commit wave — cycles 8 through 19</div>
+  <div class="commit-seq">
+    <div class="crow crow-hdr"><div>Cycle</div><div>Commits</div><div>Head →</div><div>What retired</div></div>
+    <div class="crow crow-stall"><div>4–7</div><div>0</div><div>0</div><div>ROB[0] (ADDI X1) not ready. Pipeline filling. Head blocked.</div></div>
+    <div class="crow crow-ok"><div>8</div><div>2</div><div>0 → 2</div><div>ROB[0]: ADDI X1,X0,#1 (PC 0x00) &nbsp;·&nbsp; ROB[1]: ADDI X5,X0,#16 (PC 0x04). Both ready since cycle 6. occ 10→8.</div></div>
+    <div class="crow crow-stall"><div>9–10</div><div>0</div><div>2</div><div>ROB[2] (LSL X1,X1,X5) not yet ready — waiting for CDB from shifter.</div></div>
+    <div class="crow crow-ok"><div>11</div><div>1</div><div>2 → 3</div><div>ROB[2]: LSL X1=0x10000 commits. ROB[3] (ADDI X2) not ready → stop at 1.</div></div>
+    <div class="crow crow-ok"><div>14</div><div>2</div><div>3 → 5</div><div>ROB[3]: ADDI X2 &nbsp;·&nbsp; ROB[4]: ADDI X6,X0,#1 (TX mask). Both ready.</div></div>
+    <div class="crow crow-ok"><div>15</div><div>2</div><div>5 → 7</div><div>ROB[5]: LSL X9 &nbsp;·&nbsp; ROB[6]: ADDI X5,X0,#12. Both ready.</div></div>
+    <div class="crow crow-ok"><div>16</div><div>2</div><div>7 → 9</div><div>ROB[7]: LSL X9,X9,X5=0x2000 &nbsp;·&nbsp; ROB[8]: ADDI X6,X0,#72 'H'. Both ready.</div></div>
+    <div class="crow crow-st"><div>17</div><div>2</div><div>9 → 11</div><div>ROB[9]: STR X6,[X9,#0] (store) &nbsp;·&nbsp; ROB[10]: ADDI X6,#108. First memory write committed.</div></div>
+    <div class="crow crow-st"><div>18</div><div>2</div><div>11 → 13</div><div>ROB[11]: STR [X9,#8] &nbsp;·&nbsp; ROB[12]: ADDI X6,#108. MEM write 0x2000=0x48.</div></div>
+    <div class="crow crow-st"><div>19</div><div>2</div><div>13 → 15</div><div>ROB[13]: STR [X9,#12] &nbsp;·&nbsp; ROB[14]: ADDI X6,#111. Tail has wrapped to idx 0.</div></div>
+  </div>
+</div>
+
+<h2 id="s6">§6 — The Circular FIFO: Head, Tail, Occupancy</h2>
+<p>The ROB is a circular buffer with 32 slots indexed 0–31. Three state variables govern it: <code>head</code> (oldest, commits from here), <code>tail</code> (next empty, allocations enter here), and <code>occupancy</code>. When tail reaches 31, it wraps back to 0 — the same slots that head will eventually reach after 32 commits.</p>
+
+<div class="callout">
+  <p><strong>Wrap example from the simulation:</strong> At cycle 19, the ROB allocates ROB[0] and ROB[1] — tail has wrapped from 31 back to 0. Head is at 15. Occupancy = 17. Old slots at indices 0–14 are free (they committed) and are being reused for new instructions.</p>
+</div>
+
+<div class="two-col">
+  <div class="sv-note" style="border-top:3px solid var(--amber600);">
+    <div class="sv-note-title" style="color:var(--amber600);">head</div>
+    <p style="font-size:13px;margin:0;">Points to the oldest uncommitted instruction. Advances by <code>commit_slots</code> per cycle, wrapping mod 32. Only this slot can commit. Everything behind head has already retired.</p>
+  </div>
+  <div class="sv-note" style="border-top:3px solid var(--blue600);">
+    <div class="sv-note-title" style="color:var(--blue600);">tail</div>
+    <p style="font-size:13px;margin:0;">Points to the next free slot. Advances by <code>alloc_count</code> per cycle. The combinational block reads the current registered <code>tail</code> to produce <code>alloc_idx[]</code> before the sequential update moves it forward.</p>
+  </div>
+</div>
+
+<div class="viz-wrap">
+  <div class="viz-title">ROB circular FIFO — select a cycle snapshot</div>
+  <div class="fifo-wrap"><div class="fifo-row" id="fifo-row"></div></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;">
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--amber50);border:1.5px solid var(--amber600);"></span>HEAD (▶)</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--teal50);border:0.5px solid var(--teal200);"></span>Ready</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--blue50);border:0.5px solid var(--blue200);"></span>In-flight</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--green50);border:0.5px solid var(--green200);"></span>Store ready</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--coral50);border:0.5px solid var(--coral200);"></span>Branch</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--text2);"><span class="ldot" style="background:var(--bg3);border:0.5px solid var(--border);"></span>Empty (◀ = tail)</span>
+  </div>
+  <div class="viz-controls" style="margin-top:12px;">
+    <button class="viz-btn active" onclick="setFIFO(0,this)">Cycle 4 (occ=2)</button>
+    <button class="viz-btn" onclick="setFIFO(1,this)">Cycle 7 (occ=8)</button>
+    <button class="viz-btn" onclick="setFIFO(2,this)">Cycle 8 (commit!)</button>
+    <button class="viz-btn" onclick="setFIFO(3,this)">Cycle 13 (occ=17)</button>
+    <button class="viz-btn" onclick="setFIFO(4,this)">Cycle 19 (wrap!)</button>
+    <button class="viz-btn" onclick="setFIFO(5,this)">Cycle 27 (branches)</button>
+    <button class="viz-btn" onclick="setFIFO(6,this)">Cycle 30 (post-flush)</button>
+  </div>
+  <div class="rob-stats" id="fifo-stats" style="margin-top:12px;font-size:13px;"></div>
+</div>
+
+<h2 id="s7">§7 — ROB Table: Cycle-by-Cycle Interactive Trace</h2>
+<p>Select a cycle to inspect the exact ROB state extracted from the simulation log. <span style="color:var(--amber600);font-weight:500;">Amber</span> = HEAD entry. <span style="color:var(--teal600);font-weight:500;">Teal</span> = ready. <span style="color:var(--green600);font-weight:500;">Green</span> = store (ready at alloc). <span style="color:var(--coral600);font-weight:500;">Coral</span> = branch.</p>
+
+<div class="viz-wrap" style="padding:20px;">
+  <div id="rob-cycle-info" class="cycle-box"></div>
+  <div class="rob-table-scroll">
+    <table class="rob-table" id="rob-tbl">
+      <thead><tr><th>Idx</th><th>V</th><th>R</th><th>ARD</th><th>PRD</th><th>PC</th><th>LD</th><th>ST</th><th>BR</th><th>Notes</th></tr></thead>
+      <tbody id="rob-tbody"></tbody>
+    </table>
+  </div>
+  <div class="rob-legend">
+    <span><span class="ldot" style="background:var(--amber50);border:1px solid var(--amber600);"></span>HEAD</span>
+    <span><span class="ldot" style="background:var(--teal50);border:0.5px solid var(--teal200);"></span>Ready (R=1)</span>
+    <span><span class="ldot" style="background:var(--green50);border:0.5px solid var(--green200);"></span>Store</span>
+    <span><span class="ldot" style="background:var(--coral50);border:0.5px solid var(--coral200);"></span>Branch</span>
+    <span><span class="ldot" style="background:var(--blue50);border:0.5px solid var(--blue200);"></span>In-flight</span>
+  </div>
+  <div class="viz-controls" style="margin-top:14px;">
+    <button class="viz-btn active" onclick="setRob(0,this)">Cycle 4</button>
+    <button class="viz-btn" onclick="setRob(1,this)">Cycle 5</button>
+    <button class="viz-btn" onclick="setRob(2,this)">Cycle 7 (ready!)</button>
+    <button class="viz-btn" onclick="setRob(3,this)">Cycle 8 (commit)</button>
+    <button class="viz-btn" onclick="setRob(4,this)">Cycle 10</button>
+    <button class="viz-btn" onclick="setRob(5,this)">Cycle 13 (occ=17)</button>
+    <button class="viz-btn" onclick="setRob(6,this)">Cycle 19 (wrap)</button>
+    <button class="viz-btn" onclick="setRob(7,this)">Cycle 25 (branches)</button>
+    <button class="viz-btn" onclick="setRob(8,this)">Cycle 27 (full)</button>
+    <button class="viz-btn" onclick="setRob(9,this)">Cycle 30 (mispredict)</button>
+    <button class="viz-btn" onclick="setRob(10,this)">Cycle 33 (draining)</button>
+  </div>
+</div>
+
+<h2 id="s8">§8 — Branch Misprediction and Partial Flush</h2>
+<p>At cycle 30, the branch unit resolves the <code>B send_string</code> at PC 0xC0 as taken-to-0x98 with <code>mispredict=1</code>. The processor has been speculatively fetching past 0xC0 for several cycles. The flush must undo that speculative work while preserving correctly-executing instructions already in the ROB.</p>
+
+<div class="callout danger">
+  <p><strong>Selective flush, not full wipe:</strong> Unlike the RS (which wipes everything in one edge), the ROB performs a <em>partial</em> flush. Only entries <em>after</em> the mispredicting branch are invalidated. Entries from head up to the branch are preserved — they are on the correct path and should still retire. This avoids re-fetching and re-executing correct work.</p>
+</div>
+
+<div class="algo-block">
+  <div class="algo-header">Partial flush logic <span class="algo-tag tag-seq">always_ff</span></div>
+  <div class="algo-body">
+<pre><code><span class="kw">if</span> (flush_pipeline) <span class="kw">begin</span>
+  <span class="cm">// Walk from flush_rob_idx+1 to current tail — invalidate speculative entries</span>
+  automatic int idx = (flush_rob_idx + <span class="nm">1</span>) % ROB_SIZE;
+  automatic int count = <span class="nm">0</span>;
+  <span class="kw">while</span> (idx != tail && count &lt; ROB_SIZE) <span class="kw">begin</span>
+    rob_mem[idx].valid &lt;= <span class="nm">1</span>'b0;
+    rob_mem[idx].ready &lt;= <span class="nm">1</span>'b0;
+    idx = (idx + <span class="nm">1</span>) % ROB_SIZE;
+    count++;
+  <span class="kw">end</span>
+  <span class="cm">// Snap tail back to just after the branch</span>
+  tail &lt;= (flush_rob_idx + <span class="nm">1</span>) % ROB_SIZE;
+  occupancy &lt;= <span class="cm">/* entries from head to flush_rob_idx */</span>;
+<span class="kw">end</span></code></pre>
+    <p>After the flush, tail is repositioned so correct-path instructions start filling the ROB immediately from cycle 31 onward.</p>
+  </div>
+</div>
+
+<div class="viz-wrap">
+  <div class="viz-title">Flush timeline — cycles 29–33</div>
+  <div class="commit-seq">
+    <div class="crow crow-hdr"><div>Cycle</div><div>Event</div><div>Occ</div><div>ROB state</div></div>
+    <div class="crow"><div>29</div><div>Branch resolves</div><div>14</div><div><code>B</code> at PC 0xC0 (ROB[16]) resolves taken→0x98. <code>[BRANCH]</code> log fires. Mispredict=1 detected.</div></div>
+    <div class="crow crow-fl"><div>30</div><div>flush_pipeline=1</div><div>12</div><div>Speculative entries after ROB[16] invalidated. Tail snapped back. 2 commits also fire this cycle (ROB[3],[4]).</div></div>
+    <div class="crow crow-fl"><div>31</div><div>RS flushed</div><div>10</div><div>RS wipes its entries. ROB continues committing correct-path entries: ROB[5],[6]. Fetch redirected to 0x98.</div></div>
+    <div class="crow crow-ok"><div>32</div><div>Normal resume</div><div>8</div><div>ROB[7],[8] commit. New instructions from correct path start entering ROB.</div></div>
+    <div class="crow crow-ok"><div>33</div><div>Load commits</div><div>7</div><div>ROB[9] (LDR X4) commits. Its result p57=0x00002000 is now architectural. The CBZ/CBNZ chain can proceed.</div></div>
+  </div>
+</div>
+
+<h2 id="s9">§9 — Stores, Loads, and ready=1 at Allocation</h2>
+<p>Store instructions do not produce a register result — their architectural effect is a memory write. Memory writes must happen in program order. The ROB handles this with one rule: <strong>stores are allocated with <code>ready=1</code>.</strong></p>
+
+<pre><code><span class="cm">// At allocation: stores and loads start as ready</span>
+rob_mem[cur_tail].ready &lt;= alloc_is_store[k] | alloc_is_load[k];</code></pre>
+
+<p>The LSU has already accepted the store into its store buffer at dispatch time. From the ROB's perspective, the store is "done" immediately — there is nothing to wait for. The only reason a store stays in the ROB at all is to ensure the actual memory write fires in program order at commit time, not speculatively ahead of older instructions.</p>
+
+<p>Looking at the simulation: ROB entry 9 at PC 0x24 (the first <code>STR X6,[X9,#0]</code>) shows <code>R=1</code> as early as cycle 8, before most ALU instructions have produced their CDB results. Every STR visible in the table from cycle 10 onward has <code>R=1</code> immediately — that is why the alternating ADDI+STR pairs in cycles 14–20 always commit as a smooth pair rather than waiting on the store to "finish."</p>
+
+<div class="callout success">
+  <p><strong>Loads are also ready=1 at allocation</strong> in this implementation. The load data comes back from memory and updates the physical register via CDB — but the ROB's commit role for a load is only "this instruction happened at this PC in order." By the time a load reaches the ROB head, the data has already been delivered. Ready=1 at alloc is correct here too.</p>
+</div>
+
+<h2 id="s10">§10 — SystemVerilog Notes</h2>
+
+<h3>Combinational/sequential split — the same pattern again</h3>
+<p>Like the free list in rename and the RS allocation, the ROB uses a combinational block to compute allocation indices (so dispatch receives them in the same cycle) and a sequential block to write <code>rob_mem[]</code> and update <code>tail</code>. The combinational block reads the registered <code>tail</code> — this is correct because the registered tail reflects state before this cycle's allocations, which is exactly what is needed to compute this cycle's indices.</p>
+
+<h3>Occupancy is a single atomic expression</h3>
+<pre><code>occupancy &lt;= occupancy + alloc_count - commit_slots;</code></pre>
+<p>Both allocation and commit happen in the same sequential block. <code>alloc_count</code> and <code>commit_slots</code> are local <code>automatic</code> variables accumulated within the block. The final occupancy is written once at the end — no intermediate state, no race between allocation and commit.</p>
+
+<h3>The break in the commit loop is a correctness requirement</h3>
+<p>The commit for-loop iterates up to <code>ISSUE_W=2</code> times. The <code>break</code> on encountering a non-ready entry enforces in-order retirement. Without it, the loop would skip the not-ready entry and commit the next one — out-of-order commit. The ARF would receive writes in the wrong order, exception recovery would produce corrupted state, and the branch predictor would train on the wrong instruction order.</p>
+
+<h3>The valid guard on mark_ready</h3>
+<p>After a flush, entries are invalidated. A CDB broadcast in-flight during the flush might arrive one cycle late and try to mark-ready a slot that was just cleared and possibly reallocated to a different new instruction. The <code>rob_mem[idx].valid</code> guard prevents the new instruction from being incorrectly marked ready by a stale CDB signal from the flushed instruction.</p>
+
+<h2 id="s11">§11 — Interview Cheatsheet</h2>
+
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">What is the ROB and why does every OOO processor need one?</div>
+  <div class="iq-a"><p>The Reorder Buffer is a circular FIFO that tracks every in-flight instruction from rename to commit. Instructions are allocated at the tail in program order and retired at the head in program order, even though execution happens out of order between those two points. Without the ROB, there is no mechanism to ensure architectural state — register file contents, memory write ordering, exception behavior — matches what a sequential execution would have produced. The ROB is what allows the processor to say: everything before this point is architecturally committed; everything after can be undone.</p></div>
+</div>
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">What is precise exception support and how does the ROB provide it?</div>
+  <div class="iq-a"><p>A precise exception means that when a fault fires, the architectural state reflects exactly the sequential execution up to but not including the faulting instruction — no more, no less. The ROB provides this because instructions only write to the architectural register file at commit time, in program order. If instruction 7 faults, everything before it has already committed (state is clean and consistent), and everything from 7 onward has not committed (those results are still only in physical registers). The flush discards everything from 7 onward. The OS exception handler sees a consistent, recoverable state.</p></div>
+</div>
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">Why can the commit queue only advance from the head? Why not skip a not-ready entry?</div>
+  <div class="iq-a"><p>Skipping would violate in-order commit. If instruction 4 commits before instruction 3, instruction 4's result becomes architectural first. Now if instruction 3 raises an exception, the architectural state already includes instruction 4's writes — which a strictly sequential execution would never have seen. The handler sees corrupted state. More practically, the branch predictor update from instruction 4's commit could redirect fetch to the wrong path before instruction 3's outcome is even known. The break in the commit loop is a correctness requirement, not an optimization.</p></div>
+</div>
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">Why are stores allocated with ready=1 in the ROB?</div>
+  <div class="iq-a"><p>A store's result is a memory write, not a register write. The LSU accepts the store into its store buffer immediately at dispatch — the address and data have been computed. From the ROB's perspective, the store's computation is done. The ROB's role for a store is only to ensure the memory write fires in program order at commit time, not speculatively. Since there is nothing for the ROB to "wait for" in terms of register production, setting ready=1 at allocation means stores never block the commit head, keeping the pipeline from stalling unnecessarily on back-to-back stores.</p></div>
+</div>
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">What is the difference between the ROB flush and the RS flush?</div>
+  <div class="iq-a"><p>The RS does a complete wipe — all 32 entries invalidated in one clock edge, because the RS has no ordering information about which entries were fetched before or after the mispredicting branch. The ROB does a selective partial flush — only entries after the mispredicting branch's ROB index are invalidated. Entries from head up to and including the branch are preserved because they are on the correct path. After the ROB flush, tail snaps back to just after the branch, and new correct-path instructions fill in from cycle 31 onward without needing to re-execute work that was already committed or is still correctly in-flight.</p></div>
+</div>
+<div class="iq">
+  <div class="iq-q" onclick="toggleIQ(this)">What is the relationship between ROB size and rename pool size?</div>
+  <div class="iq-a"><p>The rename pool must be at least as large as the ROB. Every in-flight instruction that has a destination register holds one physical register from the rename pool. The maximum number of such instructions in-flight simultaneously is bounded by the ROB size. If the rename pool were smaller than the ROB, the processor would run out of physical registers before the ROB filled up, causing spurious dispatch stalls. In this implementation, both are sized at 32: ROB holds 32 entries and the rename pool is p32–p63 — a 1:1 sizing ensuring the rename stage never starves before the ROB fills.</p></div>
+</div>
+
+</div>
+<script>
+const FIFO_DATA=[
+  {h:0,t:2,occ:2,note:'Cycle 4 — 2 entries. Head=0 (▶), tail=2 (◀). Both in-flight.',
+   s:Array.from({length:32},(_,i)=>i<2?'f':'')},
+  {h:0,t:8,occ:8,note:'Cycle 7 — 8 entries. ROB[0] and ROB[1] now ready (CDB fired at cycle 6). Head still blocked at 0.',
+   s:['r','r','f','f','f','f','f','f',...Array(24).fill('')]},
+  {h:2,t:10,occ:8,note:'Cycle 8 — ROB[0],[1] committed. Head=2. ROB[9] is a store: ready=1 at allocation.',
+   s:['','','f','f','f','f','f','f','f','s',...Array(22).fill('')]},
+  {h:3,t:20,occ:17,note:'Cycle 13 — Steady state occ=17. Alternating ADDI (in-flight) + STR (store=ready) pattern.',
+   s:['','','','f','r','r','r','r','r','s','f','s','f','s','f','s','f','s','f','s',...Array(12).fill('')]},
+  {h:15,t:0,occ:17,note:'Cycle 19 — TAIL WRAPS to index 0! ROB[0],[1] newly allocated. Circular buffer in action.',
+   s:['f','s',...Array(13).fill(''),'s','r','s','r','s','f','s','f','s','f','s','f','s','f','s','f','s']},
+  {h:31,t:16,occ:17,note:'Cycle 27 — Full pipeline. Branch entries visible (coral) at ROB[10],[13],[16]. Store entries at ROB[9],[11],[14].',
+   s:['r','s','r','s','f','s','f','s','f','s','b','s','f','b','s','f','b','','','','','','','','','','','','','','','r']},
+  {h:5,t:17,occ:12,note:'Cycle 30 — Post-flush. Entries after ROB[16] cleared. Tail snapped back to 17. occ=12.',
+   s:['','','','','','s','r','s','r','s','b','s','f','b','s','f','b','','','','','','','','','','','','','','','']},
+];
+function renderFIFO(n){
+  const d=FIFO_DATA[n];
+  const row=document.getElementById('fifo-row');
+  row.innerHTML='';
+  for(let i=0;i<32;i++){
+    const c=document.createElement('div');
+    c.className='fifo-cell';
+    const isH=(i===d.h&&d.s[i]);
+    const isT=(i===d.t);
+    const sl=d.s[i];
+    if(isH)c.classList.add('fc-head');
+    else if(sl==='r')c.classList.add('fc-ready');
+    else if(sl==='s')c.classList.add('fc-store');
+    else if(sl==='b')c.classList.add('fc-branch');
+    else if(sl==='f')c.classList.add('fc-flight');
+    else c.classList.add('fc-empty');
+    if(isT&&!sl)c.classList.add('fc-tail-mark');
+    const lbl=isH?'▶':(isT&&!sl?'◀':(sl&&sl!=='f'&&sl!=='r'&&sl!=='s'&&sl!=='b'?sl:''));
+    c.innerHTML=`<span class="fifo-idx-lbl">${i}</span><span style="font-size:10px;font-weight:500;">${lbl}</span>`;
+    row.appendChild(c);
+  }
+  document.getElementById('fifo-stats').innerHTML=`
+    <div><span class="rob-stat-label">HEAD</span><span class="rob-stat-val">${d.h}</span></div>
+    <div><span class="rob-stat-label">TAIL</span><span class="rob-stat-val">${d.t}</span></div>
+    <div><span class="rob-stat-label">Occupancy</span><span class="rob-stat-val">${d.occ}/32</span></div>
+    <div style="font-size:12px;color:var(--text2);align-self:center;max-width:380px;">${d.note}</div>`;
+}
+function setFIFO(n,btn){btn.parentElement.querySelectorAll('.viz-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFIFO(n);}
+renderFIFO(0);
+
+const ROB_CYCLES=[
+  {c:4,h:0,t:2,occ:2,note:'<strong>Cycle 4</strong> — First two instructions. ADDI X1 and ADDI X5. Both in-flight (R=0). Head=0, tail=2.',
+   rows:[{i:0,v:1,r:0,ard:'x1',prd:'p32',pc:'00000000',ld:0,st:0,br:0,cls:'n',note:'ADDI X1,X0,#1 — in-flight'},{i:1,v:1,r:0,ard:'x5',prd:'p33',pc:'00000004',ld:0,st:0,br:0,cls:'n',note:'ADDI X5,X0,#16 — in-flight'}]},
+  {c:5,h:0,t:4,occ:4,note:'<strong>Cycle 5</strong> — Two more: LSL X1 (needs p32,p33) and ADDI X2 (needs p34). None ready.',
+   rows:[{i:0,v:1,r:0,ard:'x1',prd:'p32',pc:'00000000',ld:0,st:0,br:0,cls:'',note:'ADDI — waiting'},{i:1,v:1,r:0,ard:'x5',prd:'p33',pc:'00000004',ld:0,st:0,br:0,cls:'',note:'ADDI — waiting'},{i:2,v:1,r:0,ard:'x1',prd:'p34',pc:'00000008',ld:0,st:0,br:0,cls:'n',note:'LSL — waiting for p32,p33'},{i:3,v:1,r:0,ard:'x2',prd:'p35',pc:'0000000c',ld:0,st:0,br:0,cls:'n',note:'ADDI — waiting for p34'}]},
+  {c:7,h:0,t:8,occ:8,note:'<strong>Cycle 7</strong> — CDB fired p32=1 and p33=0x10 at cycle 6. ROB[0] and ROB[1] are R=1. Head still at 0; commit fires next cycle.',
+   rows:[{i:0,v:1,r:1,ard:'x1',prd:'p32',pc:'00000000',ld:0,st:0,br:0,cls:'r',note:'READY — ADDI X1=1'},{i:1,v:1,r:1,ard:'x5',prd:'p33',pc:'00000004',ld:0,st:0,br:0,cls:'r',note:'READY — ADDI X5=0x10'},{i:2,v:1,r:0,ard:'x1',prd:'p34',pc:'00000008',ld:0,st:0,br:0,cls:'',note:'LSL — waiting'},{i:3,v:1,r:0,ard:'x2',prd:'p35',pc:'0000000c',ld:0,st:0,br:0,cls:'',note:'ADDI — waiting'},{i:4,v:1,r:0,ard:'x6',prd:'p36',pc:'00000010',ld:0,st:0,br:0,cls:'',note:'ADDI X6,X0,#1'},{i:5,v:1,r:0,ard:'x9',prd:'p37',pc:'00000014',ld:0,st:0,br:0,cls:'',note:'ADDI X9,X0,#2'},{i:6,v:1,r:0,ard:'x5',prd:'p38',pc:'00000018',ld:0,st:0,br:0,cls:'',note:'ADDI X5,X0,#12'},{i:7,v:1,r:0,ard:'x9',prd:'p39',pc:'0000001c',ld:0,st:0,br:0,cls:'',note:'LSL X9,X9,X5'}]},
+  {c:8,h:2,t:10,occ:8,note:'<strong>Cycle 8</strong> — COMMIT fires! ROB[0] and ROB[1] retire. Head 0→2. New ROB[9] is STR: R=1 at allocation.',
+   rows:[{i:2,v:1,r:0,ard:'x1',prd:'p34',pc:'00000008',ld:0,st:0,br:0,cls:'h',note:'HEAD — LSL blocking commit'},{i:3,v:1,r:0,ard:'x2',prd:'p35',pc:'0000000c',ld:0,st:0,br:0,cls:'',note:'waiting'},{i:4,v:1,r:0,ard:'x6',prd:'p36',pc:'00000010',ld:0,st:0,br:0,cls:'',note:'CDB fires p36 this cycle'},{i:5,v:1,r:0,ard:'x9',prd:'p37',pc:'00000014',ld:0,st:0,br:0,cls:'',note:'CDB fires p37 this cycle'},{i:6,v:1,r:0,ard:'x5',prd:'p38',pc:'00000018',ld:0,st:0,br:0,cls:'',note:'waiting'},{i:7,v:1,r:0,ard:'x9',prd:'p39',pc:'0000001c',ld:0,st:0,br:0,cls:'',note:'waiting'},{i:8,v:1,r:0,ard:'x6',prd:'p40',pc:'00000020',ld:0,st:0,br:0,cls:'n',note:'ADDI X6,#72 H char'},{i:9,v:1,r:1,ard:'x0',prd:'p0',pc:'00000024',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#0] — R=1 at alloc!'}]},
+  {c:10,h:2,t:14,occ:12,note:'<strong>Cycle 10</strong> — ROB[2] (LSL) finally ready (CDB p34). Head unblocked. ROB[9],[11],[13] stores all R=1.',
+   rows:[{i:2,v:1,r:1,ard:'x1',prd:'p34',pc:'00000008',ld:0,st:0,br:0,cls:'h',note:'HEAD — READY, LSL X1=0x10000'},{i:3,v:1,r:0,ard:'x2',prd:'p35',pc:'0000000c',ld:0,st:0,br:0,cls:'',note:'ADDI X2 — waiting'},{i:4,v:1,r:1,ard:'x6',prd:'p36',pc:'00000010',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:5,v:1,r:1,ard:'x9',prd:'p37',pc:'00000014',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:6,v:1,r:0,ard:'x5',prd:'p38',pc:'00000018',ld:0,st:0,br:0,cls:'',note:'waiting'},{i:7,v:1,r:0,ard:'x9',prd:'p39',pc:'0000001c',ld:0,st:0,br:0,cls:'',note:'LSL X9,X9,X5'},{i:8,v:1,r:0,ard:'x6',prd:'p40',pc:'00000020',ld:0,st:0,br:0,cls:'',note:'ADDI H'},{i:9,v:1,r:1,ard:'x0',prd:'p0',pc:'00000024',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#0]'},{i:10,v:1,r:0,ard:'x6',prd:'p41',pc:'00000028',ld:0,st:0,br:0,cls:'',note:'ADDI'},{i:11,v:1,r:1,ard:'x0',prd:'p0',pc:'0000002c',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#8]'},{i:12,v:1,r:0,ard:'x6',prd:'p42',pc:'00000030',ld:0,st:0,br:0,cls:'',note:'ADDI'},{i:13,v:1,r:1,ard:'x0',prd:'p0',pc:'00000034',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#12]'}]},
+  {c:13,h:3,t:20,occ:17,note:'<strong>Cycle 13</strong> — Peak: occ=17. Head blocked at ROB[3] (ADDI X2, waiting for p34). Alternating ADDI+STR pattern dominates.',
+   rows:[{i:3,v:1,r:1,ard:'x2',prd:'p35',pc:'0000000c',ld:0,st:0,br:0,cls:'h',note:'HEAD — READY'},{i:4,v:1,r:1,ard:'x6',prd:'p36',pc:'00000010',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:5,v:1,r:1,ard:'x9',prd:'p37',pc:'00000014',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:6,v:1,r:1,ard:'x5',prd:'p38',pc:'00000018',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:7,v:1,r:0,ard:'x9',prd:'p39',pc:'0000001c',ld:0,st:0,br:0,cls:'',note:'LSL X9 — will produce 0x2000'},{i:8,v:1,r:1,ard:'x6',prd:'p40',pc:'00000020',ld:0,st:0,br:0,cls:'r',note:'READY H'},{i:9,v:1,r:1,ard:'x0',prd:'p0',pc:'00000024',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#0]'},{i:10,v:1,r:0,ard:'x6',prd:'p41',pc:'00000028',ld:0,st:0,br:0,cls:'',note:'ADDI e'},{i:11,v:1,r:1,ard:'x0',prd:'p0',pc:'0000002c',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#8]'},{i:12,v:1,r:0,ard:'x6',prd:'p42',pc:'00000030',ld:0,st:0,br:0,cls:'',note:'ADDI l'},{i:13,v:1,r:1,ard:'x0',prd:'p0',pc:'00000034',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#12]'},{i:14,v:1,r:0,ard:'x6',prd:'p43',pc:'00000038',ld:0,st:0,br:0,cls:'',note:'ADDI l'},{i:15,v:1,r:1,ard:'x0',prd:'p0',pc:'0000003c',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#16]'},{i:16,v:1,r:0,ard:'x6',prd:'p44',pc:'00000040',ld:0,st:0,br:0,cls:'',note:'ADDI ,'},{i:17,v:1,r:1,ard:'x0',prd:'p0',pc:'00000044',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#20]'},{i:18,v:1,r:0,ard:'x6',prd:'p45',pc:'00000048',ld:0,st:0,br:0,cls:'',note:'ADDI sp'},{i:19,v:1,r:1,ard:'x0',prd:'p0',pc:'0000004c',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#24]'}]},
+  {c:19,h:15,t:0,occ:17,note:'<strong>Cycle 19</strong> — TAIL WRAPS to index 0. ROB[0],[1] freshly allocated at PC 0x80 and 0x84. Head=15. Circular buffer confirmed.',
+   rows:[{i:0,v:1,r:0,ard:'x6',prd:'p52',pc:'00000080',ld:0,st:0,br:0,cls:'n',note:'NEW — tail wrapped here!'},{i:1,v:1,r:1,ard:'x0',prd:'p0',pc:'00000084',ld:0,st:1,br:0,cls:'s',note:'NEW — STR'},{i:15,v:1,r:1,ard:'x0',prd:'p0',pc:'0000003c',ld:0,st:1,br:0,cls:'h',note:'HEAD — store'},{i:16,v:1,r:1,ard:'x6',prd:'p44',pc:'00000040',ld:0,st:0,br:0,cls:'r',note:'READY ,'},{i:17,v:1,r:1,ard:'x0',prd:'p0',pc:'00000044',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:30,v:1,r:0,ard:'x6',prd:'p51',pc:'00000078',ld:0,st:0,br:0,cls:'',note:'ADDI'},{i:31,v:1,r:1,ard:'x0',prd:'p0',pc:'0000007c',ld:0,st:1,br:0,cls:'s',note:'STR [X9,#60]'}]},
+  {c:25,h:27,t:12,occ:17,note:'<strong>Cycle 25</strong> — Branch entries appear. ROB[10] is CBZ (BR=1, R=0 — outcome not yet known). ROB[9] is LDR (LD=1, R=1 — load ready at alloc).',
+   rows:[{i:8,v:1,r:0,ard:'x3',prd:'p56',pc:'000000a0',ld:0,st:0,br:0,cls:'',note:'ADDI X3=scratchpad ptr'},{i:9,v:1,r:1,ard:'x4',prd:'p57',pc:'000000a4',ld:1,st:0,br:0,cls:'s',note:'LDR X4,[X3,#0] — load R=1 at alloc'},{i:10,v:1,r:0,ard:'x0',prd:'p0',pc:'000000a8',ld:0,st:0,br:1,cls:'b',note:'CBZ X4 — branch pending'},{i:11,v:1,r:1,ard:'x6',prd:'p58',pc:'000000ac',ld:1,st:0,br:0,cls:'s',note:'LDR X6 UART status'},{i:12,v:1,r:0,ard:'x6',prd:'p59',pc:'000000b0',ld:0,st:0,br:0,cls:'n',note:'AND X6,X6,X5'},{i:27,v:1,r:1,ard:'x0',prd:'p0',pc:'0000006c',ld:0,st:1,br:0,cls:'h',note:'HEAD — STR'}]},
+  {c:27,h:31,t:16,occ:17,note:'<strong>Cycle 27</strong> — Full pipeline, 17 in-flight. Branch entries at ROB[10],[13],[16]. ROB[16] = B send_string — the mispredict source.',
+   rows:[{i:0,v:1,r:1,ard:'x6',prd:'p52',pc:'00000080',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:1,v:1,r:1,ard:'x0',prd:'p0',pc:'00000084',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:2,v:1,r:1,ard:'x6',prd:'p53',pc:'00000088',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:3,v:1,r:1,ard:'x0',prd:'p0',pc:'0000008c',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:4,v:1,r:0,ard:'x6',prd:'p54',pc:'00000090',ld:0,st:0,br:0,cls:'',note:'ADDI'},{i:5,v:1,r:1,ard:'x0',prd:'p0',pc:'00000094',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:6,v:1,r:0,ard:'x6',prd:'p55',pc:'00000098',ld:0,st:0,br:0,cls:'',note:'ADDI'},{i:7,v:1,r:1,ard:'x0',prd:'p0',pc:'0000009c',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:8,v:1,r:0,ard:'x3',prd:'p56',pc:'000000a0',ld:0,st:0,br:0,cls:'',note:'ADDI X3'},{i:9,v:1,r:1,ard:'x4',prd:'p57',pc:'000000a4',ld:1,st:0,br:0,cls:'s',note:'LDR X4'},{i:10,v:1,r:0,ard:'x0',prd:'p0',pc:'000000a8',ld:0,st:0,br:1,cls:'b',note:'CBZ — branch pending'},{i:11,v:1,r:1,ard:'x6',prd:'p58',pc:'000000ac',ld:1,st:0,br:0,cls:'s',note:'LDR UART'},{i:12,v:1,r:0,ard:'x6',prd:'p59',pc:'000000b0',ld:0,st:0,br:0,cls:'',note:'AND'},{i:13,v:1,r:0,ard:'x0',prd:'p0',pc:'000000b4',ld:0,st:0,br:1,cls:'b',note:'CBNZ — branch'},{i:14,v:1,r:1,ard:'x0',prd:'p0',pc:'000000b8',ld:0,st:1,br:0,cls:'s',note:'STR UART TX'},{i:15,v:1,r:0,ard:'x3',prd:'p60',pc:'000000bc',ld:0,st:0,br:0,cls:'',note:'ADDI X3,X3,#4'},{i:16,v:1,r:0,ard:'x0',prd:'p0',pc:'000000c0',ld:0,st:0,br:1,cls:'b',note:'B send_string ← MISPREDICT SOURCE'},{i:31,v:1,r:1,ard:'x0',prd:'p0',pc:'0000007c',ld:0,st:1,br:0,cls:'h',note:'HEAD — STR'}]},
+  {c:30,h:5,t:17,occ:12,note:'<strong>Cycle 30</strong> — Mispredict resolved. Speculative entries flushed. Tail=17. occ=12. ROB[10] (CBZ) still R=0 — the long load stall.',
+   rows:[{i:5,v:1,r:1,ard:'x0',prd:'p0',pc:'00000094',ld:0,st:1,br:0,cls:'h',note:'HEAD — will commit'},{i:6,v:1,r:1,ard:'x6',prd:'p55',pc:'00000098',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:7,v:1,r:1,ard:'x0',prd:'p0',pc:'0000009c',ld:0,st:1,br:0,cls:'s',note:'STR'},{i:8,v:1,r:1,ard:'x3',prd:'p56',pc:'000000a0',ld:0,st:0,br:0,cls:'r',note:'READY'},{i:9,v:1,r:1,ard:'x4',prd:'p57',pc:'000000a4',ld:1,st:0,br:0,cls:'s',note:'LDR X4 R=1'},{i:10,v:1,r:0,ard:'x0',prd:'p0',pc:'000000a8',ld:0,st:0,br:1,cls:'b',note:'CBZ — R=0, blocking chain!'},{i:11,v:1,r:1,ard:'x6',prd:'p58',pc:'000000ac',ld:1,st:0,br:0,cls:'s',note:'LDR UART'},{i:12,v:1,r:0,ard:'x6',prd:'p59',pc:'000000b0',ld:0,st:0,br:0,cls:'',note:'AND — waiting'},{i:13,v:1,r:0,ard:'x0',prd:'p0',pc:'000000b4',ld:0,st:0,br:1,cls:'b',note:'CBNZ — waiting'},{i:14,v:1,r:1,ard:'x0',prd:'p0',pc:'000000b8',ld:0,st:1,br:0,cls:'s',note:'STR UART TX'},{i:15,v:1,r:0,ard:'x3',prd:'p60',pc:'000000bc',ld:0,st:0,br:0,cls:'',note:'ADDI X3'},{i:16,v:1,r:0,ard:'x0',prd:'p0',pc:'000000c0',ld:0,st:0,br:1,cls:'b',note:'B send_string'}]},
+  {c:33,h:10,t:17,occ:7,note:'<strong>Cycle 33</strong> — Draining. ROB[9] (LDR X4) just committed. ROB[10] (CBZ) is HEAD, R=0 — still waiting for branch resolution. occ=7.',
+   rows:[{i:10,v:1,r:0,ard:'x0',prd:'p0',pc:'000000a8',ld:0,st:0,br:1,cls:'b',note:'HEAD — CBZ blocking everything'},{i:11,v:1,r:1,ard:'x6',prd:'p58',pc:'000000ac',ld:1,st:0,br:0,cls:'s',note:'LDR UART — R=1'},{i:12,v:1,r:0,ard:'x6',prd:'p59',pc:'000000b0',ld:0,st:0,br:0,cls:'',note:'AND — waiting'},{i:13,v:1,r:0,ard:'x0',prd:'p0',pc:'000000b4',ld:0,st:0,br:1,cls:'b',note:'CBNZ'},{i:14,v:1,r:1,ard:'x0',prd:'p0',pc:'000000b8',ld:0,st:1,br:0,cls:'s',note:'STR UART TX'},{i:15,v:1,r:1,ard:'x3',prd:'p60',pc:'000000bc',ld:0,st:0,br:0,cls:'r',note:'ADDI X3 — READY'},{i:16,v:1,r:0,ard:'x0',prd:'p0',pc:'000000c0',ld:0,st:0,br:1,cls:'b',note:'B send_string'}]},
+];
+function setRob(n,btn){
+  btn.parentElement.querySelectorAll('.viz-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  const c=ROB_CYCLES[n];
+  document.getElementById('rob-cycle-info').innerHTML=`${c.note} &nbsp;·&nbsp; HEAD=${c.h} TAIL=${c.t} OCC=${c.occ}`;
+  const tb=document.getElementById('rob-tbody');tb.innerHTML='';
+  c.rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    if(r.cls==='h')tr.className='rh';
+    else if(r.cls==='r')tr.className='rr';
+    else if(r.cls==='s')tr.className='rs';
+    else if(r.cls==='b')tr.className='rb';
+    else if(r.cls==='n')tr.className='rn';
+    tr.innerHTML=`<td>${r.cls==='h'?'<strong>▶ '+r.i+'</strong>':r.i}</td><td>1</td><td class="${r.r?'ready1':'ready0'}">${r.r}</td><td><code>${r.ard}</code></td><td><code>${r.prd}</code></td><td style="font-size:11px;">${r.pc}</td><td>${r.ld?'<span style="color:var(--teal600);font-weight:500;">1</span>':'0'}</td><td>${r.st?'<span style="color:var(--green600);font-weight:500;">1</span>':'0'}</td><td>${r.br?'<span style="color:var(--coral600);font-weight:500;">1</span>':'0'}</td><td style="font-size:11px;color:var(--text3);">${r.note}</td>`;
+    tb.appendChild(tr);
+  });
+}
+setRob(0,document.querySelector('.viz-btn.active'));
+function toggleIQ(el){el.classList.toggle('open');el.nextElementSibling.classList.toggle('open');}
+</script>
+</body>
+</html>
