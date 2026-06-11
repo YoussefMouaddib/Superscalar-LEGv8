@@ -205,23 +205,17 @@ module tb_ooo_core;
             end
         end
     end
-    // In your testbench module, add these signals:
-        logic [7:0] uart_tx_char;
-        assign uart_tx_char = dut.uart_inst.tx_data_reg;
-        
-        // Monitor UART writes
-        always @(posedge clk) begin
-            if (!reset) begin
-                // Display as both ASCII and hex
-                
-                $display("[UART TX] '%c' (0x%h)", uart_tx_char, uart_tx_char);
-                
-                
+    
+       // Monitor UART writes - trigger on actual write event
+    always @(posedge clk) begin
+        if (!reset) begin
+            if (dut.uart_write_en && !dut.uart_inst.uart_core.tx_busy) begin
+                $display("[UART TX] '%c' (0x%h)", 
+                         dut.mem_wdata[7:0], 
+                         dut.mem_wdata[7:0]);
             end
         end
-        
-    
-
+    end
 
 
     /*
