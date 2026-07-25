@@ -1,0 +1,17 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc boolector
+
+[script]
+read -formal free_list.sv
+read -formal freelist_formalverif.sv
+read -formal freelist_bind.sv
+prep -top free_list
+
+[files]
+free_list.sv
+freelist_formalverif.sv
+freelist_bind.sv
