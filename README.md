@@ -9,7 +9,9 @@
 
 A complete RTL implementation of a 2-wide superscalar out-of-order processor supporting a subset of the LEGv8 ISA. This isn't a textbook example or a tutorial clone—this is a real CPU built from first principles, debugged at the waveform level, and verified running actual programs.
 
-**Status:** ✅ Successfully executes "Hello, LEGv8!" via UART after 73 cycles of stores + loads
+**Status:** ✅ Successfully executes "Hello, LEGv8!" via UART after 73 cycles w Out of order pipeline working correctly. 
+**next goal:** To support Ethernet + VGA display and handle Clock Domain Crossing correctly. Use ethernet to write a program to icache then jump to it. Use VGA and character/font library to display outputs onto a monitor.
+**side goal:** To Verify as many modules as possible using UVM and Formal Verification methods.
 
 ---
 
@@ -55,10 +57,10 @@ This README documents the **actual implementation**, including the bugs I hit an
 
 **Verified Features:**
 - ✅ 2-wide superscalar fetch/decode/rename/dispatch
-- ✅ Out-of-order issue from 32-entry issue queue
-- ✅ 64 physical registers (32 architectural + 32 rename)
-- ✅ 32-entry reorder buffer with 2-wide commit
-- ✅ Round-robin free list allocation (prevents premature register reuse)
+- ✅ Out-of-order issue from 16-entry issue queue
+- ✅ 51 physical registers (32 architectural + 19 rename)
+- ✅ 16-entry reorder buffer with 2-wide commit
+- ✅ free list allocation
 - ✅ Load/store queue with memory ordering via sequence numbers
 - ✅ Branch predictor with 2-bit saturating counters
 - ✅ CDB arbitration (2 ports, 4 sources: ALU0, ALU1, Branch, LSU)
