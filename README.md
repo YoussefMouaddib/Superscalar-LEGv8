@@ -149,7 +149,7 @@ parameter SQ_ENTRIES = 16;        // Store queue depth
 
 **Components:**
 - **Register Alias Table (RAT):** Maps 32 architectural registers → 64 physical registers
-- **Free List:** Tracks available physical registers using round-robin allocation
+- **Free List:** Tracks available physical registers
 - **Commit Map:** Maintains committed architectural-to-physical mapping for exceptions
 
 **Implementation Highlights:**
@@ -169,8 +169,6 @@ for (int i = 0; i < ISSUE_WIDTH; i++) begin
     end
 end
 ```
-
-**Critical Bug Fixed:** Initial free list always allocated lowest available register (e.g., p32, p33, p32, p33...), causing immediate reuse and value corruption. **Solution:** Round-robin allocation with rotating pointer starting at p32, ensuring minimum 32-cycle gap before reuse.
 
 ---
 
