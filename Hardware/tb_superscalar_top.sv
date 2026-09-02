@@ -456,6 +456,7 @@ module tb_ooo_core;
         dut.lsu_inst.store_in_flight);
     
     $display("=================================");
-*/
+
 end
+*/
 endmodule
