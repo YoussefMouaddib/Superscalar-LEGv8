@@ -125,9 +125,9 @@ module free_list #(
                     free_mask[alloc_phys_comb[a]] <= 1'b0;
                 end
             end
+            alloc_phys <= alloc_phys_comb;
+            alloc_valid <= alloc_valid_comb;
         end
     end
-// fix to prevent duplicate first two instr bug
-assign alloc_phys = alloc_phys_comb;
-assign alloc_valid = alloc_valid_comb;
+
 endmodule
