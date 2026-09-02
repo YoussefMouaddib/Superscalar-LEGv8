@@ -323,8 +323,8 @@ module tb_ooo_core;
     initial begin
         $dumpfile("ooo_core.vcd");
         $dumpvars(0, tb_ooo_core);
-    end */
-    /*
+    end 
+    
         always @(posedge clk) begin
         // Print after the posedge to capture the state at the end of the cycle
         // Use a small delay to ensure all signals have settled (optional)
@@ -387,7 +387,8 @@ module tb_ooo_core;
         
         $display("=========================================\n");
     end */
-always_ff @(posedge clk) begin
+/*
+    always_ff @(posedge clk) begin
     $display("========== LSU SIGNALS ==========");
     
     // Allocation inputs
@@ -444,7 +445,7 @@ always_ff @(posedge clk) begin
     $display("[LSU_EXCEPT] exception=%b cause=%h",
         dut.lsu_inst.lsu_exception,
         dut.lsu_inst.lsu_exception_cause);
-    /*
+    
     // Internal state
     $display("[LSU_STATE] lq_head=%0d lq_tail=%0d sq_head=%0d sq_tail=%0d load_flight=%b store_flight=%b",
         dut.lsu_inst.lq_head,
