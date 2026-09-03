@@ -227,8 +227,8 @@ module reservation_station #(
     
     // Combinational allocation priority encoder
     always_comb begin
-        automatic int i, a;
-        
+        automatic int i;
+    
         // Build free mask
         free_mask = '0;
         for (i = 0; i < RS_ENTRIES; i++) begin
@@ -236,31 +236,25 @@ module reservation_station #(
                 free_mask[i] = 1'b1;
             end
         end
-        
-        // Port 0: Find first free
+    
+        // Port 0: search LOWER half only [0:7]
         alloc_slot_valid[0] = 1'b0;
         alloc_slot_idx[0] = '0;
         if (alloc_en[0]) begin
-            for (i = 0; i < RS_ENTRIES; i++) begin
+            for (i = 0; i < 8; i++) begin
                 if (free_mask[i] && !alloc_slot_valid[0]) begin
                     alloc_slot_idx[0] = i[3:0];
                     alloc_slot_valid[0] = 1'b1;
                 end
             end
         end
-        
-        // Mask for port 1 (exclude port 0's allocation)
-        mask_after_port0 = free_mask;
-        if (alloc_en[0] && alloc_slot_valid[0]) begin
-            mask_after_port0[alloc_slot_idx[0]] = 1'b0;
-        end
-        
-        // Port 1: Find first free after port 0
+    
+        // Port 1: search UPPER half only [8:15]
         alloc_slot_valid[1] = 1'b0;
         alloc_slot_idx[1] = '0;
         if (alloc_en[1]) begin
-            for (i = 0; i < RS_ENTRIES; i++) begin
-                if (mask_after_port0[i] && !alloc_slot_valid[1]) begin
+            for (i = 8; i < RS_ENTRIES; i++) begin
+                if (free_mask[i] && !alloc_slot_valid[1]) begin
                     alloc_slot_idx[1] = i[3:0];
                     alloc_slot_valid[1] = 1'b1;
                 end
