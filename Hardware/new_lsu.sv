@@ -332,16 +332,16 @@ module lsu #(
             issue_dest_reg <= '0;
             issue_exception_reg <= 1'b0;
             
-            mem_req_reg <= 1'b0;
-            mem_we_reg <= 1'b0;
+            mem_req_reg <= 1'b1;
+            mem_we_reg <= 1'b1;
             mem_addr_reg <= '0;
             mem_wdata_reg <= '0;
             cdb_tag_reg <= '0;
             cdb_exception_reg <= 1'b0;
             load_idx_reg <= '0;
             
-            mem_req <= 1'b0;
-            mem_we <= 1'b0;
+            mem_req <= 1'b1;
+            mem_we <= 1'b1;
             mem_addr <= '0;
             mem_wdata <= '0;
             cdb_req <= 1'b0;
@@ -511,7 +511,7 @@ module lsu #(
                 cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
             
-            if (store_in_flight && mem_ready && mem_we) begin
+            if (mem_ready && mem_we) begin
                 for (int i = 0; i < SQ_ENTRIES; i++) begin
                     if (sq[i].valid && sq[i].executing && sq[i].addr == mem_addr) begin
                         sq[i].valid <= 1'b0;
