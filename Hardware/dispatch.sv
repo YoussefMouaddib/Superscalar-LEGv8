@@ -352,7 +352,7 @@ module dispatch #(
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
                 if (rename_valid_r[i] && (rename_is_alu_r[i] || rename_is_branch_r[i]) &&
-                    !(rename_rd_valid_r[i] && rename_prd_r[i] == 6'd0)) begin
+                    !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)) begin
                     rs_alloc_en[i] <= 1'b1;
                     rs_alloc_dst_tag[i] <= rename_prd_r[i];
                     rs_alloc_src1_tag[i] <= rename_prs1_r[i];
