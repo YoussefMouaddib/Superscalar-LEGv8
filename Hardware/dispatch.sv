@@ -378,7 +378,7 @@ module dispatch #(
                 rob_alloc_phys_rd[i] <= rename_prd_r[i];
                 rob_alloc_pc[i] <= rename_pc_r[i];
                 
-                if (rename_valid_r[i] && !(rename_rd_valid_r[i] && rename_prd_r[i] == 6'd0)) begin
+                if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)) begin
                     rob_alloc_en[i] <= 1'b1;
                     rob_alloc_is_store[i] <= rename_is_store_r[i];
                     rob_alloc_is_load[i] <= rename_is_load_r[i];
