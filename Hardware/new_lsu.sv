@@ -120,6 +120,11 @@ module lsu #(
     logic [XLEN-1:0] winner_low_base_r, winner_high_base_r;
     logic [XLEN-1:0] winner_low_offset_r, winner_high_offset_r;
     logic [5:0] winner_low_dest_r, winner_high_dest_r;
+
+    logic        winner_store_valid_r;
+    logic [$clog2(SQ_ENTRIES)-1:0] winner_store_idx_r;
+    logic [XLEN-1:0] winner_store_addr_r;
+    logic [XLEN-1:0] winner_store_data_r;
     
     // Stage 2 selection
     logic        issue_load_comb;
@@ -144,6 +149,11 @@ module lsu #(
     logic [5:0] cdb_tag_reg;
     logic        cdb_exception_reg;
     logic [$clog2(LQ_ENTRIES)-1:0] load_idx_reg;
+
+    logic        winner_store_valid;
+    logic [$clog2(SQ_ENTRIES)-1:0] winner_store_idx;
+    logic [XLEN-1:0] winner_store_addr;
+    logic [XLEN-1:0] winner_store_data;
 
     // ============================================================
     // Helper function for older stores check
@@ -206,6 +216,30 @@ module lsu #(
             end
         end
     end
+
+    // ============================================================
+    // STORE WINNER SELECT (single search, SQ is smaller/simpler than LQ)
+    // ============================================================
+    
+    always_comb begin
+        winner_store_valid = 1'b0;
+        winner_store_idx = '0;
+        winner_store_addr = '0;
+        winner_store_data = '0;
+    
+        for (int i = 0; i < SQ_ENTRIES; i++) begin
+            int idx = (sq_head + i) % SQ_ENTRIES;
+    
+            if (sq[idx].valid && sq[idx].committed && sq[idx].addr_valid &&
+                sq[idx].data_ready && !sq[idx].executing && !sq[idx].exception &&
+                !winner_store_valid) begin
+                winner_store_valid = 1'b1;
+                winner_store_idx = idx[$clog2(SQ_ENTRIES)-1:0];
+                winner_store_addr = sq[idx].addr;
+                winner_store_data = sq[idx].data_val;
+            end
+        end
+    end
     
     // ============================================================
     // STAGE 1 PIPELINE REGISTERS
@@ -223,6 +257,11 @@ module lsu #(
             winner_high_base_r <= '0;
             winner_high_offset_r <= '0;
             winner_high_dest_r <= '0;
+
+            winner_store_valid_r <= 1'b0;
+            winner_store_idx_r <= '0;
+            winner_store_addr_r <= '0;
+            winner_store_data_r <= '0;
         end else if (!flush_pipeline) begin
             winner_low_valid_r <= winner_low_valid;
             winner_low_idx_r <= winner_low_idx;
@@ -235,6 +274,11 @@ module lsu #(
             winner_high_base_r <= winner_high_base;
             winner_high_offset_r <= winner_high_offset;
             winner_high_dest_r <= winner_high_dest;
+
+            winner_store_valid_r <= winner_store_valid;
+            winner_store_idx_r <= winner_store_idx;
+            winner_store_addr_r <= winner_store_addr;
+            winner_store_data_r <= winner_store_data;
         end
     end
     
@@ -480,38 +524,33 @@ module lsu #(
             end
             
             // ========================================================
-            // STEP 6: Issue New Load (using pipelined winner selection)
+            // STEP 6: Issue New Load OR Store (using pipelined winner selection)
             // ========================================================
             issue_load_reg <= 1'b0;
             
-            if (!load_in_flight && !store_in_flight && !mem_req_reg && issue_load_comb) begin
-                issue_load_reg <= 1'b1;
-                issue_load_idx_reg <= issue_load_idx_comb;
-                issue_base_reg <= issue_base_comb;
-                issue_offset_reg <= issue_offset_comb;
-                issue_dest_reg <= issue_dest_comb;
-                issue_exception_reg <= 1'b0;  // Will get from lq later
-                lq[issue_load_idx_comb].executing <= 1'b1;
+            if (!load_in_flight && !store_in_flight && !mem_req_reg) begin
+                if (issue_load_comb) begin
+                    issue_load_reg <= 1'b1;
+                    issue_load_idx_reg <= issue_load_idx_comb;
+                    issue_base_reg <= issue_base_comb;
+                    issue_offset_reg <= issue_offset_comb;
+                    issue_dest_reg <= issue_dest_comb;
+                    issue_exception_reg <= 1'b0;
+                    lq[issue_load_idx_comb].executing <= 1'b1;
+                end else if (winner_store_valid_r) begin
+                    mem_req_reg <= 1'b1;
+                    mem_we_reg <= 1'b1;
+                    mem_addr_reg <= winner_store_addr_r;
+                    mem_wdata_reg <= winner_store_data_r;
+                    store_in_flight <= 1'b1;
+                    sq[winner_store_idx_r].executing <= 1'b1;
+                end
             end
             
             // ========================================================
             // STEP 7: Memory Request (address calculation)
             // ========================================================
-            mem_req_reg <= 1'b0;
-            
-            if (issue_load_reg) begin
-                calc_addr = issue_base_reg + issue_offset_reg;
-                mem_req_reg <= 1'b1;
-                mem_we_reg <= 1'b0;
-                mem_addr_reg <= calc_addr;
-                mem_wdata_reg <= '0;
-                cdb_tag_reg <= issue_dest_reg;
-                cdb_exception_reg <= issue_exception_reg;
-                load_idx_reg <= issue_load_idx_reg;
-                load_in_flight <= 1'b1;
-                load_in_flight_idx <= issue_load_idx_reg;
-            end
-            
+           
             // ========================================================
             // STEP 8: Drive Outputs
             // ========================================================
