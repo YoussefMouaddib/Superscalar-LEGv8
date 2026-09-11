@@ -526,9 +526,27 @@ module lsu #(
             // ========================================================
             // STEP 6: Issue New Load OR Store (using pipelined winner selection)
             // ========================================================
+            
+            // --- Sub-step A: convert last cycle's load issue into a real mem request ---
+            if (issue_load_reg) begin
+                calc_addr = issue_base_reg + issue_offset_reg;
+                mem_req_reg <= 1'b1;
+                mem_we_reg <= 1'b0;
+                mem_addr_reg <= calc_addr;
+                mem_wdata_reg <= '0;
+                cdb_tag_reg <= issue_dest_reg;
+                cdb_exception_reg <= issue_exception_reg;
+                load_idx_reg <= issue_load_idx_reg;
+                load_in_flight <= 1'b1;
+                load_in_flight_idx <= issue_load_idx_reg;
+            end
+            
             issue_load_reg <= 1'b0;
             
-            if (!load_in_flight && !store_in_flight && !mem_req_reg) begin
+            // --- Sub-step B: pick a NEW load or store to issue this cycle ---
+            // Guarded so we never stomp a load conversion happening in sub-step A above,
+            // and never double-issue while something is already in flight.
+            if (!load_in_flight && !store_in_flight && !mem_req_reg && !issue_load_reg) begin
                 if (issue_load_comb) begin
                     issue_load_reg <= 1'b1;
                     issue_load_idx_reg <= issue_load_idx_comb;
@@ -547,10 +565,6 @@ module lsu #(
                 end
             end
             
-            // ========================================================
-            // STEP 7: Memory Request (address calculation)
-            // ========================================================
-           
             // ========================================================
             // STEP 8: Drive Outputs
             // ========================================================
