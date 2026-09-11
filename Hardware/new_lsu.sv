@@ -118,13 +118,14 @@ module lsu #(
     logic [5:0]  winner_load_dest;
 
     always_comb begin
+        integer idx;   // declare once, outside/before the loop
         winner_load_valid = 1'b0;
         winner_load_idx = '0;
         winner_load_addr = '0;
         winner_load_dest = '0;
-
+    
         for (int i = 0; i < LQ_ENTRIES; i++) begin
-            automatic int idx = (lq_head + i) % LQ_ENTRIES;
+            idx = (lq_head + i) % LQ_ENTRIES;
             if (!winner_load_valid && lq[idx].valid && lq[idx].addr_valid &&
                 !lq[idx].executing && !lq[idx].exception &&
                 all_older_stores_committed(idx)) begin
@@ -142,13 +143,14 @@ module lsu #(
     logic [XLEN-1:0] winner_store_data;
 
     always_comb begin
+        integer idx;
         winner_store_valid = 1'b0;
         winner_store_idx = '0;
         winner_store_addr = '0;
         winner_store_data = '0;
-
+    
         for (int i = 0; i < SQ_ENTRIES; i++) begin
-            automatic int idx = (sq_head + i) % SQ_ENTRIES;
+            idx = (sq_head + i) % SQ_ENTRIES;
             if (!winner_store_valid && sq[idx].valid && sq[idx].committed &&
                 sq[idx].addr_valid && sq[idx].data_ready &&
                 !sq[idx].executing && !sq[idx].exception) begin
