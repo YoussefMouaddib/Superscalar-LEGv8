@@ -289,46 +289,30 @@ module ooo_core_top (
     // ================================================================
     logic is_uart_access;
     logic is_vga_access;
-
+    logic is_scratchpad_access;   // NEW — explicit range check
+    
     assign is_uart_access = (mem_addr >= 32'h00010000) &&
                             (mem_addr <= 32'h0001000F);
-
+    
     assign is_vga_access  = (mem_addr >= 32'h00030000) &&
-                            (mem_addr <= 32'h000302BF);  // 0x2BF = 2399*4 = 9596 → 0x257C; keep generous
-
-    // VGA char RAM write: CPU writes word, extract cell address
-    // Cell index = (addr - 0x30000) / 4
+                            (mem_addr <= 32'h000302BF);
+    
+    assign is_scratchpad_access = (mem_addr >= 32'h00002000) &&
+                                  (mem_addr <= 32'h00002FFF);   // matches 4KB scratchpad range
+    
+    // VGA char RAM write ... (unchanged)
     assign vga_cpu_wen   = is_vga_access && mem_we;
-    assign vga_cpu_waddr = (mem_addr - 32'h00030000) >> 2;   // cell index, 12 bits
-    assign vga_cpu_wdata = mem_wdata[15:0];                   // [7:0]=char, [9:8]=color
-
-    // UART enables
+    assign vga_cpu_waddr = (mem_addr - 32'h00030000) >> 2;
+    assign vga_cpu_wdata = mem_wdata[15:0];
+    
+    // UART enables (unchanged)
     assign uart_read_en  = is_uart_access && mem_req && !mem_we;
     assign uart_write_en = is_uart_access && mem_we;
-
-    // Scratchpad enables (neither UART nor VGA)
-    assign scratchpad_we   = !is_uart_access && !is_vga_access && mem_we;
-    assign scratchpad_addr = mem_addr - 32'h00002000;
+    
+    // Scratchpad enables — NOW EXPLICITLY GATED
+    assign scratchpad_we   = is_scratchpad_access && mem_we;
+    assign scratchpad_addr = is_scratchpad_access ? (mem_addr - 32'h00002000) : 32'h0;
     assign scratchpad_wdata = mem_wdata;
-
-    // Read data mux back to LSU
-    always_comb begin
-        if (is_uart_access)
-            mem_rdata = uart_read_data;
-        else if (is_vga_access)
-            mem_rdata = 32'h0;    // VGA is write-only from CPU perspective
-        else
-            mem_rdata = scratchpad_rdata;
-    end
-
-    always_comb begin
-        if (is_uart_access)
-            mem_ready = uart_ready;
-        else if (is_vga_access)
-            mem_ready = 1'b1;     // VGA writes complete in 1 cycle
-        else
-            mem_ready = scratchpad_ready;
-    end
 
     // ================================================================
     // SEQUENCE COUNTER (unchanged from original)
