@@ -20,7 +20,7 @@ module tb_ooo_core;
         reset = 1;
         #95;
         reset = 0;
-        #10000;
+        #15000;
         $finish;
     end
     
