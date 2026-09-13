@@ -186,8 +186,28 @@ module dispatch #(
             rename_arch_rs1_r <= rename_arch_rs1;
             rename_arch_rs2_r <= rename_arch_rs2;
             rename_arch_rd_r <= rename_arch_rd;
-            rob_alloc_idx_r <= rob_alloc_idx;
-            rob_alloc_ok_r <= rob_alloc_ok;
+            //rob_alloc_idx_r <= rob_alloc_idx;
+            //rob_alloc_ok_r <= rob_alloc_ok;
+        end
+    end
+
+    // ============================================================
+    // Combinational rob_tag passthrough — must track rob_alloc_idx
+    // in real time so RS/LSU sample the index matching THIS
+    // cycle's (already-registered) rob_alloc_en, not a stale one.
+    // ============================================================
+    always_comb begin
+        for (int i = 0; i < FETCH_W; i++) begin
+            rs_alloc_rob_tag[i] = rob_alloc_idx[i];
+        end
+    end
+    
+    always_comb begin
+        lsu_rob_idx = '0;
+        for (int i = 0; i < FETCH_W; i++) begin
+            if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i])) begin
+                lsu_rob_idx = rob_alloc_idx[i];
+            end
         end
     end
     
@@ -364,7 +384,7 @@ module dispatch #(
                     rs_alloc_op[i] <= {rename_opcode_r[i], rename_alu_func_r[i]};
                     rs_alloc_pc[i] <= rename_pc_r[i];
                     rs_alloc_imm[i] <= rename_imm_r[i];
-                    rs_alloc_rob_tag[i] <= rob_alloc_idx_r[i];
+                    //rs_alloc_rob_tag[i] <= rob_alloc_idx_r[i];
                 end else begin
                     rs_alloc_en[i] <= 1'b0;
                 end
@@ -410,7 +430,7 @@ module dispatch #(
                     lsu_arch_rs2 <= rename_arch_rs2_r[i];
                     lsu_arch_rd <= rename_arch_rd_r[i];
                     lsu_phys_rd <= rename_prd_r[i];
-                    lsu_rob_idx <= rob_alloc_idx_r[i];
+                    //lsu_rob_idx <= rob_alloc_idx_r[i];
                     
                     if (cached_valid && rename_prs1_r[i] == cached_base_tag && cached_base_ready) begin
                         lsu_base_value <= cached_base_value;
