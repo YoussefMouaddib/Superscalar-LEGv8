@@ -96,7 +96,7 @@ module reservation_station #(
             
         end else begin
             // Build ready mask (cheap - just AND gates)
-            for (i = 0; i < RS_ENTRIES-1; i++) begin
+            for (i = 0; i < RS_ENTRIES; i++) begin
                 ready_mask[i] = rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready;
             end
             
