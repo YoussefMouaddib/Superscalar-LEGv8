@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module reservation_station #(
-    parameter int RS_ENTRIES  = 16,  // REDUCED from 32
+    parameter int RS_ENTRIES  = 32,  // REDUCED from 32
     parameter int ISSUE_W     = 2,
     parameter int CDB_W       = 2,
     parameter int PHYS_W      = 6
@@ -103,7 +103,7 @@ module reservation_station #(
             // Port 0: Search entries [0:7] (8-way comparison)
             stage1_candidates[0].valid <= 1'b0;
             stage1_candidates[0].age <= '0;
-            for (i = 0; i < 8; i++) begin
+            for (i = 0; i < 16; i++) begin
                 if (ready_mask[i]) begin
                     if (!stage1_candidates[0].valid || rs_mem[i].age > stage1_candidates[0].age) begin
                         stage1_candidates[0].valid <= 1'b1;
@@ -123,7 +123,7 @@ module reservation_station #(
             // Port 1: Search entries [8:15] (8-way comparison, parallel with port 0)
             stage1_candidates[1].valid <= 1'b0;
             stage1_candidates[1].age <= '0;
-            for (i = 8; i < RS_ENTRIES; i++) begin
+            for (i = 16; i < RS_ENTRIES; i++) begin
                 if (ready_mask[i]) begin
                     if (!stage1_candidates[1].valid || rs_mem[i].age > stage1_candidates[1].age) begin
                         stage1_candidates[1].valid <= 1'b1;
@@ -241,7 +241,7 @@ module reservation_station #(
         alloc_slot_valid[0] = 1'b0;
         alloc_slot_idx[0] = '0;
         if (alloc_en[0]) begin
-            for (i = 0; i < 8; i++) begin
+            for (i = 0; i < 16; i++) begin
                 if (free_mask[i] && !alloc_slot_valid[0]) begin
                     alloc_slot_idx[0] = i[3:0];
                     alloc_slot_valid[0] = 1'b1;
@@ -253,7 +253,7 @@ module reservation_station #(
         alloc_slot_valid[1] = 1'b0;
         alloc_slot_idx[1] = '0;
         if (alloc_en[1]) begin
-            for (i = 8; i < RS_ENTRIES; i++) begin
+            for (i = 16; i < RS_ENTRIES; i++) begin
                 if (free_mask[i] && !alloc_slot_valid[1]) begin
                     alloc_slot_idx[1] = i[3:0];
                     alloc_slot_valid[1] = 1'b1;
