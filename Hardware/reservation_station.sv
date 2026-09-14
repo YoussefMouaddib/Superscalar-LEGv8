@@ -222,7 +222,7 @@ module reservation_station #(
     // Allocation signals
     logic [RS_ENTRIES-1:0] free_mask;
     logic [RS_ENTRIES-1:0] mask_after_port0;
-    logic [ISSUE_W-1:0][6:0] alloc_slot_idx;  // 4 bits for 16 entries
+    logic [ISSUE_W-1:0][4:0] alloc_slot_idx;  // 4 bits for 16 entries
     logic [ISSUE_W-1:0] alloc_slot_valid;
     
     // Combinational allocation priority encoder
@@ -243,7 +243,7 @@ module reservation_station #(
         if (alloc_en[0]) begin
             for (i = 0; i < 15; i++) begin
                 if (free_mask[i] ) begin
-                    alloc_slot_idx[0] = i[3:0];
+                    alloc_slot_idx[0] = i[4:0];
                     alloc_slot_valid[0] = 1'b1;
                 end
             end
@@ -255,7 +255,7 @@ module reservation_station #(
         if (alloc_en[1]) begin
             for (i = 16; i < 31; i++) begin
                 if (free_mask[i] ) begin
-                    alloc_slot_idx[1] = i[3:0];
+                    alloc_slot_idx[1] = i[4:0];
                     alloc_slot_valid[1] = 1'b1;
                 end
             end
