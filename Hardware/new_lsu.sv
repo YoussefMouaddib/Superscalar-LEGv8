@@ -151,7 +151,7 @@ module lsu #(
     
         for (int i = 0; i < SQ_ENTRIES; i++) begin
             idx = (sq_head + i) % SQ_ENTRIES;
-            if (!winner_store_valid && sq[idx].valid && sq[idx].committed &&
+            if ( sq[idx].valid && sq[idx].committed &&
                 sq[idx].addr_valid && sq[idx].data_ready &&
                 !sq[idx].executing && !sq[idx].exception) begin
                 winner_store_valid = 1'b1;
