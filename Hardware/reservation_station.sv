@@ -231,7 +231,7 @@ module reservation_station #(
     
         // Build free mask
         free_mask = '0;
-        for (i = 0; i < RS_ENTRIES-1; i++) begin
+        for (i = 0; i < RS_ENTRIES; i++) begin
             if (!rs_mem[i].valid) begin
                 free_mask[i] = 1'b1;
             end
