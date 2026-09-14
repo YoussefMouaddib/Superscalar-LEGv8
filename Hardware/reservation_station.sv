@@ -242,7 +242,7 @@ module reservation_station #(
         alloc_slot_idx[0] = '0;
         if (alloc_en[0]) begin
             for (i = 0; i < 15; i++) begin
-                if (free_mask[i] && !alloc_slot_valid[0]) begin
+                if (free_mask[i] ) begin
                     alloc_slot_idx[0] = i[3:0];
                     alloc_slot_valid[0] = 1'b1;
                 end
@@ -254,7 +254,7 @@ module reservation_station #(
         alloc_slot_idx[1] = '0;
         if (alloc_en[1]) begin
             for (i = 16; i < 31; i++) begin
-                if (free_mask[i] && !alloc_slot_valid[1]) begin
+                if (free_mask[i] ) begin
                     alloc_slot_idx[1] = i[3:0];
                     alloc_slot_valid[1] = 1'b1;
                 end
