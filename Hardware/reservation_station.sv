@@ -63,7 +63,7 @@ module reservation_station #(
     // =========================================================================
     // PIPELINE STAGE 1: Ready Mask + Age Encoding (Cycle N)
     // =========================================================================
-    // Instead of 32→1 tree, we do 16→2 groups, then 2→1 final select
+    // 
     
     typedef struct packed {
         logic valid;
@@ -241,7 +241,7 @@ module reservation_station #(
         alloc_slot_valid[0] = 1'b0;
         alloc_slot_idx[0] = '0;
         if (alloc_en[0]) begin
-            for (i = 0; i < 31; i++) begin
+            for (i = 0; i < 15; i++) begin
                 if (free_mask[i] && !alloc_slot_valid[0]) begin
                     alloc_slot_idx[0] = i[3:0];
                     alloc_slot_valid[0] = 1'b1;
@@ -253,7 +253,7 @@ module reservation_station #(
         alloc_slot_valid[1] = 1'b0;
         alloc_slot_idx[1] = '0;
         if (alloc_en[1]) begin
-            for (i = 0; i < 31; i++) begin
+            for (i = 16; i < 31; i++) begin
                 if (free_mask[i] && !alloc_slot_valid[1]) begin
                     alloc_slot_idx[1] = i[3:0];
                     alloc_slot_valid[1] = 1'b1;
