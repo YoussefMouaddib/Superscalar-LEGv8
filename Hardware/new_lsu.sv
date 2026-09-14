@@ -337,7 +337,7 @@ module lsu #(
             // STEP 6: Issue New Load OR Store — straightforward, single cycle
             // Only fires when nothing is currently in flight.
             // ----------------------------------------------------
-            if (!load_in_flight && !store_in_flight) begin
+            //if (!load_in_flight && !store_in_flight) begin
                 if (winner_load_valid) begin
                     mem_req <= 1'b1;
                     mem_we <= 1'b0;
@@ -355,7 +355,7 @@ module lsu #(
                     store_in_flight <= 1'b1;
                     store_in_flight_idx <= winner_store_idx;
                 end
-            end
+            //end
         end
     end
 
