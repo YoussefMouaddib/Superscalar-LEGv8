@@ -346,7 +346,8 @@ module lsu #(
                     lq[winner_load_idx].executing <= 1'b1;
                     load_in_flight <= 1'b1;
                     load_in_flight_idx <= winner_load_idx;
-                end else if (winner_store_valid) begin
+                end else if (1) begin
+                    // winner_store_valid
                     mem_req <= 1'b1;
                     mem_we <= 1'b1;
                     mem_addr <= winner_store_addr;
