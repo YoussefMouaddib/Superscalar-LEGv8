@@ -312,7 +312,7 @@ module lsu #(
             // ----------------------------------------------------
             // STEP 5: Memory Response (completes whatever was issued last cycle)
             // ----------------------------------------------------
-            if (load_in_flight && mem_ready && !mem_we) begin
+            if ( mem_ready && !mem_we) begin
                 lq[load_in_flight_idx].valid <= 1'b0;
                 lq_head <= lq_head + 1;
                 load_in_flight <= 1'b0;
@@ -325,7 +325,7 @@ module lsu #(
                 mem_req <= 1'b0;
             end
 
-            if (store_in_flight && mem_ready && mem_we) begin
+            if (mem_ready && mem_we) begin
                 sq[store_in_flight_idx].valid <= 1'b0;
                 sq_head <= sq_head + 1;
                 store_in_flight <= 1'b0;
