@@ -103,7 +103,7 @@ module reservation_station #(
             // Port 0: Search entries [0:7] (8-way comparison)
             stage1_candidates[0].valid <= 1'b0;
             stage1_candidates[0].age <= '0;
-            for (i = 0; i < 31; i++) begin
+            for (i = 0; i < 16; i++) begin
                 if (ready_mask[i]) begin
                     if (!stage1_candidates[0].valid || rs_mem[i].age > stage1_candidates[0].age) begin
                         stage1_candidates[0].valid <= 1'b1;
@@ -123,7 +123,7 @@ module reservation_station #(
             // Port 1: Search entries [8:15] (8-way comparison, parallel with port 0)
             stage1_candidates[1].valid <= 1'b0;
             stage1_candidates[1].age <= '0;
-            for (i = 0; i < 31; i++) begin
+            for (i = 16; i < 32; i++) begin
                 if (ready_mask[i]) begin
                     if (!stage1_candidates[1].valid || rs_mem[i].age > stage1_candidates[1].age) begin
                         stage1_candidates[1].valid <= 1'b1;
