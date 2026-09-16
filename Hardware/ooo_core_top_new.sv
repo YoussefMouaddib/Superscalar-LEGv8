@@ -180,7 +180,7 @@ module ooo_core_top (
     logic [1:0] rob_alloc_is_store, rob_alloc_is_load, rob_alloc_is_branch;
     logic [1:0][31:0] rob_alloc_pc;
     logic rob_alloc_ok;
-    logic [1:0][4:0] rob_alloc_idx;
+    logic [1:0][5:0] rob_alloc_idx;
     logic lsu_alloc_en, lsu_is_load;
     logic [7:0] lsu_opcode;
     logic [31:0] lsu_offset, lsu_store_data_value;
@@ -212,14 +212,14 @@ module ooo_core_top (
     logic [1:0] rob_commit_valid, rob_commit_exception;
     logic [1:0][4:0] rob_commit_arch_rd;
     logic [1:0][5:0] rob_commit_phys_rd;
-    logic [1:0][4:0] rob_commit_rob_idx;
+    logic [1:0][5:0] rob_commit_rob_idx;
     logic [1:0] rob_commit_is_store, rob_commit_is_load, rob_commit_is_branch;
     logic [1:0][31:0] rob_commit_pc;
     logic [1:0] rob_commit_branch_taken;
     logic [1:0][31:0] rob_commit_branch_target;
     logic [1:0] rob_commit_branch_is_call, rob_commit_branch_is_return;
     logic mark_ready_en0, mark_ready_en1;
-    logic [4:0] mark_ready_idx0, mark_ready_idx1;
+    logic [5:0] mark_ready_idx0, mark_ready_idx1;
 
     // Memory
     logic mem_req, mem_we, mem_ready, mem_error;
@@ -350,9 +350,9 @@ module ooo_core_top (
     assign rs_full        = 1'b0;
 
     assign mark_ready_en0  = cdb_valid[0];
-    assign mark_ready_idx0 = cdb_rob_tag[0][4:0];
+    assign mark_ready_idx0 = cdb_rob_tag[0][5:0];
     assign mark_ready_en1  = cdb_valid[1];
-    assign mark_ready_idx1 = cdb_rob_tag[1][4:0];
+    assign mark_ready_idx1 = cdb_rob_tag[1][5:0];
 
     assign prf_wen   = cdb_valid;
     assign prf_wtag  = cdb_tag;
