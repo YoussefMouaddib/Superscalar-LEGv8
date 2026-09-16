@@ -130,7 +130,7 @@ module ooo_core_top (
     logic imem_valid;
     logic [1:0] if_valid;
     logic [1:0][31:0] if_pc, if_instr;
-    logic [4:0] flush_rob_idx;
+    logic [5:0] flush_rob_idx;
 
     // Fetch ↔ Control + Branch
     logic fetch_en, fetch_stall, redirect_en;
