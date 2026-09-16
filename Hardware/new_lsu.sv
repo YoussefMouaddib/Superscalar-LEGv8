@@ -152,8 +152,7 @@ module lsu #(
         for (int i = 0; i < SQ_ENTRIES; i++) begin
             idx = (sq_head + i) % SQ_ENTRIES;
             if ( sq[idx].valid && sq[idx].committed &&
-                sq[idx].addr_valid && sq[idx].data_ready &&
-                !sq[idx].executing && !sq[idx].exception) begin
+                sq[idx].addr_valid && sq[idx].data_ready && !sq[idx].exception) begin
                 winner_store_valid = 1'b1;
                 winner_store_idx = idx[$clog2(SQ_ENTRIES)-1:0];
                 winner_store_addr = sq[idx].addr;
