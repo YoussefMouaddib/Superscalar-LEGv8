@@ -202,7 +202,7 @@ module ooo_core_top (
     logic branch_result_valid;
     logic [5:0] branch_result_tag;
     logic [31:0] branch_result_value;
-    logic [4:0] branch_result_rob_tag;
+    logic [5:0] branch_result_rob_tag;
     logic branch_taken;
     logic [31:0] branch_target_pc;
     logic branch_mispredict;
