@@ -1,6 +1,6 @@
 module lsu #(
-    parameter int LQ_ENTRIES = 12,
-    parameter int SQ_ENTRIES = 12,
+    parameter int LQ_ENTRIES = 16,
+    parameter int SQ_ENTRIES = 16,
     parameter int XLEN = 32,
     parameter int COMMIT_W = 2,
     parameter int ROB_ENTRIES = 32
@@ -300,7 +300,7 @@ module lsu #(
             // STEP 4: Mark Stores as Committed
             // ----------------------------------------------------
             for (int c = 0; c < COMMIT_W; c++) begin
-                if (commit_en[c] && commit_is_store[c]) begin
+                if (commit_en[c]) begin
                     for (int i = 0; i < SQ_ENTRIES; i++) begin
                         if (sq[i].valid && sq[i].rob_idx == commit_rob_idx[c]) begin
                             sq[i].committed <= 1'b1;
