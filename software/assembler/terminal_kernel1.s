@@ -38,6 +38,5 @@ puts_done:
 ; String data — one ASCII char per 32-bit word, color = 0 (white),
 ; null-terminated. 31 characters + terminator.
 ; ------------------------------------------------------------
-        .org 0x1000
 msg:
         .word 'S','u','p','e','r','s','c','a','l','a','r','-','L','E','G','v','8',' ','K','e','r','n','e','l',' ','=','>',' ','O','N',0
