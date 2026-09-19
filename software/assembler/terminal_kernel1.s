@@ -2,7 +2,7 @@
 ; term_kernel.s — minimal kernel loop, prints to VGA, then spins
 ; ============================================================
 
-        .org 0x0
+        
 
 main:
         ADDI X1, X0, #0x30000    ; X1 = VGA_BASE (cursor write pointer)
