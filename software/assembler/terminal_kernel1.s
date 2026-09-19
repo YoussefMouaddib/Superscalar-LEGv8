@@ -5,9 +5,9 @@
         
 
 main:
-        ADDI X1, X0, #0x30000    ; X1 = VGA_BASE (cursor write pointer)
-        ADDI X2, X0, msg         ; X2 = pointer to string in scratchpad
-        BL   puts                ; print it once
+        ADDI X1, X0, #0x30000    
+        ADDI X2, X0, msg         
+        BL   puts                
         B    kernel_loop
 
 ; ------------------------------------------------------------
@@ -39,4 +39,4 @@ puts_done:
 ; null-terminated. 31 characters + terminator.
 ; ------------------------------------------------------------
 msg:
-        .word 'S','u','p','e','r','s','c','a','l','a','r','-','L','E','G','v','8',' ','K','e','r','n','e','l',' ','i','s',' ','O','N',0
+        .word 'S','u','p','e','r','s','c','a','l','a','r',' ','L','E','G','v','8',' ','K','e','r','n','e','l',' ','i','s',' ','O','N',0
