@@ -11,15 +11,15 @@ main:
         B    kernel_loop
 
 ; ------------------------------------------------------------
-; kernel_loop — the "OS". For now: no input source exists,
+; kernel_loop — the OS. For now: no input source exists,
 ; so it just spins. This is the hook point for read_input later.
 ; ------------------------------------------------------------
 kernel_loop:
         B    kernel_loop          ; TODO: BL read_input; dispatch on X0
 
 ; ------------------------------------------------------------
-; puts(X1 = vga cursor ptr, X2 = string ptr) -> advances X1
-; Clobbers: X3 (char), X4 (scratch)
+; putsX1 = vga cursor ptr, X2 = string ptr -> advances X1
+; Clobbers: X3 char, X4 scratch
 ; ------------------------------------------------------------
 puts:
 puts_loop:
@@ -39,4 +39,4 @@ puts_done:
 ; null-terminated. 31 characters + terminator.
 ; ------------------------------------------------------------
 msg:
-        .word 'S','u','p','e','r','s','c','a','l','a','r','-','L','E','G','v','8',' ','K','e','r','n','e','l',' ','=','>',' ','O','N',0
+        .word 'S','u','p','e','r','s','c','a','l','a','r','-','L','E','G','v','8',' ','K','e','r','n','e','l',' ','i','s',' ','O','N',0
