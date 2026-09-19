@@ -17,7 +17,7 @@ main:
         ; Two-step: first assemble with --dump-symbols to find msg's address,
         ; then replace the 0 below with that value.
         ; If msg address > 32767 you need: ADDI X2, X0, #hi; LSL; ORI X2, X2, #lo
-        ADDI  X2, X0, #0          ; REPLACE with msg byte address from symbols
+        ADDI  X2, X0, #52         ; We Found msg byte address from symbols
 
         BL    puts
 
