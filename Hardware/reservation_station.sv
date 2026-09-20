@@ -60,6 +60,27 @@ module reservation_station #(
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
 
+        
+
+    // =========================================================================
+    // Branch opcode function (fix the 2 branches issued bug)
+    // =========================================================================
+    function automatic logic op_is_branch(logic [11:0] op);
+        logic [5:0] opc  = op[11:6];
+        logic [5:0] func = op[5:0];
+        case (opc)
+            6'b100000, // B
+            6'b100001, // BL
+            6'b011000, // CBZ
+            6'b011001: // CBNZ
+                op_is_branch = 1'b1;
+            6'b000000: // R-type: only RET counts
+                op_is_branch = (func == 6'b111000);
+            default:
+                op_is_branch = 1'b0;
+        endcase
+    endfunction
+    
     // =========================================================================
     // PIPELINE STAGE 1: Ready Mask + Age Encoding (Cycle N)
     // =========================================================================
@@ -67,7 +88,7 @@ module reservation_station #(
     
     typedef struct packed {
         logic valid;
-        logic [3:0] idx;  // 4 bits for 16 entries
+        logic [3:0] idx;
         logic [4:0] age;
         logic [11:0] opcode;
         logic [PHYS_W-1:0] dst_tag;
@@ -76,6 +97,7 @@ module reservation_station #(
         logic [5:0] rob_tag;
         logic [31:0] pc;
         logic [31:0] imm;
+        logic is_branch;          // ADDED
     } select_stage1_t;
     
     select_stage1_t stage1_candidates [ISSUE_W];
@@ -116,6 +138,7 @@ module reservation_station #(
                         stage1_candidates[0].rob_tag <= rs_mem[i].rob_tag;
                         stage1_candidates[0].pc <= rs_mem[i].pc;
                         stage1_candidates[0].imm <= rs_mem[i].imm;
+                        stage1_candidates[0].is_branch <= op_is_branch(rs_mem[i].opcode);
                     end
                 end
             end
@@ -136,6 +159,7 @@ module reservation_station #(
                         stage1_candidates[1].rob_tag <= rs_mem[i].rob_tag;
                         stage1_candidates[1].pc <= rs_mem[i].pc;
                         stage1_candidates[1].imm <= rs_mem[i].imm;
+                        stage1_candidates[1].is_branch <= op_is_branch(rs_mem[i].opcode);
                     end
                 end
             end
@@ -183,6 +207,12 @@ module reservation_station #(
                 runner_up.valid = 1'b0;
             end else begin
                 winner.valid = 1'b0;
+                runner_up.valid = 1'b0;
+            end
+
+            // Prevent two branches issuing in the same cycle
+      
+            if (winner.valid && runner_up.valid && winner.is_branch && runner_up.is_branch) begin
                 runner_up.valid = 1'b0;
             end
             
