@@ -97,7 +97,7 @@ module reservation_station #(
         logic [5:0] rob_tag;
         logic [31:0] pc;
         logic [31:0] imm;
-        logic is_branch;          // ADDED
+        logic is_branch;         
     } select_stage1_t;
     
     select_stage1_t stage1_candidates [ISSUE_W];
@@ -358,24 +358,24 @@ module reservation_station #(
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid && !clear_mask[i]) begin
                     // Wakeup src1
-                    if (!rs_mem[i].src1_ready) begin
+                    //if (!rs_mem[i].src1_ready) begin
                         for (b = 0; b < CDB_W; b++) begin
                             if (cdb_valid[b] && rs_mem[i].src1_tag == cdb_tag[b]) begin
                                 rs_mem[i].src1_val <= cdb_value[b];
                                 rs_mem[i].src1_ready <= 1'b1;
                             end
                         end
-                    end
+                   // end
                     
                     // Wakeup src2
-                    if (!rs_mem[i].src2_ready) begin
+                   // if (!rs_mem[i].src2_ready) begin
                         for (b = 0; b < CDB_W; b++) begin
                             if (cdb_valid[b] && rs_mem[i].src2_tag == cdb_tag[b]) begin
                                 rs_mem[i].src2_val <= cdb_value[b];
                                 rs_mem[i].src2_ready <= 1'b1;
                             end
                         end
-                    end
+                  //  end
                     
                     // Increment age
                     rs_mem[i].age <= rs_mem[i].age + 1'b1;
