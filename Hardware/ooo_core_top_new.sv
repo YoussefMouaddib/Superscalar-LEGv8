@@ -527,7 +527,7 @@ module ooo_core_top (
         .commit_branch_is_call(rob_commit_branch_is_call),
         .commit_branch_is_return(rob_commit_branch_is_return),
         .rob_full(), .rob_almost_full(),
-        .flush_en(1'b0), .flush_ptr('0),
+        .flush_en(flush_pipeline), .flush_ptr(flush_rob_idx),
         .flush_pipeline(flush_pipeline), .flush_rob_idx(flush_rob_idx)
     );
 
