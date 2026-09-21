@@ -281,11 +281,11 @@ module ooo_core_top (
     // ================================================================
     // ADDRESS DECODER
     // Memory map:
-    //   0x00000000–0x00001FFF  Instruction ROM
-    //   0x00002000–0x00002FFF  Data scratchpad
-    //   0x00010000–0x0001000F  UART
-    //   0x00030000–0x000302BF  VGA character RAM  (2400 cells × 4 bytes)
-    //   0x00030400             VGA control (future)
+    //    Instruction ROM
+    //    Data scratchpad
+    //    UART
+    //    VGA character RAM  (2400 cells × 4 bytes)
+    //       VGA control (future)
     // ================================================================
     logic is_uart_access;
     logic is_vga_access;
@@ -310,8 +310,8 @@ module ooo_core_top (
     assign uart_write_en = is_uart_access && mem_we;
     
     // Scratchpad enables — NOW EXPLICITLY GATED
-    assign scratchpad_we   = is_scratchpad_access && mem_we;
-    assign scratchpad_addr = is_scratchpad_access ? (mem_addr - 32'h00002000) : 32'h0;
+    assign scratchpad_we   = mem_we;
+    assign scratchpad_addr = mem_addr;
     assign scratchpad_wdata = mem_wdata;
 
     // ================================================================
