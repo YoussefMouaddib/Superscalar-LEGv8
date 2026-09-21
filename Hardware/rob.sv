@@ -168,14 +168,12 @@ module rob #(
               count++;
           end
           
-          tail <= (flush_rob_idx + 1) % ROB_SIZE;
-          occupancy <= (flush_rob_idx >= head) ? 
-                       (flush_rob_idx - head + 1) : 
-                       (ROB_SIZE - head + flush_rob_idx + 1);
+          tail <= 0;
+          occupancy <= 0;
                        
       end else if (flush_en) begin
-        head <= flush_ptr;
-        tail <= flush_ptr;
+        head <= 0;
+        tail <= 0;
         occupancy <= 0;
         for (int i = 0; i < ROB_SIZE; i++) begin
           rob_mem[i].valid     <= 1'b0;
