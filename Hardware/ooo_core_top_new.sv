@@ -278,31 +278,11 @@ module ooo_core_top (
     logic [11:0] vga_font_addr;
     logic [7:0]  vga_font_data;
 
-    // ================================================================
-    // ADDRESS DECODER
-    // Memory map:
-    //    Instruction ROM
-    //    Data scratchpad
-    //    UART
-    //    VGA character RAM  (2400 cells × 4 bytes)
-    //       VGA control (future)
-    // ================================================================
-    logic is_uart_access;
-    logic is_vga_access;
-    logic is_scratchpad_access;   // NEW — explicit range check
     
-    assign is_uart_access = (mem_addr >= 32'h00010000) &&
-                            (mem_addr <= 32'h0001000F);
-    
-    assign is_vga_access  = (mem_addr >= 32'h00030000) &&
-                            (mem_addr <= 32'h000302BF);
-    
-    assign is_scratchpad_access = (mem_addr >= 32'h00002000) &&
-                                  (mem_addr <= 32'h00002FFF);   // matches 4KB scratchpad range
-    
+
     // VGA char RAM write ... (unchanged)
-    assign vga_cpu_wen   = is_vga_access && mem_we;
-    assign vga_cpu_waddr = (mem_addr - 32'h00030000) >> 2;
+    assign vga_cpu_wen   = mem_we;
+    assign vga_cpu_waddr = mem_addr;
     assign vga_cpu_wdata = mem_wdata[15:0];
     
     // UART enables (unchanged)
