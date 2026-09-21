@@ -205,7 +205,7 @@ module dispatch #(
     always_comb begin
         lsu_rob_idx = '0;
         for (int i = 0; i < FETCH_W; i++) begin
-            if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i])) begin
+            if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)) begin
                 lsu_rob_idx = rob_alloc_idx[i];
             end
         end
@@ -394,15 +394,14 @@ module dispatch #(
             // ROB Allocation
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
-                rob_alloc_arch_rd[i] <= rename_arch_rd_r[i];
-                rob_alloc_phys_rd[i] <= rename_prd_r[i];
-                rob_alloc_pc[i] <= rename_pc_r[i];
-                
                 if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)) begin
                     rob_alloc_en[i] <= 1'b1;
                     rob_alloc_is_store[i] <= rename_is_store_r[i];
                     rob_alloc_is_load[i] <= rename_is_load_r[i];
                     rob_alloc_is_branch[i] <= rename_is_branch_r[i];
+                    rob_alloc_arch_rd[i] <= rename_arch_rd_r[i];
+                    rob_alloc_phys_rd[i] <= rename_prd_r[i];
+                    rob_alloc_pc[i] <= rename_pc_r[i];
                 end else begin
                     rob_alloc_en[i] <= 1'b0;
                     rob_alloc_is_store[i] <= 1'b0;
