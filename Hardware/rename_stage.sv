@@ -164,7 +164,7 @@ module rename_stage #(
             rename_new_phys_rd[i] = 6'd0;
             
             // Enable rename if instruction has a destination register (not X0) and not flushing
-            if (dec_valid[i]  && !flush_pipeline) begin
+            if (dec_rd_valid[i]  && !flush_pipeline) begin
                 rename_en[i] = 1'b1;  // Only rename if allocation succeeded
                 rename_arch_rd_wire[i] = dec_rd[i];
                 rename_new_phys_rd[i] = alloc_phys[i];
