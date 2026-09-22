@@ -92,7 +92,7 @@ module rename_stage #(
     // Create allocation requests
     always_comb begin
         for (int i = 0; i < FETCH_W; i++) begin
-            alloc_en[i] = dec_valid[i] && dec_rd_valid[i] && (dec_rd[i] != 5'd0) && !flush_pipeline;
+            alloc_en[i] = dec_valid[i] && !flush_pipeline;
         end
     end
     
