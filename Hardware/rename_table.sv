@@ -78,7 +78,7 @@ module rename_table #(
             // Speculative Renames (multi-port, applied sequentially)
             // ============================================================
             for (int j = 0; j < RENAME_PORTS; j++) begin
-                if (rename_en[j] && arch_rd[j] != 5'd0) begin
+                if (rename_en[j]) begin
                     map_table[arch_rd[j]] <= new_phys_rd[j];
                 end
             end
