@@ -234,15 +234,51 @@ module rename_stage #(
                         rename_rd_valid[i] <= 1'b0;
                     end
                     
-                    // Map source registers to physical registers
-                    if (dec_rs1_valid[i]) begin
-                        rename_prs1[i] <= (dec_rs1[i] == 5'd0) ? 6'd0 : phys_rs1[i];
+                   if (dec_rs1_valid[i]) begin
+                        if (dec_rs1[i] == 5'd0) begin
+                            rename_prs1[i] <= 6'd0;
+                        end else begin
+                            automatic logic bypassed_rs1 = 1'b0;
+                            automatic logic [5:0] bypass_tag_rs1;
+                    
+                            for (int j = 0; j < i; j++) begin
+                                if (dec_valid[j] &&
+                                    dec_rd_valid[j] &&
+                                    dec_rd[j] != 5'd0 &&
+                                    dec_rd[j] == dec_rs1[i]) begin
+                    
+                                    bypassed_rs1 = 1'b1;
+                                    bypass_tag_rs1 = alloc_phys[j];
+                                end
+                            end
+                    
+                            rename_prs1[i] <= bypassed_rs1 ? bypass_tag_rs1 : phys_rs1[i];
+                        end
                     end else begin
                         rename_prs1[i] <= 6'd0;
                     end
                     
+                    
                     if (dec_rs2_valid[i]) begin
-                        rename_prs2[i] <= (dec_rs2[i] == 5'd0) ? 6'd0 : phys_rs2[i];
+                        if (dec_rs2[i] == 5'd0) begin
+                            rename_prs2[i] <= 6'd0;
+                        end else begin
+                            automatic logic bypassed_rs2 = 1'b0;
+                            automatic logic [5:0] bypass_tag_rs2;
+                    
+                            for (int j = 0; j < i; j++) begin
+                                if (dec_valid[j] &&
+                                    dec_rd_valid[j] &&
+                                    dec_rd[j] != 5'd0 &&
+                                    dec_rd[j] == dec_rs2[i]) begin
+                    
+                                    bypassed_rs2 = 1'b1;
+                                    bypass_tag_rs2 = alloc_phys[j];
+                                end
+                            end
+                    
+                            rename_prs2[i] <= bypassed_rs2 ? bypass_tag_rs2 : phys_rs2[i];
+                        end
                     end else begin
                         rename_prs2[i] <= 6'd0;
                     end
