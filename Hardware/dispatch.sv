@@ -372,7 +372,7 @@ module dispatch #(
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
                 if (rename_valid_r[i] &&
-                    !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0) && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd30 && rename_opcode_r !== 32)) begin
+                    !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0) ) begin
                     rs_alloc_en[i] <= 1'b1;
                     rs_alloc_dst_tag[i] <= rename_prd_r[i];
                     rs_alloc_src1_tag[i] <= rename_prs1_r[i];
@@ -394,7 +394,7 @@ module dispatch #(
             // ROB Allocation
             // ====================================================
             for (int i = 0; i < FETCH_W; i++) begin
-                if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0) && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd30 && rename_opcode_r !== 32)) begin
+                if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)) begin
                     rob_alloc_en[i] <= 1'b1;
                     rob_alloc_is_store[i] <= rename_is_store_r[i];
                     rob_alloc_is_load[i] <= rename_is_load_r[i];
@@ -415,7 +415,7 @@ module dispatch #(
             // ====================================================
             lsu_alloc_en <= 1'b0;
             for (int i = 0; i < FETCH_W; i++) begin
-                if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i]) && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd30 && rename_opcode_r !== 32)) begin
+                if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i])) begin
                     lsu_alloc_en <= 1'b1;
                     lsu_lane_index <= i[0];
                     lsu_is_load <= rename_is_load_r[i];
