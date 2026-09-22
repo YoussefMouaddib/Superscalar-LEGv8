@@ -53,7 +53,7 @@ module rename_table #(
             
             // FORWARDING: Check if earlier rename ports are writing this register THIS cycle
             for (int j = 0; j < RENAME_PORTS; j++) begin
-                if (j < i && rename_en[j] && arch_rd[j] != 5'd0) begin  // Earlier lane
+                if (j < i && rename_en[j] ) begin  // Earlier lane
                     if (arch_rs1[i] == arch_rd[j]) begin
                         phys_rs1[i] = new_phys_rd[j];  // Forward from earlier rename
                     end
