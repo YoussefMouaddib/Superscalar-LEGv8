@@ -93,5 +93,13 @@ module rename_table #(
             end
         end
     end
+    
+    always_ff @(posedge clk) begin
+        if (flush_pipeline) begin
+            for (int i =0; i < ARCH_REGS; i++) begin
+                map_table[i] <= committed_table[i];
+            end
+        end
+    end
 
 endmodule
