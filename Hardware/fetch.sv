@@ -53,6 +53,75 @@ module fetch #(
     logic bp_predict_taken;
     logic [XLEN-1:0] bp_predict_target;
     logic bp_predict_valid;
+
+    // ============================================================
+    //  Post-redirect "stretch" logic
+    //  ---------------------------------------------------------
+    //  On a real redirect (flush_pipeline or redirect_en), the
+    //  first valid fetch pair of the new stream normally reaches
+    //  if_pc/if_instr and advances again on the very next cycle.
+    //  Rename's registered rename_table lookup needs one extra
+    //  cycle to catch up (this happens "for free" at reset because
+    //  if_valid sits low for a cycle before the first real
+    //  response). We reproduce that here explicitly.
+    //
+    //  inst_rom has NO backpressure: imem_valid/rdata are only
+    //  held for the one cycle after imem_ren was asserted, then
+    //  gone. So we must stop ISSUING a new request the cycle we
+    //  grab the first post-redirect pair (stretch_latch_cycle),
+    //  one cycle BEFORE we actually hold the output (stretching).
+    //  That way nothing is in flight during the hold cycle, and
+    //  requests resume immediately during the hold cycle itself so
+    //  the next response lands exactly when the hold ends — no
+    //  dropped pair, no extra gap.
+    //
+    //    1. pc_redirected pulses the cycle a redirect is asserted.
+    //    2. stretch_pending arms and stays armed until the first
+    //       post-redirect imem_valid response appears.
+    //    3. stretch_latch_cycle (comb) is true on that cycle: pair
+    //       A gets latched into if_pc/if_instr as normal, but
+    //       imem_ren/pc_next are frozen THIS SAME cycle so no
+    //       request is in flight for the next (hold) cycle.
+    //    4. stretching (registered from stretch_latch_cycle) is
+    //       true the following cycle: it holds if_pc/if_instr/
+    //       if_valid steady, while imem_ren/pc_next run normally
+    //       (freshly un-frozen), so the next response arrives
+    //       exactly as the hold ends.
+    // ============================================================
+    logic pc_redirected;
+    logic stretch_pending;
+    logic stretching;
+    logic stretch_latch_cycle; // comb: this cycle latches pair A AND must freeze new requests
+    logic addr_freeze;         // gates imem_ren / pc_next / predict_req
+    logic output_hold;         // gates if_pc / if_instr / if_valid
+
+    assign pc_redirected       = flush_pipeline || redirect_en;
+    assign stretch_latch_cycle = stretch_pending && !stall && imem_valid;
+    assign addr_freeze         = stall || stretch_latch_cycle;
+    assign output_hold         = stall || stretching;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            stretch_pending <= 1'b0;
+            stretching      <= 1'b0;
+        end else begin
+            // A fresh redirect always (re)arms stretch_pending, even if
+            // we were already mid-stretch from a previous one — the
+            // newest redirect's first pair is the one that matters.
+            if (pc_redirected) begin
+                stretch_pending <= 1'b1;
+                stretching      <= 1'b0;
+            end else if (stretching) begin
+                // We already held for our one bonus cycle; release now.
+                stretching <= 1'b0;
+            end else if (stretch_latch_cycle) begin
+                // Pair A is being latched into if_pc/if_instr below
+                // this same cycle. Disarm and hold it one more cycle.
+                stretch_pending <= 1'b0;
+                stretching      <= 1'b1;
+            end
+        end
+    end
     
     // ============================================================
     //  Branch Predictor Instance
@@ -60,7 +129,7 @@ module fetch #(
     branch_predictor bp_inst (
         .clk(clk),
         .reset(reset),
-        .predict_req(fetch_en && !stall && !flush_pipeline),
+        .predict_req(fetch_en && !addr_freeze && !flush_pipeline),
         .predict_pc(pc_reg),
         .predict_taken(bp_predict_taken),
         .predict_target(bp_predict_target),
@@ -86,9 +155,9 @@ module fetch #(
             pc_next = branch_target_pc;  // Use branch_target_pc instead of flush_pc
         end else if (redirect_en) begin
             pc_next = redirect_pc;
-        end else if (bp_predict_valid && bp_predict_taken && fetch_en && !stall) begin
+        end else if (bp_predict_valid && bp_predict_taken && fetch_en && !addr_freeze) begin
             pc_next = bp_predict_target;
-        end else if (fetch_en && !stall) begin
+        end else if (fetch_en && !addr_freeze) begin
             pc_next = pc_reg + 32'd8;
         end else begin
             pc_next = pc_reg;
@@ -112,8 +181,8 @@ module fetch #(
     always_comb begin
         imem_addr0 = pc_reg;
         imem_addr1 = pc_reg + 32'd4;
-        // Generate request if fetch enabled, not stalled, no redirect, no flush
-        imem_ren = fetch_en && !stall && !redirect_en && !flush_pipeline;
+        // Generate request if fetch enabled, not stalled/about-to-stretch, no redirect, no flush
+        imem_ren = fetch_en && !addr_freeze && !redirect_en && !flush_pipeline;
     end
     
     // ============================================================
@@ -130,8 +199,8 @@ module fetch #(
             // Flush: invalidate fetch outputs
             if_valid <= '0;
         end else begin
-            // Handle stall: freeze outputs
-            if (stall) begin
+            // Handle stall or internally-generated stretch: freeze outputs
+            if (output_hold) begin
                 // Keep current values
             end 
             // Handle redirect: flush pipeline
