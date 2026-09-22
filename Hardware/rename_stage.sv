@@ -268,7 +268,6 @@ module rename_stage #(
                             for (int j = 0; j < i; j++) begin
                                 if (dec_valid[j] &&
                                     dec_rd_valid[j] &&
-                                    dec_rd[j] != 5'd0 &&
                                     dec_rd[j] == dec_rs2[i]) begin
                     
                                     bypassed_rs2 = 1'b1;
