@@ -80,7 +80,7 @@ module data_scratchpad #(
     // ============================================================
     always_ff @(posedge clk) begin
         if (addr_word < (MEM_SIZE/4)) begin
-            read_data_reg <= mem[addr_word];
+            read_data_reg <= mem[addr_word/4];
         end else begin
             read_data_reg <= '0;
         end
