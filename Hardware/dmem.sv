@@ -2,7 +2,7 @@
 import core_pkg::*;
 
 module data_scratchpad #(
-    parameter int MEM_SIZE = 16383,     
+    parameter int MEM_SIZE = 16383,     //16KB Memory
     parameter int XLEN = 32
 )(
     input  logic             clk,
