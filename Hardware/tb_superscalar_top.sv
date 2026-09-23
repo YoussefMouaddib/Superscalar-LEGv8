@@ -35,11 +35,11 @@ initial begin
     cycle_count = 0;
 end
 
-always_ff @(posedge dut.clk_core) begin
+always @(posedge dut.clk_core) begin
     if (!dut.sys_reset) begin
 
         cycle_count = cycle_count + 1;
-        #1; // allow sequential/combinational signals to settle
+       
 
         $display("");
         $display("==============================================================");
@@ -216,10 +216,10 @@ always_ff @(posedge dut.clk_core) begin
         
             for (int i = 0; i < 2; i++) begin
                 $display(
-                    "LANE%0d | valid=%b | PC=%08h | opcode=%02h | "
-                    "PRS1=P%0d | PRS2=P%0d | PRD=P%0d | "
-                    "ARCH_RS1=R%0d | ARCH_RS2=R%0d | ARCH_RD=R%0d | "
-                    "rs1_v=%b rs2_v=%b rd_v=%b",
+                    "LANE%0d | valid=%b | PC=%08h | opcode=%02h | 
+                    PRS1=P%0d | PRS2=P%0d | PRD=P%0d | 
+                    ARCH_RS1=R%0d | ARCH_RS2=R%0d | ARCH_RD=R%0d | 
+                    rs1_v=%b rs2_v=%b rd_v=%b",
                     i,
                     dut.rename_inst.rename_valid[i],
                     dut.rename_inst.rename_pc[i],
@@ -446,6 +446,6 @@ always_ff @(posedge dut.clk_core) begin
                  dut.alloc_seq_array[1]);
 
         $display("");
-    end
+    
 end
 endmodule
