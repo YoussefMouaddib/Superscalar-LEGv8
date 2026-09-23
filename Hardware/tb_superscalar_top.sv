@@ -35,7 +35,7 @@ initial begin
     cycle_count = 0;
 end
 
-always @(posedge dut.clk_core) begin
+always_ff @(posedge dut.clk_core) begin
     if (!dut.sys_reset) begin
 
         cycle_count = cycle_count + 1;
@@ -99,7 +99,7 @@ always @(posedge dut.clk_core) begin
         // RENAME STAGE DEBUG DISPLAY
         // ================================================================
         
-        always @(posedge dut.clk_core) begin
+        always_ff@(posedge dut.clk_core) begin
             #1; // allow sequential/combinational signals to settle
         
             $display("");
@@ -116,34 +116,7 @@ always @(posedge dut.clk_core) begin
                      dut.rename_inst.flush_pipeline,
                      dut.rename_inst.rename_ready);
         
-            // ------------------------------------------------------------
-            // DECODE INPUTS
-            // ------------------------------------------------------------
-            $display("---- DECODE INPUTS --------------------------------------------------------------------------------------------");
-        
-            for (int i = 0; i < 2; i++) begin
-                $display(
-                    "LANE%0d | valid=%b | PC=%08h | opcode=%02h | rs1=%0d | rs2=%0d | rd=%0d | imm=%08h | "
-                    "rs1_v=%b rs2_v=%b rd_v=%b | ALU=%b LOAD=%b STORE=%b BR=%b CAS=%b | alu_func=%02h",
-                    i,
-                    dut.rename_inst.dec_valid[i],
-                    dut.rename_inst.dec_pc[i],
-                    dut.rename_inst.dec_opcode[i],
-                    dut.rename_inst.dec_rs1[i],
-                    dut.rename_inst.dec_rs2[i],
-                    dut.rename_inst.dec_rd[i],
-                    dut.rename_inst.dec_imm[i],
-                    dut.rename_inst.dec_rs1_valid[i],
-                    dut.rename_inst.dec_rs2_valid[i],
-                    dut.rename_inst.dec_rd_valid[i],
-                    dut.rename_inst.dec_is_alu[i],
-                    dut.rename_inst.dec_is_load[i],
-                    dut.rename_inst.dec_is_store[i],
-                    dut.rename_inst.dec_is_branch[i],
-                    dut.rename_inst.dec_is_cas[i],
-                    dut.rename_inst.dec_alu_func[i]
-                );
-            end
+           
         
             // ------------------------------------------------------------
             // FREE LIST
