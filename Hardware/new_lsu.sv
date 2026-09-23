@@ -324,7 +324,7 @@ module lsu #(
             end
             if (cdb_req) begin
                 
-                cdb_req_value <= mem_rdata;
+                cdb_req_value <= winner_load_dest;
                 cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
 
