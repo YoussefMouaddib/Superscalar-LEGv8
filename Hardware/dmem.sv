@@ -80,11 +80,12 @@ module data_scratchpad #(
     // ============================================================
     always_ff @(posedge clk) begin
         if (addr_word < (MEM_SIZE/4)) begin
-            read_data_reg <= mem[addr_word];
+            mem_rdata <= mem[addr_word];
         end else begin
-            read_data_reg <= '0;
+            mem_rdata <= '0;
         end
     end
+    
     
     // ============================================================
     //  Memory Access Logic
@@ -116,15 +117,6 @@ module data_scratchpad #(
                             mem_addr, mem_wdata);
                     // synthesis translate_on
                     
-                end else begin
-                    // Read operation
-                    mem_rdata <= read_data_reg;
-                    mem_ready <= 1'b1;
-                    
-                    // synthesis translate_off
-                    $display("[SCRATCH] Read: addr=%h, data=%h", 
-                            mem_addr, read_data_reg);
-                    // synthesis translate_on
                 end
             end
         end
