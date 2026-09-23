@@ -100,7 +100,7 @@ module free_list #(
             checkpoint_masks <= '0;
             alloc_phys <= '0;
             alloc_valid <= '0;
-        end else if (flush_pipeline && restore_en) begin
+        end else if (flush_pipeline) begin
             // Restore free mask from branch snapshot on mispredict
             free_mask <= checkpoint_masks[restore_id];
             alloc_valid <= '0;
