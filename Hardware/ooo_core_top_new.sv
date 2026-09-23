@@ -280,14 +280,9 @@ module ooo_core_top (
 
     
 
-    // VGA char RAM write ... (unchanged)
-    assign vga_cpu_wen   = mem_we;
-    assign vga_cpu_waddr = mem_addr;
-    assign vga_cpu_wdata = mem_wdata[15:0];
     
-    // UART enables (unchanged)
-    assign uart_read_en  = is_uart_access && mem_req && !mem_we;
-    assign uart_write_en = is_uart_access && mem_we;
+    
+    
     
     // Scratchpad enables — NOW EXPLICITLY GATED
     assign scratchpad_we   = mem_we;
