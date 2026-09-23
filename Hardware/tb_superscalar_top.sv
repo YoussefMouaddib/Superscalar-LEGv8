@@ -24,9 +24,7 @@ module tb_ooo_core;
         $finish;
     end
     
-    // ============================================================
-    // Cycle-by-cycle monitoring
-    // ============================================================
+   
 // ================================================================
 // FULL CYCLE-BY-CYCLE DEBUG TRACE
 // ================================================================
@@ -97,91 +95,194 @@ always @(posedge dut.clk_core) begin
                  dut.dec_is_branch,
                  dut.dec_is_cas);
 
-        // --------------------------------------------------------
-        // RENAME
-        // --------------------------------------------------------
-        $display("--- RENAME ---");
-        $display(" rename_ready=%b rename_valid=%b",
-                 dut.rename_ready,
-                 dut.rename_valid);
+        // ================================================================
+// RENAME STAGE DEBUG DISPLAY
+// ================================================================
 
-        $display(" L0: arch_rs1=%0d arch_rs2=%0d arch_rd=%0d",
-                 dut.rename_arch_rs1[0],
-                 dut.rename_arch_rs2[0],
-                 dut.rename_arch_rd[0]);
+always @(posedge dut.clk_core) begin
+    #1; // allow sequential/combinational signals to settle
 
-        $display(" L1: arch_rs1=%0d arch_rs2=%0d arch_rd=%0d",
-                 dut.rename_arch_rs1[1],
-                 dut.rename_arch_rs2[1],
-                 dut.rename_arch_rd[1]);
+    $display("");
+    $display("================================================================================================================");
+    $display(" CYCLE / RENAME DEBUG");
+    $display("================================================================================================================");
 
-        $display(" L0: prs1=%0d prs2=%0d prd=%0d",
-                 dut.rename_prs1[0],
-                 dut.rename_prs2[0],
-                 dut.rename_prd[0]);
+    // ------------------------------------------------------------
+    // Basic control
+    // ------------------------------------------------------------
+    $display("TIME=%0t | RESET=%b | FLUSH=%b | RENAME_READY=%b",
+             $time,
+             dut.sys_reset,
+             dut.rename_inst.flush_pipeline,
+             dut.rename_inst.rename_ready);
 
-        $display(" L1: prs1=%0d prs2=%0d prd=%0d",
-                 dut.rename_prs1[1],
-                 dut.rename_prs2[1],
-                 dut.rename_prd[1]);
+    // ------------------------------------------------------------
+    // DECODE INPUTS
+    // ------------------------------------------------------------
+    $display("---- DECODE INPUTS --------------------------------------------------------------------------------------------");
 
-        $display(" rs1_valid=%b rs2_valid=%b rd_valid=%b",
-                 dut.rename_rs1_valid,
-                 dut.rename_rs2_valid,
-                 dut.rename_rd_valid);
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | valid=%b | PC=%08h | opcode=%02h | rs1=%0d | rs2=%0d | rd=%0d | imm=%08h | "
+            "rs1_v=%b rs2_v=%b rd_v=%b | ALU=%b LOAD=%b STORE=%b BR=%b CAS=%b | alu_func=%02h",
+            i,
+            dut.rename_inst.dec_valid[i],
+            dut.rename_inst.dec_pc[i],
+            dut.rename_inst.dec_opcode[i],
+            dut.rename_inst.dec_rs1[i],
+            dut.rename_inst.dec_rs2[i],
+            dut.rename_inst.dec_rd[i],
+            dut.rename_inst.dec_imm[i],
+            dut.rename_inst.dec_rs1_valid[i],
+            dut.rename_inst.dec_rs2_valid[i],
+            dut.rename_inst.dec_rd_valid[i],
+            dut.rename_inst.dec_is_alu[i],
+            dut.rename_inst.dec_is_load[i],
+            dut.rename_inst.dec_is_store[i],
+            dut.rename_inst.dec_is_branch[i],
+            dut.rename_inst.dec_is_cas[i],
+            dut.rename_inst.dec_alu_func[i]
+        );
+    end
 
-        $display(" rename_is_alu=%b load=%b store=%b branch=%b cas=%b",
-                 dut.rename_is_alu,
-                 dut.rename_is_load,
-                 dut.rename_is_store,
-                 dut.rename_is_branch,
-                 dut.rename_is_cas);
+    // ------------------------------------------------------------
+    // FREE LIST
+    // ------------------------------------------------------------
+    $display("---- FREE LIST ------------------------------------------------------------------------------------------------");
 
-        // --------------------------------------------------------
-        // COMMIT -> RENAME FEEDBACK
-        // --------------------------------------------------------
-        $display("--- COMMIT -> RENAME ---");
-        $display(" commit_en=%b", dut.commit_en);
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | alloc_en=%b | alloc_valid=%b | alloc_phys=%0d",
+            i,
+            dut.rename_inst.alloc_en[i],
+            dut.rename_inst.alloc_valid[i],
+            dut.rename_inst.alloc_phys[i]
+        );
+    end
 
-        $display(" commit lane0: arch=%0d phys=%0d",
-                 dut.commit_arch_rd[0],
-                 dut.commit_phys_rd[0]);
+    // Internal free-list state
+    $display("FREE_MASK      = %b",
+             dut.rename_inst.free_list_inst.free_mask);
 
-        $display(" commit lane1: arch=%0d phys=%0d",
-                 dut.commit_arch_rd[1],
-                 dut.commit_phys_rd[1]);
+    $display("FREE_EN_R      = %b",
+             dut.rename_inst.free_list_inst.free_en_r);
 
-        // --------------------------------------------------------
-        // RENAME TABLES
-        // --------------------------------------------------------
-        $display("--- RENAME TABLES ---");
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "FREE_R[%0d]     = phys=%0d",
+            i,
+            dut.rename_inst.free_list_inst.free_phys_r[i]
+        );
+    end
 
-        $write(" map_table:    ");
-        for (int i = 0; i < 32; i++)
-            $write("%0d:%0d ", i, dut.map_table[i]);
-        $display("");
+    // ------------------------------------------------------------
+    // RENAME TABLE LOOKUPS
+    // ------------------------------------------------------------
+    $display("---- RENAME TABLE LOOKUPS ------------------------------------------------------------------------------------");
 
-        $write(" committed:    ");
-        for (int i = 0; i < 32; i++)
-            $write("%0d:%0d ", i, dut.committed_table[i]);
-        $display("");
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | arch_rs1=%0d -> phys_rs1=%0d | arch_rs2=%0d -> phys_rs2=%0d",
+            i,
+            dut.rename_inst.dec_rs1[i],
+            dut.rename_inst.phys_rs1[i],
+            dut.rename_inst.dec_rs2[i],
+            dut.rename_inst.phys_rs2[i]
+        );
+    end
 
-        // --------------------------------------------------------
-        // FREE LIST
-        // --------------------------------------------------------
-        $display("--- FREE LIST ---");
+    // ------------------------------------------------------------
+    // RENAME TABLE INTERNAL STATE
+    // ------------------------------------------------------------
+    $display("---- RENAME TABLE STATE --------------------------------------------------------------------------------------");
 
-        $display(" alloc_en=%b", dut.freelist_alloc_en);
-        $display(" alloc_phys=%0d,%0d",
-                 dut.freelist_alloc_phys[0],
-                 dut.freelist_alloc_phys[1]);
+    for (int i = 0; i < 32; i++) begin
+        $display(
+            "ARCH R%02d | speculative P%02d | committed P%02d",
+            i,
+            dut.rename_inst.rename_table_inst.map_table[i],
+            dut.rename_inst.rename_table_inst.committed_table[i]
+        );
+    end
 
-        $display(" free_en=%b", dut.freelist_free_en);
-        $display(" free_phys=%0d,%0d",
-                 dut.freelist_free_phys[0],
-                 dut.freelist_free_phys[1]);
+    // ------------------------------------------------------------
+    // SAME-CYCLE RENAME FORWARDING
+    // ------------------------------------------------------------
+    $display("---- SAME-CYCLE RENAME ---------------------------------------------------------------------------------------");
 
-        $display(" free_mask=%016h", dut.freelist_free_mask);
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | rename_en=%b | arch_rd=%0d | new_phys_rd=%0d",
+            i,
+            dut.rename_inst.rename_en[i],
+            dut.rename_inst.rename_arch_rd_wire[i],
+            dut.rename_inst.rename_new_phys_rd[i]
+        );
+    end
+
+    // ------------------------------------------------------------
+    // COMMIT INFORMATION
+    // ------------------------------------------------------------
+    $display("---- COMMIT INPUTS --------------------------------------------------------------------------------------------");
+
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | commit_en=%b | arch_rd=%0d | phys_rd=%0d",
+            i,
+            dut.rename_inst.commit_en[i],
+            dut.rename_inst.commit_arch_rd_r[i],
+            dut.rename_inst.commit_phys_rd_r[i]
+        );
+    end
+
+    // ------------------------------------------------------------
+    // RENAME OUTPUTS
+    // ------------------------------------------------------------
+    $display("---- RENAME OUTPUTS -------------------------------------------------------------------------------------------");
+
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | valid=%b | PC=%08h | opcode=%02h | "
+            "PRS1=P%0d | PRS2=P%0d | PRD=P%0d | "
+            "ARCH_RS1=R%0d | ARCH_RS2=R%0d | ARCH_RD=R%0d | "
+            "rs1_v=%b rs2_v=%b rd_v=%b",
+            i,
+            dut.rename_inst.rename_valid[i],
+            dut.rename_inst.rename_pc[i],
+            dut.rename_inst.rename_opcode[i],
+            dut.rename_inst.rename_prs1[i],
+            dut.rename_inst.rename_prs2[i],
+            dut.rename_inst.rename_prd[i],
+            dut.rename_inst.rename_arch_rs1[i],
+            dut.rename_inst.rename_arch_rs2[i],
+            dut.rename_inst.rename_arch_rd[i],
+            dut.rename_inst.rename_rs1_valid[i],
+            dut.rename_inst.rename_rs2_valid[i],
+            dut.rename_inst.rename_rd_valid[i]
+        );
+    end
+
+    // ------------------------------------------------------------
+    // CLASSIFICATION OUTPUTS
+    // ------------------------------------------------------------
+    $display("---- INSTRUCTION TYPE -----------------------------------------------------------------------------------------");
+
+    for (int i = 0; i < 2; i++) begin
+        $display(
+            "LANE%0d | ALU=%b LOAD=%b STORE=%b BRANCH=%b CAS=%b | ALU_FUNC=%02h | IMM=%08h",
+            i,
+            dut.rename_inst.rename_is_alu[i],
+            dut.rename_inst.rename_is_load[i],
+            dut.rename_inst.rename_is_store[i],
+            dut.rename_inst.rename_is_branch[i],
+            dut.rename_inst.rename_is_cas[i],
+            dut.rename_inst.rename_alu_func[i],
+            dut.rename_inst.rename_imm[i]
+        );
+    end
+
+    $display("================================================================================================================");
+end
 
         // --------------------------------------------------------
         // DISPATCH
