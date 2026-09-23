@@ -39,6 +39,7 @@ always_ff @(posedge dut.clk_core) begin
     if (!dut.sys_reset) begin
 
         cycle_count = cycle_count + 1;
+        #1; // allow sequential/combinational signals to settle
 
         $display("");
         $display("==============================================================");
@@ -99,8 +100,8 @@ always_ff @(posedge dut.clk_core) begin
         // RENAME STAGE DEBUG DISPLAY
         // ================================================================
         
-        always_ff@(posedge dut.clk_core) begin
-            #1; // allow sequential/combinational signals to settle
+        
+            
         
             $display("");
             $display("================================================================================================================");
