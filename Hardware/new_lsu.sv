@@ -317,14 +317,11 @@ module lsu #(
                 load_in_flight <= 1'b0;
 
                 cdb_req <= 1'b1;
-                cdb_req_tag <= mem_addr;
-                
-
-                
+                cdb_req_tag <= winner_load_dest;
             end
             if (cdb_req) begin
                 
-                cdb_req_value <= winner_load_dest;
+                cdb_req_value <= mem_rdata;
                 cdb_req_exception <= mem_error || lq[load_in_flight_idx].exception;
             end
 
