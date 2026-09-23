@@ -627,7 +627,7 @@ module ooo_core_top (
     // --- Data Scratchpad ---
     data_scratchpad dmem (
         .clk(clk_core), .reset(sys_reset),
-        .mem_req(scratchpad_we || (mem_req && !is_uart_access && !is_vga_access && !mem_we)),
+        .mem_req(mem_req),
         .mem_we(scratchpad_we), .mem_addr(scratchpad_addr), .mem_wdata(scratchpad_wdata),
         .mem_size(2'b10), .mem_atomic(1'b0), .mem_cmp_val('0),
         .mem_ready(scratchpad_ready), .mem_rdata(scratchpad_rdata), .mem_error(mem_error)
