@@ -401,9 +401,9 @@ module ooo_core_top (
         .rename_is_branch(rename_is_branch), .rename_is_cas(rename_is_cas), .rename_alu_func(rename_alu_func),
         .rename_arch_rs1(rename_arch_rs1), .rename_arch_rs2(rename_arch_rs2), .rename_arch_rd(rename_arch_rd),
         .commit_en(commit_en), .commit_arch_rd(commit_arch_rd), .commit_phys_rd(commit_phys_rd),
-        .flush_pipeline(flush_pipeline)
+        .flush_pipeline(flush_pipeline),
          .restore_checkpoint_id(branch_restore_checkpoint_id),
-        .rename_checkpoint_id(rename_checkpoint_id),
+        .rename_checkpoint_id(rename_checkpoint_id)
     );
 
     // --- Dispatch ---
