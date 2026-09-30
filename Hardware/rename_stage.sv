@@ -52,8 +52,8 @@ module rename_stage #(
     output logic [FETCH_W-1:0][4:0] rename_arch_rs2,
     output logic [FETCH_W-1:0][4:0] rename_arch_rd,
 
-    // Checkpoint id exposed downstream so dispatch/ROB can carry it
-    output logic [$clog2(NUM_CHECKPOINTS)-1:0] rename_checkpoint_id,
+    // Checkpoint id exposed downstream so dispatch/RS can carry it with each branch
+    output logic [1:0][$clog2(NUM_CHECKPOINTS)-1:0] rename_checkpoint_id,
 
     // From Commit (write-back)
     input  logic [FETCH_W-1:0]      commit_en,
@@ -63,50 +63,24 @@ module rename_stage #(
     // Flush signal from commit
     input  logic                    flush_pipeline,
 
-    // Restore checkpoint id from branch resolution logic
+    // Restore checkpoint id from branch_ex on mispredict
     input  logic [$clog2(NUM_CHECKPOINTS)-1:0] restore_checkpoint_id
 );
 
     // ============================================================
-    // Checkpoint pointer - advances on every renamed branch
+    // NEW PARAMETER
     // ============================================================
     localparam int NUM_CHECKPOINTS = 8;
-    logic [$clog2(NUM_CHECKPOINTS)-1:0] checkpoint_ptr;
-    logic [FETCH_W-1:0] take_checkpoint;
-    logic [$clog2(NUM_CHECKPOINTS)-1:0] checkpoint_id_out; // exposed below
-
-    always_comb begin
-        for (int i = 0; i < FETCH_W; i++) begin
-            take_checkpoint[i] = dec_valid[i] && dec_is_branch[i] && !flush_pipeline;
-        end
-    end
-
-    always_ff @(posedge clk or posedge reset) begin
-        if (reset) begin
-            checkpoint_ptr <= '0;
-        end else if (flush_pipeline) begin
-            // NOTE: on a real restore this should roll back to the
-            // checkpoint AFTER the mispredicted branch's id, not just
-            // keep counting - see note below, this needs the restored
-            // id from outside once that wiring exists.
-        end else begin
-            for (int i = 0; i < FETCH_W; i++) begin
-                if (take_checkpoint[i]) begin
-                    checkpoint_ptr <= checkpoint_ptr + 1'b1;
-                end
-            end
-        end
-    end
 
     // ============================================================
     //  Free List for Physical Register Allocation
-    //  FIXED: Single instance handling multiple allocations
     // ============================================================
     logic [FETCH_W-1:0] alloc_en;
     logic [FETCH_W-1:0][5:0] alloc_phys;
     logic [FETCH_W-1:0] alloc_valid;
+
     // ============================================================
-    // INPUT PIPELINE REGISTERS (Cut commit â†’ rename path)
+    // INPUT PIPELINE REGISTERS (Cut commit → rename path)
     // ============================================================
     logic [FETCH_W-1:0]      commit_en_r;
     logic [1:0][4:0]         commit_arch_rd_r;
@@ -131,7 +105,35 @@ module rename_stage #(
         end
     end
 
-    // FIXED: Single free_list instance with multi-port allocation and free
+    // ============================================================
+    // Checkpoint pointer - advances on every renamed branch
+    // ============================================================
+    logic [$clog2(NUM_CHECKPOINTS)-1:0] checkpoint_ptr;
+    logic [FETCH_W-1:0] take_checkpoint;
+    logic [FETCH_W-1:0][$clog2(NUM_CHECKPOINTS)-1:0] checkpoint_id_wire;
+
+    always_comb begin
+        for (int i = 0; i < FETCH_W; i++) begin
+            take_checkpoint[i] = dec_valid[i] && dec_is_branch[i] && !flush_pipeline;
+            checkpoint_id_wire[i] = checkpoint_ptr; // both lanes see the pre-increment ptr
+        end
+    end
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            checkpoint_ptr <= '0;
+        end else if (flush_pipeline) begin
+            // Reclaim every checkpoint slot allocated after the one that
+            // just mispredicted - they belonged to squashed speculation.
+            checkpoint_ptr <= restore_checkpoint_id + 1'b1;
+        end else begin
+            for (int i = 0; i < FETCH_W; i++) begin
+                if (take_checkpoint[i]) checkpoint_ptr <= checkpoint_ptr + 1'b1;
+            end
+        end
+    end
+
+    // Single free_list instance with multi-port allocation and free
     free_list #(
         .PHYS_REGS(PHYS_REGS),
         .ALLOC_PORTS(FETCH_W),
@@ -141,8 +143,8 @@ module rename_stage #(
         .clk(clk),
         .reset(reset),
         .flush_pipeline(flush_pipeline),
-        .restore_en(flush_pipeline),        // placeholder - see below
-        .restore_id(restore_checkpoint_id), // NEW INPUT to rename_stage, see below
+        .restore_en(flush_pipeline),
+        .restore_id(restore_checkpoint_id),
         .checkpoint_en(|take_checkpoint),
         .checkpoint_id(checkpoint_ptr),
         .alloc_en(alloc_en),
@@ -153,8 +155,7 @@ module rename_stage #(
     );
 
     // ============================================================
-    //  Rename Table (Architectural â†’ Physical Mapping)
-    //  FIXED: Single instance with multi-port lookups
+    //  Rename Table (Architectural → Physical Mapping)
     // ============================================================
 
     logic [1:0][5:0] rename_new_phys_rd;
@@ -165,7 +166,7 @@ module rename_stage #(
     logic [FETCH_W-1:0][5:0] phys_rs2;
     logic [FETCH_W-1:0][4:0] rename_arch_rd_wire;
 
-    // FIXED: Single rename_table instance with array ports
+    // Single rename_table instance with array ports
     rename_table #(
         .ARCH_REGS(ARCH_REGS),
         .PHYS_REGS(PHYS_REGS),
@@ -175,16 +176,13 @@ module rename_stage #(
     ) rename_table_inst (
         .clk(clk),
         .reset(reset),
-        // Lookups (multi-port reads)
         .arch_rs1(dec_rs1),
         .arch_rs2(dec_rs2),
         .phys_rs1(phys_rs1),
         .phys_rs2(phys_rs2),
-        // Renames (multi-port updates)
         .rename_en(rename_en),
         .arch_rd(rename_arch_rd_wire),
         .new_phys_rd(rename_new_phys_rd),
-        // Commits (multi-port committed state updates)
         .commit_en(commit_en_r),
         .commit_arch_rd(commit_arch_rd_r),
         .commit_phys_rd(commit_phys_rd_r),
@@ -195,16 +193,14 @@ module rename_stage #(
     //  Rename Logic
     // ============================================================
     always_comb begin
-        // Default values
         rename_en = '0;
         rename_ready = 1'b1;
         for (int i = 0; i < FETCH_W; i++) begin
             rename_arch_rd_wire[i] = 5'd0;
             rename_new_phys_rd[i] = 6'd0;
 
-            // Enable rename if instruction has a destination register (not X0) and not flushing
             if (dec_valid[i]  && !flush_pipeline) begin
-                rename_en[i] = 1'b1;  // Only rename if allocation succeeded
+                rename_en[i] = 1'b1;
                 rename_arch_rd_wire[i] = dec_rd[i];
                 rename_new_phys_rd[i] = alloc_phys[i];
             end
@@ -212,7 +208,7 @@ module rename_stage #(
     end
 
     // ============================================================
-    //  Pipeline Registers (Decode â†’ Rename)
+    //  Pipeline Registers (Decode → Rename)
     // ============================================================
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -253,21 +249,16 @@ module rename_stage #(
                     rename_is_branch[i] <= dec_is_branch[i];
                     rename_is_cas[i] <= dec_is_cas[i];
 
-                    // Pass through register valid flags
                     rename_rs1_valid[i] <= dec_rs1_valid[i];
                     rename_rs2_valid[i] <= dec_rs2_valid[i];
 
-                    // Save architectural registers
                     rename_arch_rs1[i] <= dec_rs1[i];
                     rename_arch_rs2[i] <= dec_rs2[i];
                     rename_arch_rd[i]  <= dec_rd[i];
 
-                    // Latch checkpoint id for branch instructions (pre-increment value)
-                    if (dec_is_branch[i]) begin
-                        rename_checkpoint_id[i] <= checkpoint_ptr;
-                    end
+                    // Latch checkpoint id for this lane (pre-increment value)
+                    rename_checkpoint_id[i] <= checkpoint_id_wire[i];
 
-                    // Handle X0 special case (always physical register 0)
                     if (dec_rd[i] == 5'd0) begin
                         rename_prd[i] <= 6'd0;
                         rename_rd_valid[i] <= 1'b0;
@@ -329,12 +320,5 @@ module rename_stage #(
             end
         end
     end
-
-    // ============================================================
-    //  Backpressure Logic
-    // ============================================================
-
-
-
 
 endmodule
