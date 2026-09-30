@@ -2,14 +2,14 @@
 import core_pkg::*;
 
 module reservation_station #(
-    parameter int RS_ENTRIES  = 32,  // REDUCED from 32
+    parameter int RS_ENTRIES  = 32,
     parameter int ISSUE_W     = 2,
     parameter int CDB_W       = 2,
     parameter int PHYS_W      = 6
 )(
     input  logic                     clk,
     input  logic                     reset,
-    
+
     input  logic                     flush_pipeline,
 
     // Allocation interface
@@ -26,6 +26,9 @@ module reservation_station #(
     input  logic [ISSUE_W-1:0][31:0] alloc_pc,
     input  logic [ISSUE_W-1:0][31:0] alloc_imm,
 
+    // NEW PORT — checkpoint id allocation input
+    input  logic [ISSUE_W-1:0][$clog2(8)-1:0] alloc_checkpoint_id,
+
     // CDB broadcast
     input  logic [CDB_W-1:0]         cdb_valid,
     input  logic [CDB_W-1:0][PHYS_W-1:0] cdb_tag,
@@ -39,7 +42,10 @@ module reservation_station #(
     output logic [ISSUE_W-1:0][31:0] issue_src2_val,
     output logic [ISSUE_W-1:0][5:0]  issue_rob_tag,
     output logic [ISSUE_W-1:0][31:0] issue_pc,
-    output logic [ISSUE_W-1:0][31:0] issue_imm
+    output logic [ISSUE_W-1:0][31:0] issue_imm,
+
+    // NEW PORT — checkpoint id issue output
+    output logic [ISSUE_W-1:0][$clog2(8)-1:0] issue_checkpoint_id
 );
 
     typedef struct packed {
@@ -54,13 +60,12 @@ module reservation_station #(
         logic [11:0] opcode;
         logic [5:0] rob_tag;
         logic [4:0] age;
-        logic [31:0] pc;      
+        logic [31:0] pc;
         logic [31:0] imm;
+        logic [$clog2(8)-1:0] checkpoint_id;
     } rs_entry_t;
 
     rs_entry_t rs_mem [0:RS_ENTRIES-1];
-
-        
 
     // =========================================================================
     // Branch opcode function (fix the 2 branches issued bug)
@@ -80,12 +85,11 @@ module reservation_station #(
                 op_is_branch = 1'b0;
         endcase
     endfunction
-    
+
     // =========================================================================
     // PIPELINE STAGE 1: Ready Mask + Age Encoding (Cycle N)
     // =========================================================================
-    // 
-    
+
     typedef struct packed {
         logic valid;
         logic [3:0] idx;
@@ -97,17 +101,18 @@ module reservation_station #(
         logic [5:0] rob_tag;
         logic [31:0] pc;
         logic [31:0] imm;
-        logic is_branch;         
+        logic is_branch;
+        logic [$clog2(8)-1:0] checkpoint_id;
     } select_stage1_t;
-    
+
     select_stage1_t stage1_candidates [ISSUE_W];
     logic stage1_valid;
-    
+
     // Stage 1: Find oldest ready in EACH HALF (parallel 8-way comparisons)
     always_ff @(posedge clk or posedge reset) begin
         automatic logic [RS_ENTRIES-1:0] ready_mask;
         automatic int i, p;
-        
+
         if (reset || flush_pipeline) begin
             for (p = 0; p < ISSUE_W; p++) begin
                 stage1_candidates[p].valid <= 1'b0;
@@ -115,14 +120,14 @@ module reservation_station #(
                 stage1_candidates[p].idx <= '0;
             end
             stage1_valid <= 1'b0;
-            
+
         end else begin
             // Build ready mask (cheap - just AND gates)
             for (i = 0; i < RS_ENTRIES; i++) begin
                 ready_mask[i] = rs_mem[i].valid && rs_mem[i].src1_ready && rs_mem[i].src2_ready;
             end
-            
-            // Port 0: Search entries [0:7] (8-way comparison)
+
+            // Port 0: Search entries [0:15] (8-way comparison)
             stage1_candidates[0].valid <= 1'b0;
             stage1_candidates[0].age <= '0;
             for (i = 0; i < 16; i++) begin
@@ -139,11 +144,12 @@ module reservation_station #(
                         stage1_candidates[0].pc <= rs_mem[i].pc;
                         stage1_candidates[0].imm <= rs_mem[i].imm;
                         stage1_candidates[0].is_branch <= op_is_branch(rs_mem[i].opcode);
+                        stage1_candidates[0].checkpoint_id <= rs_mem[i].checkpoint_id;
                     end
                 end
             end
-            
-            // Port 1: Search entries [8:15] (8-way comparison, parallel with port 0)
+
+            // Port 1: Search entries [16:31] (8-way comparison, parallel with port 0)
             stage1_candidates[1].valid <= 1'b0;
             stage1_candidates[1].age <= '0;
             for (i = 16; i < 32; i++) begin
@@ -160,23 +166,23 @@ module reservation_station #(
                         stage1_candidates[1].pc <= rs_mem[i].pc;
                         stage1_candidates[1].imm <= rs_mem[i].imm;
                         stage1_candidates[1].is_branch <= op_is_branch(rs_mem[i].opcode);
+                        stage1_candidates[1].checkpoint_id <= rs_mem[i].checkpoint_id;
                     end
                 end
             end
-            
+
             stage1_valid <= 1'b1;
         end
     end
-    
+
     // =========================================================================
     // PIPELINE STAGE 2: Final Selection + Issue (Cycle N+1)
     // =========================================================================
-    // Compare the 2 candidates from stage 1, pick oldest, then pick second-oldest
-    
+
     always_ff @(posedge clk or posedge reset) begin
         automatic select_stage1_t winner, runner_up;
         automatic logic both_valid;
-        
+
         if (reset || flush_pipeline) begin
             issue_valid <= '0;
             issue_op <= '0;
@@ -186,10 +192,11 @@ module reservation_station #(
             issue_rob_tag <= '0;
             issue_pc <= '0;
             issue_imm <= '0;
-            
+            issue_checkpoint_id <= '0;
+
         end else if (stage1_valid) begin
             both_valid = stage1_candidates[0].valid && stage1_candidates[1].valid;
-            
+
             // Determine winner (oldest) and runner-up
             if (both_valid) begin
                 if (stage1_candidates[0].age > stage1_candidates[1].age) begin
@@ -211,11 +218,10 @@ module reservation_station #(
             end
 
             // Prevent two branches issuing in the same cycle
-      
             if (winner.valid && runner_up.valid && winner.is_branch && runner_up.is_branch) begin
                 runner_up.valid = 1'b0;
             end
-            
+
             // Issue port 0: Winner
             issue_valid[0] <= winner.valid;
             if (winner.valid) begin
@@ -226,8 +232,9 @@ module reservation_station #(
                 issue_rob_tag[0] <= winner.rob_tag;
                 issue_pc[0] <= winner.pc;
                 issue_imm[0] <= winner.imm;
+                issue_checkpoint_id[0] <= winner.checkpoint_id;
             end
-            
+
             // Issue port 1: Runner-up
             issue_valid[1] <= runner_up.valid;
             if (runner_up.valid) begin
@@ -238,27 +245,28 @@ module reservation_station #(
                 issue_rob_tag[1] <= runner_up.rob_tag;
                 issue_pc[1] <= runner_up.pc;
                 issue_imm[1] <= runner_up.imm;
+                issue_checkpoint_id[1] <= runner_up.checkpoint_id;
             end
-            
+
         end else begin
             issue_valid <= '0;
         end
     end
-    
+
     // =========================================================================
     // RS Entry Management (runs every cycle, parallel with selection)
     // =========================================================================
-    
+
     // Allocation signals
     logic [RS_ENTRIES-1:0] free_mask;
     logic [RS_ENTRIES-1:0] mask_after_port0;
-    logic [ISSUE_W-1:0][4:0] alloc_slot_idx;  // 4 bits for 16 entries
+    logic [ISSUE_W-1:0][4:0] alloc_slot_idx;
     logic [ISSUE_W-1:0] alloc_slot_valid;
-    
+
     // Combinational allocation priority encoder
     always_comb begin
         automatic int i;
-    
+
         // Build free mask
         free_mask = '0;
         for (i = 0; i < RS_ENTRIES; i++) begin
@@ -266,8 +274,8 @@ module reservation_station #(
                 free_mask[i] = 1'b1;
             end
         end
-    
-        // Port 0: search LOWER half only [0:7]
+
+        // Port 0: search LOWER half only [0:15]
         alloc_slot_valid[0] = 1'b0;
         alloc_slot_idx[0] = '0;
         if (alloc_en[0]) begin
@@ -278,8 +286,8 @@ module reservation_station #(
                 end
             end
         end
-    
-        // Port 1: search UPPER half only [8:15]
+
+        // Port 1: search UPPER half only [16:31]
         alloc_slot_valid[1] = 1'b0;
         alloc_slot_idx[1] = '0;
         if (alloc_en[1]) begin
@@ -291,12 +299,12 @@ module reservation_station #(
             end
         end
     end
-    
+
     // Sequential: Allocate, Clear, Wakeup, Age
     always_ff @(posedge clk or posedge reset) begin
         automatic logic [RS_ENTRIES-1:0] clear_mask;
         automatic int i, a, b;
-        
+
         if (reset) begin
             for (i = 0; i < RS_ENTRIES; i++) begin
                 rs_mem[i].valid <= 1'b0;
@@ -304,19 +312,18 @@ module reservation_station #(
                 rs_mem[i].src2_ready <= 1'b0;
                 rs_mem[i].age <= '0;
             end
-            
+
         end else if (flush_pipeline) begin
             for (i = 0; i < RS_ENTRIES; i++) begin
                 rs_mem[i].valid <= 1'b0;
                 rs_mem[i].age <= '0;
             end
-            
+
         end else begin
             // Clear issued entries (2-cycle delay due to pipeline)
             clear_mask = '0;
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid) begin
-                    // Check if this ROB tag was issued 2 cycles ago
                     if (issue_valid[0] && rs_mem[i].rob_tag == issue_rob_tag[0]) begin
                         clear_mask[i] = 1'b1;
                     end
@@ -325,7 +332,7 @@ module reservation_station #(
                     end
                 end
             end
-            
+
             // Apply clears
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (clear_mask[i]) begin
@@ -333,7 +340,7 @@ module reservation_station #(
                     rs_mem[i].age <= '0;
                 end
             end
-            
+
             // Allocate new entries
             for (a = 0; a < ISSUE_W; a++) begin
                 if (alloc_en[a] && alloc_slot_valid[a]) begin
@@ -351,32 +358,29 @@ module reservation_station #(
                     rs_mem[slot].age <= 5'd0;
                     rs_mem[slot].pc <= alloc_pc[a];
                     rs_mem[slot].imm <= alloc_imm[a];
+                    rs_mem[slot].checkpoint_id <= alloc_checkpoint_id[a];
                 end
             end
-            
+
             // CDB wakeup + age increment
             for (i = 0; i < RS_ENTRIES; i++) begin
                 if (rs_mem[i].valid && !clear_mask[i]) begin
                     // Wakeup src1
-                    //if (!rs_mem[i].src1_ready) begin
-                        for (b = 0; b < CDB_W; b++) begin
-                            if (cdb_valid[b] && rs_mem[i].src1_tag == cdb_tag[b]) begin
-                                rs_mem[i].src1_val <= cdb_value[b];
-                                rs_mem[i].src1_ready <= 1'b1;
-                            end
+                    for (b = 0; b < CDB_W; b++) begin
+                        if (cdb_valid[b] && rs_mem[i].src1_tag == cdb_tag[b]) begin
+                            rs_mem[i].src1_val <= cdb_value[b];
+                            rs_mem[i].src1_ready <= 1'b1;
                         end
-                   // end
-                    
+                    end
+
                     // Wakeup src2
-                   // if (!rs_mem[i].src2_ready) begin
-                        for (b = 0; b < CDB_W; b++) begin
-                            if (cdb_valid[b] && rs_mem[i].src2_tag == cdb_tag[b]) begin
-                                rs_mem[i].src2_val <= cdb_value[b];
-                                rs_mem[i].src2_ready <= 1'b1;
-                            end
+                    for (b = 0; b < CDB_W; b++) begin
+                        if (cdb_valid[b] && rs_mem[i].src2_tag == cdb_tag[b]) begin
+                            rs_mem[i].src2_val <= cdb_value[b];
+                            rs_mem[i].src2_ready <= 1'b1;
                         end
-                  //  end
-                    
+                    end
+
                     // Increment age
                     rs_mem[i].age <= rs_mem[i].age + 1'b1;
                 end
