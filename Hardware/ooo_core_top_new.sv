@@ -163,6 +163,8 @@ module ooo_core_top (
     logic [1:0] commit_en;
     logic [1:0][4:0] commit_arch_rd;
     logic [1:0][5:0] commit_phys_rd;
+    logic [$clog2(8)-1:0] branch_restore_checkpoint_id;
+    logic [1:0][$clog2(8)-1:0] rename_checkpoint_id, rs_alloc_checkpoint_id, issue_checkpoint_id;
 
     // Dispatch / Issue
     logic dispatch_stall;
@@ -400,6 +402,8 @@ module ooo_core_top (
         .rename_arch_rs1(rename_arch_rs1), .rename_arch_rs2(rename_arch_rs2), .rename_arch_rd(rename_arch_rd),
         .commit_en(commit_en), .commit_arch_rd(commit_arch_rd), .commit_phys_rd(commit_phys_rd),
         .flush_pipeline(flush_pipeline)
+         .restore_checkpoint_id(branch_restore_checkpoint_id),
+        .rename_checkpoint_id(rename_checkpoint_id),
     );
 
     // --- Dispatch ---
@@ -413,6 +417,8 @@ module ooo_core_top (
         .rename_is_branch(rename_is_branch), .rename_is_cas(rename_is_cas), .rename_alu_func(rename_alu_func),
         .rename_arch_rs1(rename_arch_rs1), .rename_arch_rs2(rename_arch_rs2), .rename_arch_rd(rename_arch_rd),
         .flush_pipeline(flush_pipeline), .dispatch_stall(dispatch_stall),
+             .rename_checkpoint_id(rename_checkpoint_id),
+        .rs_alloc_checkpoint_id(rs_alloc_checkpoint_id),
         .prf_rtag0(prf_rtag0), .prf_rdata0(prf_rdata0),
         .prf_rtag1(prf_rtag1), .prf_rdata1(prf_rdata1),
         .prf_rtag2(prf_rtag2), .prf_rdata2(prf_rdata2),
@@ -448,6 +454,8 @@ module ooo_core_top (
         .alloc_pc(rs_alloc_pc), .alloc_imm(rs_alloc_imm),
         .cdb_valid(cdb_valid), .cdb_tag(cdb_tag), .cdb_value(cdb_value),
         .issue_valid(issue_valid), .issue_op(issue_op),
+                .alloc_checkpoint_id(rs_alloc_checkpoint_id),
+        .issue_checkpoint_id(issue_checkpoint_id),
         .issue_dst_tag(issue_dst_tag), .issue_src1_val(issue_src1_val),
         .issue_src2_val(issue_src2_val), .issue_rob_tag(issue_rob_tag),
         .issue_pc(issue_pc), .issue_imm(issue_imm)
@@ -616,6 +624,8 @@ module ooo_core_top (
         .branch_result_value(branch_result_value), .branch_result_rob_tag(branch_result_rob_tag),
         .is_call(branch_outcome_is_call), .is_return(branch_outcome_is_return),
         .branch_taken(branch_taken), .branch_target_pc(branch_target_pc),
+              .issue_checkpoint_id(issue_checkpoint_id),
+        .restore_checkpoint_id(branch_restore_checkpoint_id),
         .branch_mispredict(branch_mispredict)
     );
 
