@@ -386,4 +386,78 @@ module dispatch #(
             for (int i = 0; i < FETCH_W; i++) begin
                 if (rename_valid_r[i] &&
                     !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)
-                    && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd
+                    && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd30 && !(rename_opcode_r[i] == 6'd32 || rename_opcode_r[i] == 6'd33))) begin
+                    rs_alloc_en[i] <= 1'b1;
+                    rs_alloc_dst_tag[i] <= rename_prd_r[i];
+                    rs_alloc_src1_tag[i] <= rename_prs1_r[i];
+                    rs_alloc_src2_tag[i] <= rename_prs2_r[i];
+                    rs_alloc_src1_val[i] <= src1_value[i];
+                    rs_alloc_src2_val[i] <= src2_value[i];
+                    rs_alloc_src1_ready[i] <= src1_ready[i];
+                    rs_alloc_src2_ready[i] <= src2_ready[i];
+                    rs_alloc_op[i] <= {rename_opcode_r[i], rename_alu_func_r[i]};
+                    rs_alloc_pc[i] <= rename_pc_r[i];
+                    rs_alloc_imm[i] <= rename_imm_r[i];
+                    rs_alloc_checkpoint_id[i] <= rename_checkpoint_id_r[i];
+                    //rs_alloc_rob_tag[i] <= rob_alloc_idx_r[i];
+                end else begin
+                    rs_alloc_en[i] <= 1'b0;
+                end
+            end
+
+            // ====================================================
+            // ROB Allocation
+            // ====================================================
+            for (int i = 0; i < FETCH_W; i++) begin
+                if (rename_valid_r[i] && !(rename_is_alu_r[i] && rename_prd_r[i] == 6'd0)
+                    && !(rename_prd_r[i] == 6'd0 && rename_prs1_r[i] < 6'd30 && !(rename_opcode_r[i] == 6'd32 || rename_opcode_r[i] == 6'd33))) begin
+                    rob_alloc_en[i] <= 1'b1;
+                    rob_alloc_is_store[i] <= rename_is_store_r[i];
+                    rob_alloc_is_load[i] <= rename_is_load_r[i];
+                    rob_alloc_is_branch[i] <= rename_is_branch_r[i];
+                    rob_alloc_arch_rd[i] <= rename_arch_rd_r[i];
+                    rob_alloc_phys_rd[i] <= rename_prd_r[i];
+                    rob_alloc_pc[i] <= rename_pc_r[i];
+                end else begin
+                    rob_alloc_en[i] <= 1'b0;
+                    rob_alloc_is_store[i] <= 1'b0;
+                    rob_alloc_is_load[i] <= 1'b0;
+                    rob_alloc_is_branch[i] <= 1'b0;
+                end
+            end
+
+            // ====================================================
+            // LSU Allocation (only one per cycle)
+            // ====================================================
+            lsu_alloc_en <= 1'b0;
+            for (int i = 0; i < FETCH_W; i++) begin
+                if (rename_valid_r[i] && (rename_is_load_r[i] || rename_is_store_r[i])) begin
+                    lsu_alloc_en <= 1'b1;
+                    lsu_lane_index <= i[0];
+                    lsu_is_load <= rename_is_load_r[i];
+                    lsu_opcode <= {rename_opcode_r[i], 2'b00};
+                    lsu_base_tag <= rename_prs1_r[i];
+                    lsu_offset <= rename_imm_r[i];
+                    lsu_store_data_value <= src2_value[i];
+                    lsu_store_data_tag <= rename_prs2_r[i];
+                    lsu_store_data_ready <= src2_ready[i];
+                    lsu_arch_rs1 <= rename_arch_rs1_r[i];
+                    lsu_arch_rs2 <= rename_arch_rs2_r[i];
+                    lsu_arch_rd <= rename_arch_rd_r[i];
+                    lsu_phys_rd <= rename_prd_r[i];
+                    //lsu_rob_idx <= rob_alloc_idx_r[i];
+
+                    if (cached_valid && rename_prs1_r[i] == cached_base_tag && cached_base_ready) begin
+                        lsu_base_value <= cached_base_value;
+                        lsu_base_ready <= cached_base_ready;
+                    end else begin
+                        lsu_base_value <= src1_value[i];
+                        lsu_base_ready <= src1_ready[i];
+                    end
+                    break;  // Only one memory op per cycle
+                end
+            end
+        end
+    end
+
+endmodule
