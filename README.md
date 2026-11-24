@@ -11,7 +11,8 @@ A complete RTL implementation of a 2-wide superscalar out-of-order processor sup
 
 **Status:** ✅ Successfully executes "Hello, LEGv8!" via UART w Out of order pipeline working correctly. Synthesized at 60 mhz.
 
-**Next goal:** To support Ethernet + VGA display and handle Clock Domain Crossing correctly. Use ethernet to write a program to icache then jump to it. Use VGA and character/font library to display outputs onto a monitor.
+**Next goal:** To support Keyboard intput + VGA Monitor display and handle Clock Domain Crossing correctly. 
+Final Demo would be a mini computer terminal where one can create a file and write to it and PLAY SNAKE. SNAKE! ON MY LITTLE CPU, with a TV as monitor, USB keyboard, and the FPGA where our CPU/SoC lives. 
 
 **Side goal:** To Verify as many modules as possible using UVM and Formal Verification methods.
 
